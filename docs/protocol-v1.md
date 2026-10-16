@@ -59,8 +59,9 @@ macOS 桌面界面通过用户权限 Unix socket 与 `vpn_daemon` 通信，默�
 
 - `{"command":"ping"}`：检查 daemon 是否可用。
 - `{"command":"snapshot"}`：读取全部会话快照。
-- `{"command":"connect","sessionId":"...","name":"...","profile":"...","credentials":{...}}`：提交连接请求。
+- `{"command":"connect","sessionId":"...","profileId":"...","name":"...","profile":"...","credentials":{...},"rememberCredentials":false}`：提交连接请求。省略凭据时由 daemon 从 Keychain 读取。
 - `{"command":"disconnect","sessionId":"..."}`：断开指定会话。
+- `{"command":"forgetCredentials","profileId":"..."}`：删除指定 profile 的 Keychain 凭据。
 
 daemon 只在内存中接收凭据，响应和事件经过脱敏；socket 默认权限为当前用户可读写。
 真正的 profile 密码应优先由 Keychain/Credential Manager 读取，不能由界面长期保存。

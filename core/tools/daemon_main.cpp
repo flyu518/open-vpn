@@ -2,6 +2,10 @@
 #include "vpn_security.h"
 #include "vpn_session_manager.h"
 
+#if defined(__APPLE__)
+#include "platform/macos/secure_store/keychain_store.h"
+#endif
+
 #include <json/json.h>
 
 #include <algorithm>
@@ -90,10 +94,12 @@ class Daemon;
 
 class SessionController {
 public:
-    explicit SessionController(Daemon* daemon) : daemon_(daemon) {}
+    SessionController(Daemon* daemon, vpn::CredentialStore* credential_store)
+        : daemon_(daemon), credential_store_(credential_store) {}
 
     Json::Value connect(const Json::Value& request);
     Json::Value disconnect(const std::string& session_id);
+    Json::Value forgetCredentials(const std::string& profile_id);
     Json::Value snapshot() const;
     void stopAll();
 
@@ -115,6 +121,7 @@ private:
                                    const Record& record);
 
     Daemon* daemon_;
+    vpn::CredentialStore* credential_store_;
     mutable std::mutex mutex_;
     vpn::OpenVPN3Engine engine_;
     std::map<std::string, Record> records_;
@@ -123,7 +130,17 @@ private:
 class Daemon {
 public:
     explicit Daemon(std::string socket_path)
-        : socket_path_(std::move(socket_path)), controller_(this) {}
+        : socket_path_(std::move(socket_path)),
+#if defined(__APPLE__)
+          credential_store_(std::make_unique<vpn::platform::macos::KeychainCredentialStore>()),
+#endif
+          controller_(this,
+#if defined(__APPLE__)
+                      credential_store_.get()
+#else
+                      nullptr
+#endif
+          ) {}
 
     ~Daemon() {
         stop();
@@ -145,6 +162,9 @@ private:
     std::string socket_path_;
     std::atomic<bool> running_{true};
     int server_fd_ = -1;
+#if defined(__APPLE__)
+    std::unique_ptr<vpn::CredentialStore> credential_store_;
+#endif
     SessionController controller_;
     std::mutex clients_mutex_;
     std::vector<int> clients_;
@@ -196,6 +216,26 @@ Json::Value SessionController::connect(const Json::Value& request) {
     credentials.response = credential_value.get("response", "").asString();
     credentials.dynamic_challenge_cookie =
         credential_value.get("dynamicChallengeCookie", "").asString();
+    const std::string profile_id =
+        request.get("profileId", session_id).asString();
+    const bool has_credentials = !credentials.username.empty() ||
+                                 !credentials.password.empty() ||
+                                 !credentials.response.empty() ||
+                                 !credentials.dynamic_challenge_cookie.empty();
+    if (!has_credentials) {
+        if (credential_store_ == nullptr) {
+            return response(false, "当前 daemon 没有可用的安全凭据存储");
+        }
+        vpn::Credentials stored_credentials;
+        const vpn::CredentialStoreResult loaded =
+            credential_store_->load(profile_id, &stored_credentials);
+        if (!loaded.ok()) {
+            return response(false, loaded.diagnostic);
+        }
+        credentials.username = stored_credentials.username;
+        credentials.password = stored_credentials.password;
+        credentials.response = stored_credentials.response;
+    }
 
     auto record = std::make_unique<Record>();
     record->display_name = request.get("name", session_id).asString();
@@ -213,6 +253,22 @@ Json::Value SessionController::connect(const Json::Value& request) {
     record->remote_host = evaluation.remote_host;
     if (!record->session->setCredentials(credentials)) {
         return response(false, "VPN 凭据设置失败");
+    }
+    if (request.get("rememberCredentials", false).asBool()) {
+        if (credential_store_ == nullptr) {
+            return response(false, "当前 daemon 没有可用的安全凭据存储");
+        }
+        const vpn::Credentials stored_credentials{
+            credentials.username,
+            credentials.password,
+            credentials.response,
+            "",
+        };
+        const vpn::CredentialStoreResult saved =
+            credential_store_->save(profile_id, stored_credentials);
+        if (!saved.ok()) {
+            return response(false, saved.diagnostic);
+        }
     }
 
     {
@@ -252,6 +308,15 @@ Json::Value SessionController::disconnect(const std::string& session_id) {
     }
     session->stop();
     return response(true, "断开请求已提交");
+}
+
+Json::Value SessionController::forgetCredentials(const std::string& profile_id) {
+    if (credential_store_ == nullptr) {
+        return response(false, "当前 daemon 没有可用的安全凭据存储");
+    }
+    const vpn::CredentialStoreResult removed = credential_store_->remove(profile_id);
+    return removed.ok() ? response(true, "凭据已删除")
+                        : response(false, removed.diagnostic);
 }
 
 Json::Value SessionController::snapshot() const {
@@ -341,6 +406,9 @@ Json::Value Daemon::handleRequest(const Json::Value& request) {
     }
     if (command == "disconnect") {
         return controller_.disconnect(request.get("sessionId", "").asString());
+    }
+    if (command == "forgetCredentials") {
+        return controller_.forgetCredentials(request.get("profileId", "").asString());
     }
     return response(false, "未知命令：" + command);
 }

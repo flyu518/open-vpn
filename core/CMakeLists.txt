@@ -289,6 +289,7 @@ if(APPLE)
         /usr/local/opt/jsoncpp/include
     )
     target_link_libraries(vpn_daemon PRIVATE vpn_core)
+    target_link_libraries(vpn_daemon PRIVATE vpn_macos_secure_store)
     set_target_properties(vpn_daemon PROPERTIES
         CXX_STANDARD 20
         CXX_STANDARD_REQUIRED ON

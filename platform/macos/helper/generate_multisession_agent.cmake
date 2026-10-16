@@ -417,6 +417,30 @@ replace_required(
     [=[        config->unix_mode = 0660;]=]
     "Unix socket 权限")
 
+replace_required(
+    [=[    bool allow_client(AsioPolySock::Base &sock) override
+    {
+        return true;
+    }]=]
+    [=[    bool allow_client(AsioPolySock::Base &sock) override
+    {
+        SockOpt::Creds credentials;
+        if (!sock.peercreds(credentials))
+        {
+            OPENVPN_LOG("拒绝没有 peer credentials 的 Unix socket 客户端");
+            return false;
+        }
+        const bool same_group = credentials.gid == ::getegid();
+        const bool non_root = !credentials.root_uid();
+        if (!same_group || !non_root)
+        {
+            OPENVPN_LOG("拒绝 Unix socket 客户端：uid/gid 不符合本地 helper 策略");
+            return false;
+        }
+        return true;
+    }]=]
+    "Unix socket peer credentials 校验")
+
 get_filename_component(OUTPUT_DIRECTORY "${OUTPUT_SOURCE}" DIRECTORY)
 file(MAKE_DIRECTORY "${OUTPUT_DIRECTORY}")
 file(WRITE "${OUTPUT_SOURCE}" "${SOURCE}")

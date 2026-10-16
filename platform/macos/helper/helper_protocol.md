@@ -16,5 +16,6 @@ OpenVPN3 Core 的 TUN、旁路路由和销毁请求。每个会话使用
 helper 的 launchd 配置位于 `packaging/macos/com.vpn.helper.plist`，本地安装脚本位于
 `packaging/macos/install-helper.sh`。离线测试只验证会话和路由状态机，不启动高权限进程。
 
-helper 当前将 Unix socket 限制为 `staff` 组可读写，并保留 OpenVPN3 的本地 peer 校验
-路径；正式发布前仍需加入应用签名/调用方鉴权，不能仅依赖本地组权限作为生产安全边界。
+helper 当前将 Unix socket 限制为 `staff` 组可读写，并拒绝 root 或非 helper 有效组的
+peer credentials；正式发布前仍需加入应用签名/调用方鉴权，不能仅依赖本地组权限作为
+生产安全边界。

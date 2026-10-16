@@ -26,6 +26,8 @@ abstract class EngineClient {
     String password = '',
     String response = '',
     String dynamicChallengeCookie = '',
+    String profileId = '',
+    bool rememberCredentials = false,
   });
 
   Future<void> disconnect(String sessionId);
@@ -121,9 +123,12 @@ class UnixSocketEngineClient implements EngineClient {
     String password = '',
     String response = '',
     String dynamicChallengeCookie = '',
+    String profileId = '',
+    bool rememberCredentials = false,
   }) => _send({
         'command': 'connect',
         'sessionId': sessionId,
+        'profileId': profileId.isEmpty ? sessionId : profileId,
         'name': sessionId,
         'profile': profile,
         'credentials': {
@@ -132,6 +137,7 @@ class UnixSocketEngineClient implements EngineClient {
           'response': response,
           'dynamicChallengeCookie': dynamicChallengeCookie,
         },
+        'rememberCredentials': rememberCredentials,
       });
 
   @override
@@ -165,6 +171,8 @@ class InMemoryEngineClient implements EngineClient {
     String password = '',
     String response = '',
     String dynamicChallengeCookie = '',
+    String profileId = '',
+    bool rememberCredentials = false,
   }) async {
     _events.add(EngineEvent(
       sessionId: sessionId,
