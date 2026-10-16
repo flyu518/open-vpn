@@ -35,3 +35,13 @@ target_include_directories(vpn_platform_adapter_contract_tests PRIVATE
 target_link_libraries(vpn_platform_adapter_contract_tests PRIVATE vpn_core)
 
 add_test(NAME vpn_platform_adapter_contract_tests COMMAND vpn_platform_adapter_contract_tests)
+
+if(EXISTS "${OPENVPN3_SOURCE_DIR}/client/ovpncli.cpp")
+    add_executable(vpn_openvpn3_engine_tests
+        openvpn3_engine_tests.cpp
+    )
+
+    target_link_libraries(vpn_openvpn3_engine_tests PRIVATE vpn_core)
+
+    add_test(NAME vpn_openvpn3_engine_tests COMMAND vpn_openvpn3_engine_tests)
+endif()

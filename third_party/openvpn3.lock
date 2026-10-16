@@ -1,0 +1,5 @@
+{
+  "repository": "https://github.com/OpenVPN/openvpn3.git",
+  "commit": "1b4db00849bfb27e05c226cd13f6985527b6bb79",
+  "description": "OpenVPN3 Core 源码固定版本；生产构建不得跟随浮动分支。"
+}
