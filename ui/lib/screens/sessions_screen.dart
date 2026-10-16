@@ -11,6 +11,7 @@ class SessionsScreen extends StatelessWidget {
     this.onConnect,
     this.onDisconnect,
     this.onEditStrategy,
+    this.onReorder,
   });
 
   final SessionViewModel viewModel;
@@ -18,6 +19,7 @@ class SessionsScreen extends StatelessWidget {
   final ValueChanged<VpnSession>? onConnect;
   final ValueChanged<VpnSession>? onDisconnect;
   final ValueChanged<VpnSession>? onEditStrategy;
+  final void Function(int oldIndex, int newIndex)? onReorder;
 
   @override
   Widget build(BuildContext context) {
@@ -45,20 +47,27 @@ class SessionsScreen extends StatelessWidget {
                         Expanded(
                           child: viewModel.sessions.isEmpty
                               ? _EmptyState(onImportProfile: onImportProfile)
-                              : ListView.separated(
+                              : ReorderableListView.builder(
+                                  buildDefaultDragHandles: true,
                                   itemCount: viewModel.sessions.length,
-                                  separatorBuilder: (_, __) =>
-                                      const SizedBox(height: 14),
+                                  onReorder: (oldIndex, newIndex) =>
+                                      onReorder?.call(oldIndex, newIndex),
+                                  padding: const EdgeInsets.only(bottom: 24),
                                   itemBuilder: (context, index) {
                                     final session = viewModel.sessions[index];
-                                    return SessionCard(
-                                      session: session,
-                                      error: viewModel.errorFor(session.id),
-                                      onConnect: () => onConnect?.call(session),
-                                      onDisconnect: () =>
-                                          onDisconnect?.call(session),
-                                      onEditStrategy: () =>
-                                          onEditStrategy?.call(session),
+                                    return Padding(
+                                      key: ValueKey(session.id),
+                                      padding: const EdgeInsets.only(bottom: 14),
+                                      child: SessionCard(
+                                        session: session,
+                                        error: viewModel.errorFor(session.id),
+                                        onConnect: () =>
+                                            onConnect?.call(session),
+                                        onDisconnect: () =>
+                                            onDisconnect?.call(session),
+                                        onEditStrategy: () =>
+                                            onEditStrategy?.call(session),
+                                      ),
                                     );
                                   },
                                 ),
@@ -173,6 +182,11 @@ class _Header extends StatelessWidget {
             Text('连接总览', style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 6),
             Text(activeLabel, style: Theme.of(context).textTheme.bodyMedium),
+            const SizedBox(height: 4),
+            Text(
+              '拖动连接卡片右侧手柄可调整连接优先级',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
           ],
         ),
         const Spacer(),

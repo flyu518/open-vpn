@@ -55,6 +55,7 @@ class _VpnAppState extends State<VpnApp> {
             viewModel.updateStrategy(session.id, strategy);
           }
         }),
+        onReorder: viewModel.reorderSessions,
       ),
     );
   }

@@ -49,4 +49,24 @@ class SessionViewModel extends ChangeNotifier {
     _sessions[id] = session.copyWith(routeStrategy: strategy);
     notifyListeners();
   }
+
+  void reorderSessions(int oldIndex, int newIndex) {
+    final ordered = List<VpnSession>.from(_sessions.values);
+    if (oldIndex < 0 || oldIndex >= ordered.length) return;
+    if (newIndex > oldIndex) newIndex -= 1;
+    if (newIndex < 0 || newIndex >= ordered.length) return;
+
+    final moved = ordered.removeAt(oldIndex);
+    ordered.insert(newIndex, moved);
+
+    _sessions.clear();
+    for (var index = 0; index < ordered.length; index++) {
+      final session = ordered[index];
+      final priority = ordered.length - index;
+      _sessions[session.id] = session.copyWith(
+        routeStrategy: session.routeStrategy.copyWith(priority: priority),
+      );
+    }
+    notifyListeners();
+  }
 }

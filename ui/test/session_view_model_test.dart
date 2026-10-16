@@ -64,4 +64,18 @@ void main() {
         RouteConflictMode.ask);
     expect(viewModel.sessionById('office-b')!.routeStrategy.priority, 10);
   });
+
+  test('拖动连接顺序会更新优先级', () {
+    final viewModel = SessionViewModel();
+    viewModel.replaceSessions([
+      VpnSession(id: 'office-a', name: '研发网络', status: VpnStatus.connected),
+      VpnSession(id: 'office-b', name: '财务网络', status: VpnStatus.connected),
+    ]);
+
+    viewModel.reorderSessions(1, 0);
+
+    expect(viewModel.sessions.first.id, 'office-b');
+    expect(viewModel.sessionById('office-b')!.routeStrategy.priority, 2);
+    expect(viewModel.sessionById('office-a')!.routeStrategy.priority, 1);
+  });
 }
