@@ -134,6 +134,15 @@ class SessionViewModel extends ChangeNotifier {
     if (!event.serviceAvailable) {
       _serviceChecked = true;
       _serviceError = event.message.isEmpty ? 'OpenVPN 服务不可用' : event.message;
+      for (final entry in _sessions.entries.toList()) {
+        final status = entry.value.status;
+        if (status == VpnStatus.connected ||
+            status == VpnStatus.connecting ||
+            status == VpnStatus.disconnecting) {
+          _sessions[entry.key] = entry.value.copyWith(status: VpnStatus.failed);
+          _errors[entry.key] = _serviceError!;
+        }
+      }
       notifyListeners();
       return;
     }

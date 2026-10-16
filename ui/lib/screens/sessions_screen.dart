@@ -184,12 +184,6 @@ class _Sidebar extends StatelessWidget {
             detail: sessionCount == 0 ? '管理配置文件' : '$sessionCount 个已导入配置',
             onTap: onOpenProfiles,
           ),
-          const _NavItem(
-            icon: Icons.history_rounded,
-            label: '连接记录',
-            detail: '即将支持',
-            enabled: false,
-          ),
           const Spacer(),
           Container(
             padding: const EdgeInsets.all(12),
@@ -300,7 +294,6 @@ class _NavItem extends StatelessWidget {
     required this.label,
     required this.detail,
     this.selected = false,
-    this.enabled = true,
     this.onTap,
   });
 
@@ -308,17 +301,12 @@ class _NavItem extends StatelessWidget {
   final String label;
   final String detail;
   final bool selected;
-  final bool enabled;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final foreground = !enabled
-        ? colors.onSurface.withValues(alpha: .38)
-        : selected
-            ? colors.primary
-            : colors.onSurfaceVariant;
+    final foreground = selected ? colors.primary : colors.onSurfaceVariant;
     return Container(
       margin: const EdgeInsets.only(top: 4),
       decoration: BoxDecoration(
@@ -331,8 +319,7 @@ class _NavItem extends StatelessWidget {
       child: Material(
         type: MaterialType.transparency,
         child: ListTile(
-          enabled: enabled,
-          dense: true,
+        dense: true,
           minVerticalPadding: 6,
           contentPadding: const EdgeInsets.symmetric(horizontal: 10),
           leading: Icon(icon, size: 20, color: foreground),
@@ -340,7 +327,7 @@ class _NavItem extends StatelessWidget {
           subtitle: Text(detail),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          onTap: enabled ? onTap : null,
+          onTap: onTap,
         ),
       ),
     );

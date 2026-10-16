@@ -138,6 +138,13 @@ void main() {
   test('daemon 运行中断开时更新服务状态', () async {
     final engine = InMemoryEngineClient();
     final viewModel = SessionViewModel(engineClient: engine);
+    viewModel.replaceSessions([
+      const VpnSession(
+        id: 'office-a',
+        name: '研发网络',
+        status: VpnStatus.connected,
+      ),
+    ]);
 
     engine.pushEvent(const EngineEvent(
       sessionId: '',
@@ -148,6 +155,8 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     expect(viewModel.serviceError, contains('连接已关闭'));
+    expect(viewModel.sessionById('office-a')!.status, VpnStatus.failed);
+    expect(viewModel.errorFor('office-a'), contains('连接已关闭'));
 
     viewModel.dispose();
     await engine.dispose();

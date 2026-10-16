@@ -113,7 +113,7 @@ class _RouteStrategyDialogState extends State<RouteStrategyDialog> {
               Text('匹配规则', style: Theme.of(context).textTheme.titleSmall),
               const SizedBox(height: 6),
               const Text(
-                'IP/CIDR 是实际路由依据；域名规则会先解析成 IP。不要使用任意模糊或正则匹配。',
+                'IP/CIDR 用于实际冲突判断；域名规则会保存到策略记录，实际路由仍以服务器下发的 IP/CIDR 为准。不要使用任意模糊或正则匹配。',
                 style: TextStyle(fontSize: 12),
               ),
               const SizedBox(height: 10),
