@@ -33,6 +33,8 @@ void rejects_ipv4_containment_overlap() {
     const vpn::RouteDecision decision =
         vpn::vpn_route_policy_validate(active, candidate);
     assert(decision.code == vpn::RouteDecisionCode::RouteConflict);
+    assert(decision.diagnostic.find("10.20.10.0/24") != std::string::npos);
+    assert(decision.diagnostic.find("10.20.0.0/16") != std::string::npos);
 }
 
 void rejects_ipv6_overlap() {

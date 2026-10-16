@@ -119,13 +119,17 @@ RouteDecision vpn_route_policy_validate(
     const RoutePolicy& candidate) {
     if (candidate.mode == RouteMode::Full) {
         if (!active_policies.empty()) {
-            return {RouteDecisionCode::FullTunnelExclusive, "全隧道连接具有排他性"};
+            return {RouteDecisionCode::FullTunnelExclusive,
+                    "全隧道连接具有排他性：候选会话 " + candidate.session_id +
+                        " 不能与活动会话同时接管默认路由"};
         }
         return {RouteDecisionCode::Allowed, "允许建立连接"};
     }
 
     if (has_full_tunnel(active_policies)) {
-        return {RouteDecisionCode::FullTunnelExclusive, "全隧道连接具有排他性"};
+        return {RouteDecisionCode::FullTunnelExclusive,
+                "全隧道连接具有排他性：候选会话 " + candidate.session_id +
+                    " 不能与活动全隧道同时接管默认路由"};
     }
 
     std::vector<ParsedNetwork> candidate_networks;
@@ -144,9 +148,16 @@ RouteDecision vpn_route_policy_validate(
             if (!parse_network(active_route, &active_network)) {
                 return invalid_route();
             }
-            for (const ParsedNetwork& candidate_network : candidate_networks) {
+            for (std::size_t candidate_index = 0;
+                 candidate_index < candidate_networks.size();
+                 ++candidate_index) {
+                const ParsedNetwork& candidate_network = candidate_networks[candidate_index];
+                const std::string& candidate_route = candidate.routes[candidate_index];
                 if (networks_overlap(active_network, candidate_network)) {
-                    return {RouteDecisionCode::RouteConflict, "路由与活动 VPN 重叠"};
+                    return {RouteDecisionCode::RouteConflict,
+                            "路由与活动 VPN 重叠：候选会话 " + candidate.session_id +
+                                " 的 " + candidate_route + " 与活动会话 " +
+                                active.session_id + " 的 " + active_route + " 重叠"};
                 }
             }
         }
