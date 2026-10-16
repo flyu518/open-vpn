@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/vpn/protocol-v1.json",
+  "title": "跨平台 VPN 协议 v1",
+  "description": "Windows 和 macOS 多连接 VPN 客户端的共享会话契约；Android 和 iOS 能力为后续扩展预留。",
+  "version": 1,
+  "capabilities": {
+    "DESKTOP_MULTI": { "maxActiveSessions": 4294967295 },
+    "MOBILE_SINGLE": { "maxActiveSessions": 1 }
+  },
+  "sessionStates": [
+    "idle",
+    "connecting",
+    "connected",
+    "disconnecting",
+    "disconnected",
+    "failed"
+  ],
+  "routeModes": ["split", "full"],
+  "errorCodes": {
+    "CAPABILITY_SINGLE_ACTIVE_VPN": 1001,
+    "ROUTE_CONFLICT": 1002,
+    "FULL_TUNNEL_EXCLUSIVE": 1003
+  },
+  "forwardCompatibility": {
+    "description": "读取方忽略未知字段；新增必填字段时升级协议版本。",
+    "unknownFields": "ignore",
+    "newRequiredFields": "require-version-bump"
+  }
+}
