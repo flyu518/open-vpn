@@ -6,16 +6,21 @@ import '../models/profile.dart';
 import '../models/session.dart';
 import '../models/route_strategy.dart';
 import '../services/engine_client.dart';
+import '../services/profile_store.dart';
 
 class SessionViewModel extends ChangeNotifier {
-  SessionViewModel({EngineClient? engineClient})
-      : _engineClient = engineClient {
+  SessionViewModel({
+    EngineClient? engineClient,
+    ProfileStore? profileStore,
+  })  : _engineClient = engineClient,
+        _profileStore = profileStore {
     _engineSubscription = engineClient?.events.listen(_applyEngineEvent);
   }
 
   final Map<String, VpnSession> _sessions = <String, VpnSession>{};
   final Map<String, String> _errors = <String, String>{};
   final EngineClient? _engineClient;
+  final ProfileStore? _profileStore;
   StreamSubscription<EngineEvent>? _engineSubscription;
 
   List<VpnSession> get sessions => List.unmodifiable(_sessions.values);
@@ -45,9 +50,31 @@ class SessionViewModel extends ChangeNotifier {
       status: VpnStatus.disconnected,
       profileId: profile.id,
       profile: profile.contents,
+      profilePath: profile.path,
       username: profile.username,
     );
     notifyListeners();
+    unawaited(_saveProfiles());
+  }
+
+  Future<void> loadProfiles() async {
+    final profileStore = _profileStore;
+    if (profileStore == null) return;
+    final restored = await profileStore.load();
+    for (final session in restored) {
+      _sessions[session.id] = session;
+    }
+    if (restored.isNotEmpty) notifyListeners();
+  }
+
+  Future<void> _saveProfiles() async {
+    final profileStore = _profileStore;
+    if (profileStore == null) return;
+    try {
+      await profileStore.save(_sessions.values);
+    } on Object {
+      // 配置持久化失败不影响当前连接，下一次导入或修改时继续尝试。
+    }
   }
 
   void updateStatus(String id, VpnStatus status) {
@@ -63,6 +90,7 @@ class SessionViewModel extends ChangeNotifier {
     if (session == null || normalizedName.isEmpty) return;
     _sessions[id] = session.copyWith(name: normalizedName);
     notifyListeners();
+    unawaited(_saveProfiles());
   }
 
   void applyError(String id, String message) {
@@ -202,6 +230,7 @@ class SessionViewModel extends ChangeNotifier {
     if (session == null) return;
     _sessions[id] = session.copyWith(routeStrategy: strategy);
     notifyListeners();
+    unawaited(_saveProfiles());
   }
 
   void reorderSessions(int oldIndex, int newIndex) {
@@ -221,6 +250,7 @@ class SessionViewModel extends ChangeNotifier {
       );
     }
     notifyListeners();
+    unawaited(_saveProfiles());
   }
 
   @override

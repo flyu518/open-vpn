@@ -32,6 +32,7 @@ class VpnSession {
     required this.status,
     this.profileId = '',
     this.profile = '',
+    this.profilePath = '',
     this.username = '',
     this.remoteHost = '',
     this.interfaceName = '',
@@ -50,6 +51,7 @@ class VpnSession {
   /// 只保留在当前进程内，用于向 daemon 提交连接请求，不写入日志或快照。
   final String profileId;
   final String profile;
+  final String profilePath;
   final String username;
   final String remoteHost;
   final String interfaceName;
@@ -78,6 +80,7 @@ class VpnSession {
     VpnStatus? status,
     String? profileId,
     String? profile,
+    String? profilePath,
     String? username,
     String? remoteHost,
     String? interfaceName,
@@ -94,6 +97,7 @@ class VpnSession {
       status: status ?? this.status,
       profileId: profileId ?? this.profileId,
       profile: profile ?? this.profile,
+      profilePath: profilePath ?? this.profilePath,
       username: username ?? this.username,
       remoteHost: remoteHost ?? this.remoteHost,
       interfaceName: interfaceName ?? this.interfaceName,

@@ -22,6 +22,19 @@ class RouteRule {
   final String pattern;
   final bool enabled;
 
+  factory RouteRule.fromJson(Map<String, dynamic> value) {
+    final typeName = value['type'] as String? ?? RouteRuleType.cidr.name;
+    final type = RouteRuleType.values.firstWhere(
+      (item) => item.name == typeName,
+      orElse: () => RouteRuleType.cidr,
+    );
+    return RouteRule(
+      type: type,
+      pattern: value['pattern'] as String? ?? '',
+      enabled: value['enabled'] as bool? ?? true,
+    );
+  }
+
   Map<String, Object?> toJson() => <String, Object?>{
         'type': type.name,
         'pattern': pattern,
@@ -39,6 +52,28 @@ class RouteStrategy {
   final RouteConflictMode conflictMode;
   final int priority;
   final List<RouteRule> rules;
+
+  factory RouteStrategy.fromJson(Map<String, dynamic> value) {
+    final modeName =
+        value['conflictMode'] as String? ?? RouteConflictMode.compatible.name;
+    final mode = RouteConflictMode.values.firstWhere(
+      (item) => item.name == modeName,
+      orElse: () => RouteConflictMode.compatible,
+    );
+    final rawRules = value['rules'];
+    return RouteStrategy(
+      conflictMode: mode,
+      priority: (value['priority'] as num?)?.toInt() ?? 0,
+      rules: rawRules is List
+          ? rawRules
+              .whereType<Map>()
+              .map((item) => RouteRule.fromJson(
+                    Map<String, dynamic>.from(item),
+                  ))
+              .toList(growable: false)
+          : const <RouteRule>[],
+    );
+  }
 
   Map<String, Object?> toJson() => <String, Object?>{
         'conflictMode': conflictMode.name,

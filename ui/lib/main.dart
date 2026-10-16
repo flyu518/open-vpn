@@ -12,6 +12,7 @@ import 'screens/route_strategy_dialog.dart';
 import 'screens/session_name_dialog.dart';
 import 'screens/sessions_screen.dart';
 import 'services/engine_client.dart';
+import 'services/profile_store.dart';
 import 'view_models/session_view_model.dart';
 
 void main() {
@@ -29,6 +30,7 @@ class _VpnAppState extends State<VpnApp> {
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   late final EngineClient engineClient;
   late final SessionViewModel viewModel;
+  late final ProfileStore profileStore;
 
   @override
   void initState() {
@@ -36,8 +38,17 @@ class _VpnAppState extends State<VpnApp> {
     engineClient = Platform.isMacOS
         ? UnixSocketEngineClient()
         : UnavailableEngineClient('Windows named pipe 尚未接入，请先启动 Windows 服务端');
-    viewModel = SessionViewModel(engineClient: engineClient);
-    viewModel.loadSnapshot();
+    profileStore = JsonProfileStore();
+    viewModel = SessionViewModel(
+      engineClient: engineClient,
+      profileStore: profileStore,
+    );
+    _loadInitialState();
+  }
+
+  Future<void> _loadInitialState() async {
+    await viewModel.loadProfiles();
+    await viewModel.loadSnapshot();
   }
 
   @override

@@ -33,9 +33,10 @@ PUB_CACHE=/绝对路径/open-vpn/.tools/pub-cache \
 的 named pipe；当前 macOS 已接入真实 daemon，Windows UI 会明确提示服务端尚未接入，
 不会把演示状态伪装成已连接。
 
-界面测试仍可注入内存客户端，避免测试依赖真实 OpenVPN。真实凭据只应由本机交互输入或
-Keychain/Credential Manager 提供，不能写入 UI 日志。导入的 profile 只保存在当前进程内，
-重新启动应用后需要重新导入；这是避免把内嵌证书/私钥写入普通配置文件的安全取舍。
+界面测试仍可注入内存客户端，避免测试依赖真实 OpenVPN。应用只持久化 profile 路径、显示名称和
+路由策略，不把 profile 内容、内嵌证书/私钥或密码写入普通配置文件；启动时会按原路径重新读取
+profile，文件被移动或删除时会提示重新导入。真实凭据只应由本机交互输入或
+Keychain/Credential Manager 提供，不能写入 UI 日志。
 
 macOS 联调顺序：先启动 `openvpn_daemon --socket /tmp/openvpn-ui.sock`，再启动 Flutter 应用，
 然后导入 profile、输入凭据并连接。严格/询问模式发生路由冲突时，卡片会显示 daemon
