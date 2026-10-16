@@ -26,6 +26,46 @@ replace_required(
     "标准库 include")
 
 replace_required(
+    [=[        : listen_list(build_listen_list(unix_sock)),
+          user_group(user, group, true),
+          stats(new MySessionStats),
+          event_loop_bar(1)]=]
+    [=[        : listen_list(build_listen_list(unix_sock)),
+          user_group(user, group, true),
+          socket_path(unix_sock ? unix_sock : ""),
+          stats(new MySessionStats),
+          event_loop_bar(1)]=]
+    "helper socket 路径记录")
+
+replace_required(
+    [=[    void show_unused_options() const
+    {
+    }]=]
+    [=[    void fix_socket_group() const
+    {
+        if (socket_path.empty() || user_group.group().empty())
+            return;
+        struct group *group_info = ::getgrnam(user_group.group().c_str());
+        if (group_info == nullptr || ::chown(socket_path.c_str(), static_cast<uid_t>(-1), group_info->gr_gid) != 0)
+            OPENVPN_LOG("无法设置 Unix socket 所属组：" << user_group.group());
+    }
+
+    void show_unused_options() const
+    {
+    }]=]
+    "helper socket 所属组设置")
+
+replace_required(
+    [=[    const Listen::List listen_list;
+    const SetUserGroup user_group;
+    MySessionStats::Ptr stats;]=]
+    [=[    const Listen::List listen_list;
+    const SetUserGroup user_group;
+    const std::string socket_path;
+    MySessionStats::Ptr stats;]=]
+    "helper socket 状态字段")
+
+replace_required(
     [=[self->parent->destroy_tun(os);]=]
     [=[self->parent->destroy_tuns_for_pid(pid, os);]=]
     "watchdog 清理调用")
@@ -416,6 +456,16 @@ replace_required(
     [=[        config->unix_mode = 0777;]=]
     [=[        config->unix_mode = 0660;]=]
     "Unix socket 权限")
+
+replace_required(
+    [=[        serv->start();
+
+        // barrier prior to event-loop entry]=]
+    [=[        serv->start();
+        tc.fix_socket_group();
+
+        // barrier prior to event-loop entry]=]
+    "helper 启动阶段")
 
 replace_required(
     [=[    bool allow_client(AsioPolySock::Base &sock) override
