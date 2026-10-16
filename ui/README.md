@@ -2,6 +2,18 @@
 
 这是 VPN 控制台的 Flutter 桌面界面，文案和诊断信息均为中文。
 
+当前开发工具链：Flutter 3.47.5，Dart 3.13.4。SDK 位于工作区 `.tools/flutter`，macOS
+构建平台目录和 Windows 构建平台目录已纳入项目。
+
+本地验证命令：
+
+```bash
+FLUTTER_SUPPRESS_ANALYTICS=true \
+XDG_CONFIG_HOME=/绝对路径/vpn/.tools/flutter-config \
+PUB_CACHE=/绝对路径/vpn/.tools/pub-cache \
+/绝对路径/vpn/.tools/flutter/bin/flutter test
+```
+
 当前界面包含：
 
 - 左侧配置/连接导航
