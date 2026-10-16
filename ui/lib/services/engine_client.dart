@@ -90,7 +90,7 @@ abstract class EngineClient {
 /// macOS 桌面 daemon 的一行 JSON IPC 客户端。
 /// Windows 版本将复用同一组命令，底层传输替换为受保护的 named pipe。
 class UnixSocketEngineClient implements EngineClient {
-  UnixSocketEngineClient({this.socketPath = '/tmp/vpn-ui.sock'});
+  UnixSocketEngineClient({this.socketPath = '/tmp/openvpn-ui.sock'});
 
   final String socketPath;
   final StreamController<EngineEvent> _events =

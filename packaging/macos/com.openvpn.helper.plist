@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>com.vpn.helper</string>
+	<string>com.openvpn.helper</string>
 
 	<key>ProgramArguments</key>
 	<array>
-		<string>/Library/PrivilegedHelperTools/com.vpn.helper</string>
+		<string>/Library/PrivilegedHelperTools/com.openvpn.helper</string>
 		<string>--pidfile</string>
-		<string>/var/run/com.vpn.helper.pid</string>
+		<string>/var/run/com.openvpn.helper.pid</string>
 		<string>--group</string>
 		<string>staff</string>
 	</array>
@@ -27,8 +27,8 @@
 	<integer>63</integer>
 
 	<key>StandardOutPath</key>
-	<string>/var/log/vpn/helper.log</string>
+	<string>/var/log/openvpn/helper.log</string>
 	<key>StandardErrorPath</key>
-	<string>/var/log/vpn/helper-error.log</string>
+	<string>/var/log/openvpn/helper-error.log</string>
 </dict>
 </plist>

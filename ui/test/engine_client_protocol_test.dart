@@ -7,7 +7,7 @@ import 'package:openvpn_ui/services/engine_client.dart';
 
 void main() {
   test('Unix socket 客户端能区分交错到达的事件和响应', () async {
-    final socketPath = '/tmp/vpn-ui-client-$pid.sock';
+    final socketPath = '/tmp/openvpn-ui-client-$pid.sock';
     final server = await ServerSocket.bind(
       InternetAddress(socketPath, type: InternetAddressType.unix),
       0,

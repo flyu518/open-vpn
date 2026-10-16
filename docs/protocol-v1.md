@@ -54,8 +54,8 @@ IPv4 和 IPv6 的网段包含关系都算作冲突；被拒绝的候选策略不
 
 ## macOS 本地 daemon
 
-macOS 桌面界面通过用户权限 Unix socket 与 `vpn_daemon` 通信，默认路径为
-`/tmp/vpn-ui.sock`。协议采用一行一个 JSON 对象：
+macOS 桌面界面通过用户权限 Unix socket 与 `openvpn_daemon` 通信，默认路径为
+`/tmp/openvpn-ui.sock`。协议采用一行一个 JSON 对象：
 
 - `{"command":"ping"}`：检查 daemon 是否可用。
 - `{"command":"snapshot"}`：读取全部会话快照。

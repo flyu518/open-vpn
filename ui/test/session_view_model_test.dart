@@ -100,7 +100,7 @@ void main() {
 
   test('daemon 不可用时连接卡片不会停在正在连接', () async {
     final engine = UnixSocketEngineClient(
-      socketPath: '/tmp/vpn-ui-missing-$pid.sock',
+      socketPath: '/tmp/openvpn-ui-missing-$pid.sock',
     );
     final viewModel = SessionViewModel(engineClient: engine);
     viewModel.replaceSessions([

@@ -2,25 +2,25 @@
 
 当前目录已经提供 launchd 配置和安装脚本：
 
-- `com.vpn.helper.plist`：以 `com.vpn.helper` 注册高权限 helper，前台运行并交给 launchd 保活，Unix socket 使用 `staff` 组和受限权限。
+- `com.openvpn.helper.plist`：以 `com.openvpn.helper` 注册高权限 helper，前台运行并交给 launchd 保活，Unix socket 使用 `staff` 组和受限权限。
 - `install-helper.sh`：校验 plist、安装 helper、创建日志目录并加载 launchd 服务。
-- `com.vpn.daemon.plist`：用户权限 daemon 的 launchd 配置，负责给 Flutter 界面提供 `/tmp/vpn-ui.sock`。
+- `com.openvpn.daemon.plist`：用户权限 daemon 的 launchd 配置，负责给 Flutter 界面提供 `/tmp/openvpn-ui.sock`。
 - `install-daemon.sh`：把 daemon 安装到当前用户目录并加载 `gui/<uid>` 服务，不需要 sudo。
 
-构建出 `vpn_macos_agent` 后，可以使用下面的命令安装本地开发版本：
+构建出 `openvpn_macos_agent` 后，可以使用下面的命令安装本地开发版本：
 
 ```bash
 sudo ./packaging/macos/install-helper.sh \
-  /绝对路径/vpn-core-build/vpn_macos_agent
+  /绝对路径/openvpn-core-build/openvpn_macos_agent
 ```
 
 脚本会修改系统的 `/Library/PrivilegedHelperTools`、`/Library/LaunchDaemons` 和
-`/var/log/vpn`，因此只在确认目标主机后执行。卸载或升级前应先执行：
+`/var/log/openvpn`，因此只在确认目标主机后执行。卸载或升级前应先执行：
 
 ```bash
-sudo launchctl bootout system/com.vpn.helper
-sudo rm /Library/LaunchDaemons/com.vpn.helper.plist
-sudo rm /Library/PrivilegedHelperTools/com.vpn.helper
+sudo launchctl bootout system/com.openvpn.helper
+sudo rm /Library/LaunchDaemons/com.openvpn.helper.plist
+sudo rm /Library/PrivilegedHelperTools/com.openvpn.helper
 ```
 
 正式发布包还需要完成以下工作：
@@ -33,18 +33,18 @@ sudo rm /Library/PrivilegedHelperTools/com.vpn.helper
 
 当前脚本只负责 helper 的安装和生命周期，不会替代真实 utun、路由、DNS 以及 IPC 鉴权实现。
 
-构建出 `vpn_daemon` 后，可以用下面的命令让用户 daemon 登录后自动运行：
+构建出 `openvpn_daemon` 后，可以用下面的命令让用户 daemon 登录后自动运行：
 
 ```bash
 ./packaging/macos/install-daemon.sh \
-  /绝对路径/vpn-core-build/vpn_daemon
+  /绝对路径/openvpn-core-build/openvpn_daemon
 ```
 
 用户 daemon 不拥有修改系统路由的权限；它通过 OpenVPN3 会话和已安装的高权限 helper
 协作完成连接。卸载时执行：
 
 ```bash
-launchctl bootout gui/$(id -u)/com.vpn.daemon
-rm "$HOME/Library/LaunchAgents/com.vpn.daemon.plist"
-rm -rf "$HOME/Library/Application Support/VPN"
+launchctl bootout gui/$(id -u)/com.openvpn.daemon
+rm "$HOME/Library/LaunchAgents/com.openvpn.daemon.plist"
+rm -rf "$HOME/Library/Application Support/OpenVPN"
 ```

@@ -9,7 +9,7 @@ namespace vpn::platform::macos {
 
 class KeychainCredentialStore final : public vpn::CredentialStore {
 public:
-    explicit KeychainCredentialStore(std::string service = "com.vpn.credentials");
+    explicit KeychainCredentialStore(std::string service = "com.openvpn.credentials");
 
     vpn::CredentialStoreResult save(std::string_view profile_id,
                                     const vpn::Credentials& credentials) override;

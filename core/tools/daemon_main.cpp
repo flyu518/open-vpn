@@ -415,7 +415,7 @@ void Daemon::broadcast(const Json::Value& value) {
 Json::Value Daemon::handleRequest(const Json::Value& request) {
     const std::string command = request.get("command", "").asString();
     if (command == "ping") {
-        return response(true, "VPN daemon 正常运行");
+        return response(true, "OpenVPN 服务正常运行");
     }
     if (command == "snapshot") {
         Json::Value result = response(true);
@@ -495,14 +495,14 @@ int Daemon::run() {
     ::unlink(socket_path_.c_str());
     server_fd_ = socket(AF_UNIX, SOCK_STREAM, 0);
     if (server_fd_ < 0) {
-        std::cerr << "无法创建 VPN daemon socket：" << std::strerror(errno) << '\n';
+        std::cerr << "无法创建 OpenVPN 服务 socket：" << std::strerror(errno) << '\n';
         return 2;
     }
 
     sockaddr_un address{};
     address.sun_family = AF_UNIX;
     if (socket_path_.size() >= sizeof(address.sun_path)) {
-        std::cerr << "VPN daemon socket 路径过长\n";
+        std::cerr << "OpenVPN 服务 socket 路径过长\n";
         close(server_fd_);
         server_fd_ = -1;
         return 3;
@@ -510,14 +510,14 @@ int Daemon::run() {
     std::strncpy(address.sun_path, socket_path_.c_str(), sizeof(address.sun_path) - 1);
     if (bind(server_fd_, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) != 0 ||
         chmod(socket_path_.c_str(), 0600) != 0 || listen(server_fd_, 8) != 0) {
-        std::cerr << "无法启动 VPN daemon socket：" << std::strerror(errno) << '\n';
+        std::cerr << "无法启动 OpenVPN 服务 socket：" << std::strerror(errno) << '\n';
         close(server_fd_);
         server_fd_ = -1;
         ::unlink(socket_path_.c_str());
         return 4;
     }
 
-    std::cout << "VPN daemon 已启动：" << socket_path_ << '\n';
+    std::cout << "OpenVPN 服务已启动：" << socket_path_ << '\n';
     while (running_.load() && !stop_requested.load()) {
         fd_set read_set;
         FD_ZERO(&read_set);
@@ -554,11 +554,11 @@ void Daemon::stop() {
 }  // namespace
 
 int main(int argc, char* argv[]) {
-    std::string socket_path = "/tmp/vpn-ui.sock";
+    std::string socket_path = "/tmp/openvpn-ui.sock";
     if (argc == 3 && std::string(argv[1]) == "--socket") {
         socket_path = argv[2];
     } else if (argc != 1) {
-        std::cout << "用法：" << argv[0] << " [--socket /tmp/vpn-ui.sock]\n";
+        std::cout << "用法：" << argv[0] << " [--socket /tmp/openvpn-ui.sock]\n";
         return 2;
     }
 

@@ -3,12 +3,12 @@
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>com.vpn.daemon</string>
+	<string>com.openvpn.daemon</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>__VPN_DAEMON_PATH__</string>
+		<string>__OPENVPN_DAEMON_PATH__</string>
 		<string>--socket</string>
-		<string>/tmp/vpn-ui.sock</string>
+		<string>/tmp/openvpn-ui.sock</string>
 	</array>
 	<key>RunAtLoad</key>
 	<true/>
@@ -17,8 +17,8 @@
 	<key>ProcessType</key>
 	<string>Interactive</string>
 	<key>StandardOutPath</key>
-	<string>__VPN_LOG_DIR__/daemon.log</string>
+	<string>__OPENVPN_LOG_DIR__/daemon.log</string>
 	<key>StandardErrorPath</key>
-	<string>__VPN_LOG_DIR__/daemon-error.log</string>
+	<string>__OPENVPN_LOG_DIR__/daemon-error.log</string>
 </dict>
 </plist>

@@ -4,11 +4,12 @@ set -eu
 
 helper_source="${1:-}"
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-plist_source="$script_dir/com.vpn.helper.plist"
-helper_destination="/Library/PrivilegedHelperTools/com.vpn.helper"
-plist_destination="/Library/LaunchDaemons/com.vpn.helper.plist"
-log_directory="/var/log/vpn"
-label="com.vpn.helper"
+plist_source="$script_dir/com.openvpn.helper.plist"
+helper_destination="/Library/PrivilegedHelperTools/com.openvpn.helper"
+plist_destination="/Library/LaunchDaemons/com.openvpn.helper.plist"
+log_directory="/var/log/openvpn"
+label="com.openvpn.helper"
+legacy_label="com.vpn.helper"
 
 if [ "$(id -u)" -ne 0 ]; then
     echo "错误：安装 macOS VPN helper 需要管理员权限，请使用 sudo 执行。" >&2
@@ -16,7 +17,7 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 if [ -z "$helper_source" ] || [ ! -f "$helper_source" ]; then
-    echo "用法：sudo $0 /绝对路径/vpn_macos_agent" >&2
+    echo "用法：sudo $0 /绝对路径/openvpn_macos_agent" >&2
     exit 2
 fi
 
@@ -26,6 +27,7 @@ if ! /usr/bin/plutil -lint "$plist_source" >/dev/null; then
 fi
 
 echo "正在停止旧的 VPN helper（如果存在）……"
+/bin/launchctl bootout system/"$legacy_label" >/dev/null 2>&1 || true
 /bin/launchctl bootout system/"$label" >/dev/null 2>&1 || true
 
 echo "正在创建日志目录……"
@@ -43,5 +45,5 @@ echo "正在加载 launchd 服务……"
 /bin/launchctl kickstart -k system/"$label"
 
 echo "macOS VPN helper 已加载：$label"
-echo "Unix socket：/var/run/vpn.sock"
+echo "Unix socket：/var/run/openvpn.sock"
 echo "日志目录：$log_directory"

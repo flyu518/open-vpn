@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://local.invalid/vpn/protocol-v1.json",
+  "$id": "https://local.invalid/openvpn/protocol-v1.json",
   "title": "跨平台 VPN 协议 v1",
   "description": "Windows 和 macOS 多连接 VPN 客户端的共享会话契约；Android 和 iOS 能力为后续扩展预留。",
   "version": 1,
