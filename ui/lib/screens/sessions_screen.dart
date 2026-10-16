@@ -8,7 +8,7 @@ class SessionsScreen extends StatelessWidget {
   const SessionsScreen({
     super.key,
     required this.viewModel,
-    this.onImportProfile,
+    this.onOpenProfiles,
     this.onConnect,
     this.onDisconnect,
     this.onEditStrategy,
@@ -16,7 +16,7 @@ class SessionsScreen extends StatelessWidget {
   });
 
   final SessionViewModel viewModel;
-  final VoidCallback? onImportProfile;
+  final VoidCallback? onOpenProfiles;
   final Future<void> Function(VpnSession)? onConnect;
   final Future<void> Function(VpnSession)? onDisconnect;
   final ValueChanged<VpnSession>? onEditStrategy;
@@ -48,7 +48,9 @@ class SessionsScreen extends StatelessWidget {
               SafeArea(
                 child: Row(
                   children: [
-                    _Sidebar(onImportProfile: onImportProfile),
+                    _Sidebar(
+                      onOpenProfiles: onOpenProfiles,
+                    ),
                     Expanded(
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(32, 28, 32, 24),
@@ -59,7 +61,6 @@ class SessionsScreen extends StatelessWidget {
                               activeCount: activeCount,
                               profileCount: sessions.length,
                               warningCount: warningCount + errorCount,
-                              onImportProfile: onImportProfile,
                             ),
                             const SizedBox(height: 28),
                             _SectionHeader(
@@ -69,8 +70,7 @@ class SessionsScreen extends StatelessWidget {
                             const SizedBox(height: 12),
                             Expanded(
                               child: sessions.isEmpty
-                                  ? _EmptyState(
-                                      onImportProfile: onImportProfile)
+                                  ? _EmptyState(onOpenProfiles: onOpenProfiles)
                                   : ReorderableListView.builder(
                                       buildDefaultDragHandles: true,
                                       itemCount: sessions.length,
@@ -181,9 +181,9 @@ class _GlowOrb extends StatelessWidget {
 }
 
 class _Sidebar extends StatelessWidget {
-  const _Sidebar({this.onImportProfile});
+  const _Sidebar({this.onOpenProfiles});
 
-  final VoidCallback? onImportProfile;
+  final VoidCallback? onOpenProfiles;
 
   @override
   Widget build(BuildContext context) {
@@ -240,7 +240,7 @@ class _Sidebar extends StatelessWidget {
             icon: Icons.folder_copy_outlined,
             label: '配置文件',
             detail: '管理 OpenVPN 配置',
-            onTap: onImportProfile,
+            onTap: onOpenProfiles,
           ),
           _NavItem(
             icon: Icons.history_rounded,
@@ -277,18 +277,6 @@ class _Sidebar extends StatelessWidget {
                 Icon(Icons.check_circle_rounded,
                     color: Colors.greenAccent.shade400, size: 17),
               ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: onImportProfile,
-            icon: const Icon(Icons.add_rounded, size: 18),
-            label: const Text('导入配置'),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size.fromHeight(44),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -381,13 +369,11 @@ class _Header extends StatelessWidget {
     required this.activeCount,
     required this.profileCount,
     required this.warningCount,
-    this.onImportProfile,
   });
 
   final int activeCount;
   final int profileCount;
   final int warningCount;
-  final VoidCallback? onImportProfile;
 
   @override
   Widget build(BuildContext context) {
@@ -435,18 +421,7 @@ class _Header extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 16),
-            FilledButton.icon(
-              onPressed: onImportProfile,
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('添加 OpenVPN'),
-              style: FilledButton.styleFrom(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 17, vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-            ),
+            const _ServicePill(),
           ],
         ),
         const SizedBox(height: 24),
@@ -535,6 +510,32 @@ class _MetricCard extends StatelessWidget {
   }
 }
 
+class _ServicePill extends StatelessWidget {
+  const _ServicePill();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHighest.withValues(alpha: .55),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: colors.outlineVariant.withValues(alpha: .6)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.cloud_done_rounded,
+              size: 17, color: Colors.greenAccent),
+          const SizedBox(width: 7),
+          Text('OpenVPN 服务', style: Theme.of(context).textTheme.labelMedium),
+        ],
+      ),
+    );
+  }
+}
+
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({required this.activeCount, required this.sessionCount});
 
@@ -575,9 +576,9 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({this.onImportProfile});
+  const _EmptyState({this.onOpenProfiles});
 
-  final VoidCallback? onImportProfile;
+  final VoidCallback? onOpenProfiles;
 
   @override
   Widget build(BuildContext context) {
@@ -614,9 +615,9 @@ class _EmptyState extends StatelessWidget {
                   style: Theme.of(context).textTheme.bodyMedium),
               const SizedBox(height: 24),
               FilledButton.icon(
-                onPressed: onImportProfile,
-                icon: const Icon(Icons.upload_file_rounded),
-                label: const Text('导入配置文件'),
+                onPressed: onOpenProfiles,
+                icon: const Icon(Icons.folder_open_rounded),
+                label: const Text('查看配置文件'),
               ),
             ],
           ),

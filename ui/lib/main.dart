@@ -6,6 +6,7 @@ import 'models/credentials.dart';
 import 'models/session.dart';
 import 'models/route_strategy.dart';
 import 'screens/credentials_dialog.dart';
+import 'screens/profile_library_screen.dart';
 import 'screens/profile_import_screen.dart';
 import 'screens/route_strategy_dialog.dart';
 import 'screens/sessions_screen.dart';
@@ -62,6 +63,18 @@ class _VpnAppState extends State<VpnApp> {
     );
   }
 
+  Future<void> _openProfiles() async {
+    final navigatorContext = _navigatorKey.currentState?.context;
+    if (navigatorContext == null) return;
+    await showDialog<void>(
+      context: navigatorContext,
+      builder: (_) => ProfileLibraryDialog(
+        sessions: viewModel.sessions,
+        onImport: _importProfile,
+      ),
+    );
+  }
+
   Future<void> _connect(VpnSession session) async {
     final navigatorContext = _navigatorKey.currentState?.context;
     if (navigatorContext == null) return;
@@ -103,7 +116,7 @@ class _VpnAppState extends State<VpnApp> {
       themeMode: ThemeMode.dark,
       home: SessionsScreen(
         viewModel: viewModel,
-        onImportProfile: _importProfile,
+        onOpenProfiles: _openProfiles,
         onConnect: _connect,
         onDisconnect: _disconnect,
         onEditStrategy: (session) => showDialog<RouteStrategy>(

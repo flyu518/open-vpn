@@ -43,47 +43,41 @@ void main() {
     expect(find.text('需要重新导入'), findsOneWidget);
   });
 
-  testWidgets('添加 OpenVPN 按钮可以触发导入回调', (tester) async {
-    var clicked = false;
+  testWidgets('总览页不重复显示导入按钮', (tester) async {
     final viewModel = SessionViewModel();
 
     await tester.pumpWidget(MaterialApp(
-      home: SessionsScreen(
-        viewModel: viewModel,
-        onImportProfile: () => clicked = true,
-      ),
+      home: SessionsScreen(viewModel: viewModel),
     ));
 
-    await tester.tap(find.text('添加 OpenVPN'));
-    await tester.pump();
-
-    expect(clicked, isTrue);
+    expect(find.text('添加 OpenVPN'), findsNothing);
   });
 
-  testWidgets('配置文件导航可以触发导入回调', (tester) async {
-    var clicked = false;
+  testWidgets('配置文件导航进入配置管理而不是直接导入', (tester) async {
+    var opened = false;
     final viewModel = SessionViewModel();
 
     await tester.pumpWidget(MaterialApp(
       home: SessionsScreen(
         viewModel: viewModel,
-        onImportProfile: () => clicked = true,
+        onOpenProfiles: () => opened = true,
       ),
     ));
 
     await tester.tap(find.text('配置文件'));
     await tester.pump();
 
-    expect(clicked, isTrue);
+    expect(opened, isTrue);
   });
 
-  testWidgets('应用根页面点击添加会打开导入对话框', (tester) async {
+  testWidgets('应用根页面点击配置文件会打开配置管理', (tester) async {
     await tester.pumpWidget(const VpnApp());
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('添加 OpenVPN'));
+    await tester.tap(find.text('配置文件').first);
     await tester.pumpAndSettle();
 
-    expect(find.text('导入 OpenVPN 配置'), findsOneWidget);
+    expect(find.text('配置文件'), findsWidgets);
+    expect(find.text('导入配置'), findsOneWidget);
   });
 }
