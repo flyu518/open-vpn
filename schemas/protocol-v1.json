@@ -20,7 +20,8 @@
   "errorCodes": {
     "CAPABILITY_SINGLE_ACTIVE_VPN": 1001,
     "ROUTE_CONFLICT": 1002,
-    "FULL_TUNNEL_EXCLUSIVE": 1003
+    "FULL_TUNNEL_EXCLUSIVE": 1003,
+    "INVALID_ROUTE": 1004
   },
   "forwardCompatibility": {
     "description": "读取方忽略未知字段；新增必填字段时升级协议版本。",

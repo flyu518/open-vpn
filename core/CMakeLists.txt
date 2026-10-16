@@ -8,6 +8,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(vpn_core STATIC
     src/vpn_engine.cpp
+    src/vpn_route_policy.cpp
 )
 
 target_include_directories(vpn_core
@@ -17,6 +18,10 @@ target_include_directories(vpn_core
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     target_compile_options(vpn_core PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+if(WIN32)
+    target_link_libraries(vpn_core PUBLIC ws2_32)
 endif()
 
 enable_testing()

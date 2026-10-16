@@ -27,6 +27,16 @@
 - `VPN_ERR_CAPABILITY_SINGLE_ACTIVE_VPN`（`1001`）：移动端已有活动系统 VPN。
 - `VPN_ERR_ROUTE_CONFLICT`（`1002`）：候选路由与活动路由重叠。
 - `VPN_ERR_FULL_TUNNEL_EXCLUSIVE`（`1003`）：请求建立第二条默认路由连接。
+- `INVALID_ROUTE`（内部决策码）：路由不是合法的 IPv4/IPv6 CIDR。
+
+## 路由策略
+
+每个会话携带一个 `RoutePolicy`：
+
+- `Split`：只添加配置中明确允许的网段。
+- `Full`：接管默认路由，并且与其他活动会话互斥。
+
+IPv4 和 IPv6 的网段包含关系都算作冲突；被拒绝的候选策略不能改变已有活动会话。
 
 ## 向前兼容
 
