@@ -123,9 +123,28 @@ replace_required(
             OPENVPN_LOG(os.str());
         }
     }]=]
-    [=[    static std::string session_key(const pid_t pid, const std::string &name)
+    [=[    static std::string session_name_without_mode(const std::string &name)
     {
-        return std::to_string(static_cast<long long>(pid)) + ":" + name;
+        const std::string marker = "|route-mode=";
+        const std::size_t separator = name.find(marker);
+        return separator == std::string::npos ? name : name.substr(0, separator);
+    }
+
+    static vpn::RouteConflictMode route_mode_for_name(const std::string &name)
+    {
+        const std::string marker = "|route-mode=";
+        const std::size_t separator = name.find(marker);
+        if (separator == std::string::npos)
+            return vpn::RouteConflictMode::Compatible;
+        const std::string mode = name.substr(separator + marker.size());
+        return mode == "compatible" ? vpn::RouteConflictMode::Compatible
+                                      : vpn::RouteConflictMode::Strict;
+    }
+
+    static std::string session_key(const pid_t pid, const std::string &name)
+    {
+        return std::to_string(static_cast<long long>(pid)) + ":" +
+               session_name_without_mode(name);
     }
 
     static std::string endpoint_key(const pid_t pid, const std::string &host)
@@ -176,7 +195,8 @@ replace_required(
     }
 
     vpn::RouteDecision validate_route_policy(const std::string &key,
-                                             const vpn::RoutePolicy &candidate) const
+                                             const vpn::RoutePolicy &candidate,
+                                             vpn::RouteConflictMode mode) const
     {
         std::vector<vpn::RoutePolicy> active;
         for (const auto &item : route_policies)
@@ -184,8 +204,7 @@ replace_required(
             if (item.first != key)
                 active.push_back(item.second);
         }
-        return vpn::vpn_route_policy_validate(
-            active, candidate, vpn::RouteConflictMode::Compatible);
+        return vpn::vpn_route_policy_validate(active, candidate, mode);
     }
 
     ScopedFD establish_tun(const pid_t pid,
@@ -195,15 +214,18 @@ replace_required(
                            Stop *stop,
                            std::ostream &os)
     {
+        const std::string base_name = session_name_without_mode(name);
         const std::string key = session_key(pid, name);
         const vpn::RoutePolicy requested = route_policy(key, tbc);
-        const vpn::RouteDecision decision = validate_route_policy(key, requested);
+        const vpn::RouteDecision decision =
+            validate_route_policy(key, requested, route_mode_for_name(name));
         if (decision.code != vpn::RouteDecisionCode::Allowed)
             throw Exception(decision.diagnostic);
         if (decision.conflicts.size() > 32)
             throw Exception("冲突路由数量过多，需用户断开一个会话后重试");
 
         TunBuilderCapture::Ptr effective = TunBuilderCapture::from_json(tbc.to_json());
+        effective->session_name = base_name;
         std::set<std::string> skipped_routes;
         for (const vpn::RouteConflict &conflict : decision.conflicts)
             skipped_routes.insert(conflict.candidate_route);
@@ -218,7 +240,7 @@ replace_required(
                                    return skipped_routes.find(value) != skipped_routes.end();
                                }),
                 effective->add_routes.end());
-            os << "兼容模式：会话 " << name << " 跳过 " << skipped_routes.size()
+            os << "兼容模式：会话 " << base_name << " 跳过 " << skipped_routes.size()
                << " 条冲突路由，保留前一个会话的路由所有权\n";
             for (const vpn::RouteConflict &conflict : decision.conflicts)
             {

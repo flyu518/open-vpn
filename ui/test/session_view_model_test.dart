@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vpn_ui/models/session.dart';
+import 'package:vpn_ui/models/route_strategy.dart';
 import 'package:vpn_ui/view_models/session_view_model.dart';
 
 void main() {
@@ -39,5 +40,28 @@ void main() {
 
     expect(viewModel.sessionById('office-a')!.status, VpnStatus.connected);
     expect(viewModel.sessionById('office-b')!.status, VpnStatus.failed);
+  });
+
+  test('每个会话可以独立保存路由冲突策略', () {
+    final viewModel = SessionViewModel();
+    viewModel.replaceSessions([
+      VpnSession(id: 'office-a', name: '研发网络', status: VpnStatus.connected),
+      VpnSession(id: 'office-b', name: '财务网络', status: VpnStatus.disconnected),
+    ]);
+
+    viewModel.updateStrategy(
+      'office-b',
+      const RouteStrategy(
+        conflictMode: RouteConflictMode.ask,
+        priority: 10,
+        rules: [RouteRule(type: RouteRuleType.domainSuffix, pattern: '*.corp.example.com')],
+      ),
+    );
+
+    expect(viewModel.sessionById('office-a')!.routeStrategy.conflictMode,
+        RouteConflictMode.compatible);
+    expect(viewModel.sessionById('office-b')!.routeStrategy.conflictMode,
+        RouteConflictMode.ask);
+    expect(viewModel.sessionById('office-b')!.routeStrategy.priority, 10);
   });
 }

@@ -22,6 +22,16 @@ std::string session_id_for_profile(std::string_view session_id) {
     return result;
 }
 
+const char* route_mode_name(RouteConflictMode mode) {
+    switch (mode) {
+    case RouteConflictMode::Strict:
+        return "strict";
+    case RouteConflictMode::Compatible:
+        return "compatible";
+    }
+    return "compatible";
+}
+
 class ClientImpl final : public openvpn::ClientAPI::OpenVPNClient {
 public:
     ClientImpl(std::string session_id, EngineEventSink event_sink)
@@ -91,6 +101,7 @@ public:
     openvpn::ClientAPI::Config config;
     bool profile_set = false;
     bool credentials_set = false;
+    RouteConflictMode route_conflict_mode = RouteConflictMode::Compatible;
     bool active = false;
 };
 
@@ -115,6 +126,8 @@ ProfileEvaluation OpenVPN3Session::setProfile(std::string_view profile_content) 
     impl_->config.content.assign(profile_content.data(), profile_content.size());
     impl_->config.content += "\nsetenv VPN_DESKTOP_SESSION_ID " +
                              session_id_for_profile(sessionId()) + "\n";
+    impl_->config.content += "setenv VPN_DESKTOP_ROUTE_MODE " +
+                             std::string(route_mode_name(impl_->route_conflict_mode)) + "\n";
     const openvpn::ClientAPI::EvalConfig evaluation =
         impl_->client->eval_config(impl_->config);
 
@@ -126,6 +139,12 @@ ProfileEvaluation OpenVPN3Session::setProfile(std::string_view profile_content) 
     result.remote_protocol = evaluation.remoteProto;
     impl_->profile_set = result.ok;
     return result;
+}
+
+void OpenVPN3Session::setRouteConflictMode(RouteConflictMode mode) {
+    if (impl_ != nullptr) {
+        impl_->route_conflict_mode = mode;
+    }
 }
 
 bool OpenVPN3Session::setCredentials(const EngineCredentials& credentials) {

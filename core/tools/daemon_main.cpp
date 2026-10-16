@@ -90,6 +90,14 @@ std::string state_label(vpn::SessionState state) {
     return "未知状态";
 }
 
+vpn::RouteConflictMode route_mode_from_request(const Json::Value& request) {
+    const std::string mode =
+        request["routeStrategy"].get("conflictMode", "compatible").asString();
+    return mode == "strict" || mode == "ask"
+               ? vpn::RouteConflictMode::Strict
+               : vpn::RouteConflictMode::Compatible;
+}
+
 class Daemon;
 
 class SessionController {
@@ -251,6 +259,7 @@ Json::Value SessionController::connect(const Json::Value& request) {
         [this, session_id](const vpn::EngineEvent& event) {
             onEngineEvent(session_id, event);
         });
+    record->session->setRouteConflictMode(route_mode_from_request(request));
 
     const vpn::ProfileEvaluation evaluation = record->session->setProfile(profile);
     if (!evaluation.ok) {

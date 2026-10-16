@@ -10,6 +10,7 @@
 - 服务器、接口、时长、流量和分流路由摘要
 - 路由冲突的行内提示
 - 系统浅色/深色主题
+- 每个连接独立的路由冲突策略：兼容、严格、询问，以及 IP/CIDR/域名后缀规则
 
 真实引擎通过 `EngineClient` 接入；macOS 开发版提供 `UnixSocketEngineClient`，连接
 `vpn_daemon` 的用户权限 Unix socket。Windows 将复用相同命令协议，底层替换为受保护

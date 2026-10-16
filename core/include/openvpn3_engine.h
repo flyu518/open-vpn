@@ -6,6 +6,8 @@
 #include <string>
 #include <string_view>
 
+#include "vpn_route_policy.h"
+
 namespace vpn {
 
 struct ProfileEvaluation {
@@ -42,6 +44,7 @@ public:
     const std::string& sessionId() const;
     bool isActive() const;
     ProfileEvaluation setProfile(std::string_view profile_content);
+    void setRouteConflictMode(RouteConflictMode mode);
     bool setCredentials(const EngineCredentials& credentials);
     bool connect();
     void stop();

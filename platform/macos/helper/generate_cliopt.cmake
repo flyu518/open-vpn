@@ -23,14 +23,20 @@ replace_required(
                 for (const unsigned int index : *session_options)
                 {
                     const Option &option = (*options)[index];
-                    if (option.get_optional(1, 64) == "VPN_DESKTOP_SESSION_ID")
+                    const std::string key = option.get_optional(1, 64);
+                    if (key == "VPN_DESKTOP_SESSION_ID")
                         session_name_override = option.get(2, 256);
+                    else if (key == "VPN_DESKTOP_ROUTE_MODE")
+                        route_mode_override = option.get(2, 64);
                 }
             }
         }
-        if (!session_name_override.empty())
-            return session_name_override;
-        return remote_list->current_server_host();]=]
+        const std::string base_name = session_name_override.empty()
+                                          ? remote_list->current_server_host()
+                                          : session_name_override;
+        if (!route_mode_override.empty())
+            return base_name + "|route-mode=" + route_mode_override;
+        return base_name;]=]
     "桌面会话标识")
 
 replace_required(
@@ -46,6 +52,7 @@ replace_required(
 replace_required(
     [=[    std::string userlocked_username;]=]
     [=[    std::string session_name_override;
+    std::string route_mode_override;
     std::string userlocked_username;]=]
     "桌面会话标识存储")
 

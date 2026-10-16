@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../models/session.dart';
+import '../models/route_strategy.dart';
 
 class EngineEvent {
   const EngineEvent({
@@ -28,6 +29,7 @@ abstract class EngineClient {
     String dynamicChallengeCookie = '',
     String profileId = '',
     bool rememberCredentials = false,
+    RouteStrategy? routeStrategy,
   });
 
   Future<void> disconnect(String sessionId);
@@ -125,6 +127,7 @@ class UnixSocketEngineClient implements EngineClient {
     String dynamicChallengeCookie = '',
     String profileId = '',
     bool rememberCredentials = false,
+    RouteStrategy? routeStrategy,
   }) => _send({
         'command': 'connect',
         'sessionId': sessionId,
@@ -138,6 +141,7 @@ class UnixSocketEngineClient implements EngineClient {
           'dynamicChallengeCookie': dynamicChallengeCookie,
         },
         'rememberCredentials': rememberCredentials,
+        'routeStrategy': (routeStrategy ?? const RouteStrategy()).toJson(),
       });
 
   @override
@@ -173,6 +177,7 @@ class InMemoryEngineClient implements EngineClient {
     String dynamicChallengeCookie = '',
     String profileId = '',
     bool rememberCredentials = false,
+    RouteStrategy? routeStrategy,
   }) async {
     _events.add(EngineEvent(
       sessionId: sessionId,

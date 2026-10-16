@@ -63,5 +63,22 @@ macOS 桌面界面通过用户权限 Unix socket 与 `vpn_daemon` 通信，默�
 - `{"command":"disconnect","sessionId":"..."}`：断开指定会话。
 - `{"command":"forgetCredentials","profileId":"..."}`：删除指定 profile 的 Keychain 凭据。
 
+连接请求可以附带 `routeStrategy`：
+
+```json
+{
+  "conflictMode": "compatible",
+  "priority": 10,
+  "rules": [
+    {"type": "cidr", "pattern": "10.20.0.0/16", "enabled": true},
+    {"type": "domainSuffix", "pattern": "*.corp.example.com", "enabled": true}
+  ]
+}
+```
+
+`compatible` 默认保留先连接会话的路由所有权，并跳过后连接会话的冲突路由；
+`strict` 遇到冲突直接拒绝；`ask` 由界面提示用户断开或重试。当前 helper 已执行
+冲突模式，域名规则先作为策略元数据保存，实际系统路由仍以服务器下发的 IP/CIDR 为准。
+
 daemon 只在内存中接收凭据，响应和事件经过脱敏；socket 默认权限为当前用户可读写。
 真正的 profile 密码应优先由 Keychain/Credential Manager 读取，不能由界面长期保存。

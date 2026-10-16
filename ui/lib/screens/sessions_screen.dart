@@ -10,12 +10,14 @@ class SessionsScreen extends StatelessWidget {
     this.onImportProfile,
     this.onConnect,
     this.onDisconnect,
+    this.onEditStrategy,
   });
 
   final SessionViewModel viewModel;
   final VoidCallback? onImportProfile;
   final ValueChanged<VpnSession>? onConnect;
   final ValueChanged<VpnSession>? onDisconnect;
+  final ValueChanged<VpnSession>? onEditStrategy;
 
   @override
   Widget build(BuildContext context) {
@@ -55,6 +57,8 @@ class SessionsScreen extends StatelessWidget {
                                       onConnect: () => onConnect?.call(session),
                                       onDisconnect: () =>
                                           onDisconnect?.call(session),
+                                      onEditStrategy: () =>
+                                          onEditStrategy?.call(session),
                                     );
                                   },
                                 ),
@@ -233,12 +237,14 @@ class SessionCard extends StatelessWidget {
     this.error,
     this.onConnect,
     this.onDisconnect,
+    this.onEditStrategy,
   });
 
   final VpnSession session;
   final String? error;
   final VoidCallback? onConnect;
   final VoidCallback? onDisconnect;
+  final VoidCallback? onEditStrategy;
 
   @override
   Widget build(BuildContext context) {
@@ -271,6 +277,11 @@ class SessionCard extends StatelessWidget {
               ),
               _StatusBadge(status: session.status),
               const SizedBox(width: 12),
+              IconButton(
+                tooltip: '路由策略',
+                onPressed: onEditStrategy,
+                icon: const Icon(Icons.tune_rounded),
+              ),
               if (connected)
                 OutlinedButton(
                   onPressed: onDisconnect,
@@ -311,6 +322,31 @@ class SessionCard extends StatelessWidget {
           if (error != null) ...[
             const SizedBox(height: 12),
             Text(error!, style: TextStyle(color: colors.error)),
+          ],
+          if (session.warnings.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: colors.tertiaryContainer,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.warning_amber_rounded,
+                      size: 18, color: colors.onTertiaryContainer),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      session.warnings.join('\n'),
+                      style: TextStyle(color: colors.onTertiaryContainer),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ],
       ),

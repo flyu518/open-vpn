@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import 'models/session.dart';
+import 'models/route_strategy.dart';
 import 'screens/profile_import_screen.dart';
+import 'screens/route_strategy_dialog.dart';
 import 'screens/sessions_screen.dart';
 import 'view_models/session_view_model.dart';
 
@@ -45,6 +47,14 @@ class _VpnAppState extends State<VpnApp> {
         ),
         onConnect: (session) => viewModel.updateStatus(session.id, VpnStatus.connecting),
         onDisconnect: (session) => viewModel.updateStatus(session.id, VpnStatus.disconnected),
+        onEditStrategy: (session) => showDialog<RouteStrategy>(
+          context: context,
+          builder: (_) => RouteStrategyDialog(initial: session.routeStrategy),
+        ).then((strategy) {
+          if (strategy != null) {
+            viewModel.updateStrategy(session.id, strategy);
+          }
+        }),
       ),
     );
   }

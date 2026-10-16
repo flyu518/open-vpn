@@ -1,3 +1,5 @@
+import 'route_strategy.dart';
+
 enum VpnStatus {
   disconnected,
   connecting,
@@ -34,6 +36,8 @@ class VpnSession {
     this.downloadBytes = 0,
     this.uploadBytes = 0,
     this.duration = Duration.zero,
+    this.routeStrategy = const RouteStrategy(),
+    this.warnings = const <String>[],
   });
 
   final String id;
@@ -45,6 +49,8 @@ class VpnSession {
   final int downloadBytes;
   final int uploadBytes;
   final Duration duration;
+  final RouteStrategy routeStrategy;
+  final List<String> warnings;
 
   VpnSession copyWith({
     String? name,
@@ -55,6 +61,8 @@ class VpnSession {
     int? downloadBytes,
     int? uploadBytes,
     Duration? duration,
+    RouteStrategy? routeStrategy,
+    List<String>? warnings,
   }) {
     return VpnSession(
       id: id,
@@ -66,6 +74,8 @@ class VpnSession {
       downloadBytes: downloadBytes ?? this.downloadBytes,
       uploadBytes: uploadBytes ?? this.uploadBytes,
       duration: duration ?? this.duration,
+      routeStrategy: routeStrategy ?? this.routeStrategy,
+      warnings: warnings ?? this.warnings,
     );
   }
 }

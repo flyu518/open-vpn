@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/session.dart';
+import '../models/route_strategy.dart';
 
 class SessionViewModel extends ChangeNotifier {
   final Map<String, VpnSession> _sessions = <String, VpnSession>{};
@@ -40,5 +41,12 @@ class SessionViewModel extends ChangeNotifier {
 
   void clearError(String id) {
     if (_errors.remove(id) != null) notifyListeners();
+  }
+
+  void updateStrategy(String id, RouteStrategy strategy) {
+    final session = _sessions[id];
+    if (session == null) return;
+    _sessions[id] = session.copyWith(routeStrategy: strategy);
+    notifyListeners();
   }
 }
