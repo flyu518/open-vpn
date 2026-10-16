@@ -36,6 +36,8 @@ add_library(vpn_core STATIC
     src/vpn_engine.cpp
     src/vpn_session_manager.cpp
     src/vpn_route_policy.cpp
+    src/vpn_security.cpp
+    src/vpn_recovery.cpp
 )
 
 set(OPENVPN3_SOURCE_DIR
