@@ -1,4 +1,4 @@
-# vpn
+# OpenVPN
 
 正在开发中的跨平台 OpenVPN 桌面客户端。
 

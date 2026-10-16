@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:vpn_ui/models/session.dart';
-import 'package:vpn_ui/screens/sessions_screen.dart';
-import 'package:vpn_ui/view_models/session_view_model.dart';
+import 'package:openvpn_ui/models/session.dart';
+import 'package:openvpn_ui/screens/sessions_screen.dart';
+import 'package:openvpn_ui/view_models/session_view_model.dart';
 
 void main() {
   testWidgets('路由冲突失败时显示先断开前一个会话的处理提示', (tester) async {

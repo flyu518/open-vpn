@@ -124,9 +124,9 @@ class UnixSocketEngineClient implements EngineClient {
             .transform(const LineSplitter())
             .listen(_handleLine, onDone: _handleClosed);
       } on SocketException {
-        throw const EngineClientException('无法连接 VPN daemon，请确认用户服务已经启动');
+        throw const EngineClientException('无法连接 OpenVPN 服务，请确认用户服务已经启动');
       } on Object {
-        throw const EngineClientException('连接 VPN daemon 时发生未知错误');
+        throw const EngineClientException('连接 OpenVPN 服务时发生未知错误');
       }
     }();
     _connecting = future;
@@ -170,7 +170,7 @@ class UnixSocketEngineClient implements EngineClient {
     for (final completer in pending) {
       if (!completer.isCompleted) {
         completer.completeError(
-          const EngineClientException('VPN daemon 连接已关闭'),
+          const EngineClientException('OpenVPN 服务连接已关闭'),
         );
       }
     }
@@ -185,7 +185,7 @@ class UnixSocketEngineClient implements EngineClient {
     try {
       return await completer.future.timeout(
         const Duration(seconds: 20),
-        onTimeout: () => throw const EngineClientException('VPN daemon 响应超时'),
+        onTimeout: () => throw const EngineClientException('OpenVPN 服务响应超时'),
       );
     } catch (_) {
       _pendingResponses.remove(completer);

@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:vpn_ui/models/session.dart';
-import 'package:vpn_ui/services/engine_client.dart';
+import 'package:openvpn_ui/models/session.dart';
+import 'package:openvpn_ui/services/engine_client.dart';
 
 void main() {
   test('Unix socket 客户端能区分交错到达的事件和响应', () async {

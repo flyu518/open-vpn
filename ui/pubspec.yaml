@@ -1,5 +1,5 @@
-name: vpn_ui
-description: 中文跨平台 VPN 桌面界面
+name: openvpn_ui
+description: OpenVPN 中文跨平台桌面界面
 publish_to: none
 version: 0.1.0
 

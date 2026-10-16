@@ -52,7 +52,7 @@ class _ProfileImportScreenState extends State<ProfileImportScreen> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('导入 VPN 配置'),
+      title: const Text('导入 OpenVPN 配置'),
       content: SizedBox(
         width: 460,
         child: Column(

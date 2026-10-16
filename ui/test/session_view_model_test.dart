@@ -3,10 +3,10 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'dart:async';
 
-import 'package:vpn_ui/models/session.dart';
-import 'package:vpn_ui/models/route_strategy.dart';
-import 'package:vpn_ui/services/engine_client.dart';
-import 'package:vpn_ui/view_models/session_view_model.dart';
+import 'package:openvpn_ui/models/session.dart';
+import 'package:openvpn_ui/models/route_strategy.dart';
+import 'package:openvpn_ui/services/engine_client.dart';
+import 'package:openvpn_ui/view_models/session_view_model.dart';
 
 void main() {
   test('桌面端两个 VPN 会话显示为互相独立的卡片', () {

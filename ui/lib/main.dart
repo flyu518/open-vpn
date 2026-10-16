@@ -81,7 +81,7 @@ class _VpnAppState extends State<VpnApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'VPN 控制台',
+      title: 'OpenVPN',
       theme: ThemeData(
         useMaterial3: true,
         colorSchemeSeed: const Color(0xFF6C63FF),

@@ -1,6 +1,6 @@
-# VPN 桌面界面
+# OpenVPN 桌面界面
 
-这是 VPN 控制台的 Flutter 桌面界面，文案和诊断信息均为中文。
+这是 OpenVPN 控制台的 Flutter 桌面界面，文案和诊断信息均为中文。
 
 当前开发工具链：Flutter 3.47.5，Dart 3.13.4。SDK 位于工作区 `.tools/flutter`，macOS
 构建平台目录和 Windows 构建平台目录已纳入项目。
@@ -17,7 +17,7 @@ PUB_CACHE=/绝对路径/vpn/.tools/pub-cache \
 当前界面包含：
 
 - 左侧配置/连接导航
-- 活动 VPN 会话卡片
+- 活动 OpenVPN 会话卡片
 - 每个会话独立的连接、断开和状态显示
 - 服务器、接口、时长、流量和分流路由摘要
 - 路由冲突的行内提示
@@ -32,7 +32,7 @@ PUB_CACHE=/绝对路径/vpn/.tools/pub-cache \
 的 named pipe；当前 macOS 已接入真实 daemon，Windows UI 会明确提示服务端尚未接入，
 不会把演示状态伪装成已连接。
 
-界面测试仍可注入内存客户端，避免测试依赖真实 VPN。真实凭据只应由本机交互输入或
+界面测试仍可注入内存客户端，避免测试依赖真实 OpenVPN。真实凭据只应由本机交互输入或
 Keychain/Credential Manager 提供，不能写入 UI 日志。导入的 profile 只保存在当前进程内，
 重新启动应用后需要重新导入；这是避免把内嵌证书/私钥写入普通配置文件的安全取舍。
 

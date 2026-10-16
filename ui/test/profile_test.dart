@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:vpn_ui/models/profile.dart';
+import 'package:openvpn_ui/models/profile.dart';
 
 void main() {
   test('profile id 对同一路径稳定且不包含路径分隔符', () {

@@ -114,7 +114,7 @@ class _Sidebar extends StatelessWidget {
                 child: Icon(Icons.shield_rounded, color: colors.onPrimary),
               ),
               const SizedBox(width: 10),
-              Text('VPN 控制台', style: Theme.of(context).textTheme.titleMedium),
+              Text('OpenVPN', style: Theme.of(context).textTheme.titleMedium),
             ],
           ),
           const SizedBox(height: 34),
@@ -135,7 +135,8 @@ class _Sidebar extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          const Text('Windows / macOS 桌面版', style: TextStyle(fontSize: 11)),
+          const Text('OpenVPN · Windows / macOS',
+              style: TextStyle(fontSize: 11)),
         ],
       ),
     );
@@ -191,7 +192,8 @@ class _Header extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('连接总览', style: Theme.of(context).textTheme.headlineSmall),
+              Text('OpenVPN 连接总览',
+                  style: Theme.of(context).textTheme.headlineSmall),
               const SizedBox(height: 6),
               Text(activeLabel, style: Theme.of(context).textTheme.bodyMedium),
               const SizedBox(height: 4),
@@ -206,7 +208,7 @@ class _Header extends StatelessWidget {
         FilledButton.icon(
           onPressed: onImportProfile,
           icon: const Icon(Icons.add_rounded),
-          label: const Text('添加 VPN'),
+          label: const Text('添加 OpenVPN'),
           style: FilledButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             shape: RoundedRectangleBorder(
@@ -241,7 +243,8 @@ class _EmptyState extends StatelessWidget {
           children: [
             Icon(Icons.shield_moon_rounded, size: 56, color: colors.primary),
             const SizedBox(height: 18),
-            Text('还没有 VPN 连接', style: Theme.of(context).textTheme.titleLarge),
+            Text('还没有 OpenVPN 连接',
+                style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
             const Text('导入 .ovpn 配置后，可以同时管理多个公司网络。'),
             const SizedBox(height: 22),

@@ -170,7 +170,7 @@ class SessionViewModel extends ChangeNotifier {
 
   String _errorMessage(Object error) {
     if (error is EngineClientException) return error.message;
-    return 'VPN daemon 调用失败：$error';
+    return 'OpenVPN 服务调用失败：$error';
   }
 
   VpnSession _mergeRemote(VpnSession local, VpnSession remote) {
