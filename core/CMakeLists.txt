@@ -10,6 +10,26 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+add_library(vpn_windows_adapter STATIC
+    ../platform/windows/adapter/adapter.cpp
+)
+target_include_directories(vpn_windows_adapter
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/../platform/common
+        ${CMAKE_CURRENT_SOURCE_DIR}/..
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_link_libraries(vpn_windows_adapter PUBLIC vpn_core)
+set_target_properties(vpn_windows_adapter PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+
+if(WIN32)
+    add_executable(vpn_windows_service
+        ../platform/windows/service/main.cpp
+    )
+    target_link_libraries(vpn_windows_service PRIVATE vpn_windows_adapter)
+    set_target_properties(vpn_windows_service PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+endif()
+
 add_library(vpn_core STATIC
     src/fake_engine.cpp
     src/engine_worker.cpp

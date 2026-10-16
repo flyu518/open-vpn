@@ -58,3 +58,14 @@ if(APPLE)
     target_link_libraries(vpn_macos_route_lifecycle_tests PRIVATE vpn_macos_adapter)
     add_test(NAME vpn_macos_route_lifecycle_tests COMMAND vpn_macos_route_lifecycle_tests)
 endif()
+
+add_executable(vpn_windows_route_lifecycle_tests
+    ../../platform/windows/tests/route_lifecycle_tests.cpp
+)
+target_include_directories(vpn_windows_route_lifecycle_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../..
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../platform/common
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+)
+target_link_libraries(vpn_windows_route_lifecycle_tests PRIVATE vpn_windows_adapter)
+add_test(NAME vpn_windows_route_lifecycle_tests COMMAND vpn_windows_route_lifecycle_tests)
