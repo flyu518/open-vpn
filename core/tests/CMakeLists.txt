@@ -45,3 +45,16 @@ if(EXISTS "${OPENVPN3_SOURCE_DIR}/client/ovpncli.cpp")
 
     add_test(NAME vpn_openvpn3_engine_tests COMMAND vpn_openvpn3_engine_tests)
 endif()
+
+if(APPLE)
+    add_executable(vpn_macos_route_lifecycle_tests
+        ../../platform/macos/tests/route_lifecycle_tests.mm
+    )
+    target_include_directories(vpn_macos_route_lifecycle_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../..
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../platform/common
+        ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    )
+    target_link_libraries(vpn_macos_route_lifecycle_tests PRIVATE vpn_macos_adapter)
+    add_test(NAME vpn_macos_route_lifecycle_tests COMMAND vpn_macos_route_lifecycle_tests)
+endif()

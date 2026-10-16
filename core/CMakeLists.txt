@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.13)
 
 project(vpn_core LANGUAGES C CXX)
 
+if(APPLE)
+    enable_language(OBJCXX)
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -87,6 +91,63 @@ if(EXISTS "${OPENVPN3_SOURCE_DIR}/client/ovpncli.cpp")
             ${CORE_SERVICES}
             ${SYSTEM_CONFIGURATION}
         )
+    endif()
+endif()
+
+if(APPLE)
+    add_library(vpn_macos_adapter STATIC
+        ../platform/macos/adapter/adapter.mm
+    )
+    target_include_directories(vpn_macos_adapter
+        PUBLIC
+            ${CMAKE_CURRENT_SOURCE_DIR}/../platform/common
+            ${CMAKE_CURRENT_SOURCE_DIR}/..
+            ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(vpn_macos_adapter PUBLIC vpn_core)
+
+    if(EXISTS "${OPENVPN3_SOURCE_DIR}/openvpn/ovpnagent/mac/ovpnagent.cpp")
+        add_executable(vpn_macos_agent
+            ../platform/macos/helper/main.cpp
+            ${OPENVPN3_SOURCE_DIR}/openvpn/crypto/data_epoch.cpp
+            ${OPENVPN3_SOURCE_DIR}/openvpn/openssl/xkey/xkey_helper.c
+            ${OPENVPN3_SOURCE_DIR}/openvpn/openssl/xkey/xkey_provider.c
+        )
+        target_compile_definitions(vpn_macos_agent PRIVATE
+            ASIO_STANDALONE
+            USE_ASIO
+            HAVE_LZ4
+            USE_OPENSSL
+            ENABLE_EXTERNAL_PKI
+            HAVE_JSONCPP
+            OPENVPN_COMMAND_AGENT
+            OVPNAGENT_NAME=vpn
+            OPENVPN_CORE_API_VISIBILITY_HIDDEN
+        )
+        target_include_directories(vpn_macos_agent PRIVATE
+            ${OPENVPN3_SOURCE_DIR}
+            ${OPENVPN3_SOURCE_DIR}/client
+            ${XXHASH_ROOT_DIR}
+            ${XXHASH_INCLUDE_DIR}
+            /usr/local/opt/asio/include
+            /usr/local/opt/fmt/include
+            /usr/local/opt/jsoncpp/include
+            /usr/local/opt/lz4/include
+            /usr/local/opt/openssl/include
+        )
+        target_link_libraries(vpn_macos_agent PRIVATE
+            OpenSSL::SSL
+            OpenSSL::Crypto
+            ${LZ4_LIBRARY}
+            ${FMT_LIBRARY}
+            ${JSONCPP_LIBRARY}
+            Threads::Threads
+            ${CORE_FOUNDATION}
+            ${IO_KIT}
+            ${CORE_SERVICES}
+            ${SYSTEM_CONFIGURATION}
+        )
+        target_compile_options(vpn_macos_agent PRIVATE -Wno-deprecated-declarations)
     endif()
 endif()
 
