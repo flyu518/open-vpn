@@ -1,3 +1,4 @@
 #define OVPNAGENT_NAME vpn
 
-#include "openvpn/ovpnagent/mac/ovpnagent.cpp"
+#include "vpn_route_policy.h"
+#include "vpn_macos_agent_generated.cpp"

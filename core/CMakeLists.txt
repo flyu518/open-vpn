@@ -46,12 +46,50 @@ set(OPENVPN3_SOURCE_DIR
 set(XXHASH_ROOT_DIR "" CACHE PATH "xxHash source or install root")
 
 if(EXISTS "${OPENVPN3_SOURCE_DIR}/client/ovpncli.cpp")
+    set(VPN_OPENVPN3_PATCHED_INCLUDE
+        "${CMAKE_CURRENT_BINARY_DIR}/openvpn3_patched_include")
+    set(VPN_OPENVPN3_CMDAGENT_GENERATED
+        "${VPN_OPENVPN3_PATCHED_INCLUDE}/openvpn/client/unix/cmdagent.hpp")
+    set(VPN_OPENVPN3_CLIOPT_GENERATED
+        "${VPN_OPENVPN3_PATCHED_INCLUDE}/openvpn/client/cliopt.hpp")
+    add_custom_command(
+        OUTPUT "${VPN_OPENVPN3_CMDAGENT_GENERATED}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            "${VPN_OPENVPN3_PATCHED_INCLUDE}/openvpn/client/unix"
+        COMMAND ${CMAKE_COMMAND}
+            -DINPUT_SOURCE=${OPENVPN3_SOURCE_DIR}/openvpn/client/unix/cmdagent.hpp
+            -DOUTPUT_SOURCE=${VPN_OPENVPN3_CMDAGENT_GENERATED}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/../platform/macos/helper/generate_cmdagent.cmake
+        DEPENDS
+            ${OPENVPN3_SOURCE_DIR}/openvpn/client/unix/cmdagent.hpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/../platform/macos/helper/generate_cmdagent.cmake
+        VERBATIM
+    )
+    add_custom_command(
+        OUTPUT "${VPN_OPENVPN3_CLIOPT_GENERATED}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            "${VPN_OPENVPN3_PATCHED_INCLUDE}/openvpn/client"
+        COMMAND ${CMAKE_COMMAND}
+            -DINPUT_SOURCE=${OPENVPN3_SOURCE_DIR}/openvpn/client/cliopt.hpp
+            -DOUTPUT_SOURCE=${VPN_OPENVPN3_CLIOPT_GENERATED}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/../platform/macos/helper/generate_cliopt.cmake
+        DEPENDS
+            ${OPENVPN3_SOURCE_DIR}/openvpn/client/cliopt.hpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/../platform/macos/helper/generate_cliopt.cmake
+        VERBATIM
+    )
+    add_custom_target(vpn_openvpn3_cmdagent_source
+        DEPENDS
+            "${VPN_OPENVPN3_CMDAGENT_GENERATED}"
+            "${VPN_OPENVPN3_CLIOPT_GENERATED}")
+
     target_sources(vpn_core PRIVATE
         src/openvpn3_engine.cpp
         ${OPENVPN3_SOURCE_DIR}/openvpn/crypto/data_epoch.cpp
         ${OPENVPN3_SOURCE_DIR}/openvpn/openssl/xkey/xkey_helper.c
         ${OPENVPN3_SOURCE_DIR}/openvpn/openssl/xkey/xkey_provider.c
     )
+    add_dependencies(vpn_core vpn_openvpn3_cmdagent_source)
 
     target_compile_definitions(vpn_core PRIVATE
         ASIO_STANDALONE
@@ -66,6 +104,7 @@ if(EXISTS "${OPENVPN3_SOURCE_DIR}/client/ovpncli.cpp")
     )
 
     target_include_directories(vpn_core PRIVATE
+        ${VPN_OPENVPN3_PATCHED_INCLUDE}
         ${OPENVPN3_SOURCE_DIR}
         ${OPENVPN3_SOURCE_DIR}/client
         ${XXHASH_ROOT_DIR}
@@ -129,12 +168,28 @@ if(APPLE)
     target_link_libraries(vpn_macos_adapter PUBLIC vpn_core)
 
     if(EXISTS "${OPENVPN3_SOURCE_DIR}/openvpn/ovpnagent/mac/ovpnagent.cpp")
+        set(VPN_MACOS_AGENT_GENERATED
+            "${CMAKE_CURRENT_BINARY_DIR}/vpn_macos_agent_generated.cpp")
+        add_custom_command(
+            OUTPUT "${VPN_MACOS_AGENT_GENERATED}"
+            COMMAND ${CMAKE_COMMAND}
+                -DINPUT_SOURCE=${OPENVPN3_SOURCE_DIR}/openvpn/ovpnagent/mac/ovpnagent.cpp
+                -DOUTPUT_SOURCE=${VPN_MACOS_AGENT_GENERATED}
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/../platform/macos/helper/generate_multisession_agent.cmake
+            DEPENDS
+                ${OPENVPN3_SOURCE_DIR}/openvpn/ovpnagent/mac/ovpnagent.cpp
+                ${CMAKE_CURRENT_SOURCE_DIR}/../platform/macos/helper/generate_multisession_agent.cmake
+            VERBATIM
+        )
+        add_custom_target(vpn_macos_agent_source DEPENDS "${VPN_MACOS_AGENT_GENERATED}")
         add_executable(vpn_macos_agent
             ../platform/macos/helper/main.cpp
+            src/vpn_route_policy.cpp
             ${OPENVPN3_SOURCE_DIR}/openvpn/crypto/data_epoch.cpp
             ${OPENVPN3_SOURCE_DIR}/openvpn/openssl/xkey/xkey_helper.c
             ${OPENVPN3_SOURCE_DIR}/openvpn/openssl/xkey/xkey_provider.c
         )
+        add_dependencies(vpn_macos_agent vpn_macos_agent_source)
         target_compile_definitions(vpn_macos_agent PRIVATE
             ASIO_STANDALONE
             USE_ASIO
@@ -147,6 +202,8 @@ if(APPLE)
             OPENVPN_CORE_API_VISIBILITY_HIDDEN
         )
         target_include_directories(vpn_macos_agent PRIVATE
+            ${CMAKE_CURRENT_BINARY_DIR}
+            ${CMAKE_CURRENT_SOURCE_DIR}/include
             ${OPENVPN3_SOURCE_DIR}
             ${OPENVPN3_SOURCE_DIR}/client
             ${XXHASH_ROOT_DIR}
@@ -171,6 +228,18 @@ if(APPLE)
         )
         target_compile_options(vpn_macos_agent PRIVATE -Wno-deprecated-declarations)
     endif()
+
+    add_executable(vpn_smoke_cli
+        tools/smoke_main.cpp
+    )
+    target_include_directories(vpn_smoke_cli PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(vpn_smoke_cli PRIVATE vpn_core)
+    set_target_properties(vpn_smoke_cli PROPERTIES
+        CXX_STANDARD 20
+        CXX_STANDARD_REQUIRED ON
+    )
 endif()
 
 target_include_directories(vpn_core

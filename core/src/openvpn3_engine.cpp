@@ -11,6 +11,17 @@
 namespace vpn {
 namespace {
 
+std::string session_id_for_profile(std::string_view session_id) {
+    std::string result(session_id);
+    for (char& character : result) {
+        if (character == '\n' || character == '\r' || character == '\t' ||
+            character == '"' || character == '\\') {
+            character = '_';
+        }
+    }
+    return result;
+}
+
 class ClientImpl final : public openvpn::ClientAPI::OpenVPNClient {
 public:
     ClientImpl(std::string session_id, EngineEventSink event_sink)
@@ -102,6 +113,8 @@ bool OpenVPN3Session::isActive() const {
 ProfileEvaluation OpenVPN3Session::setProfile(std::string_view profile_content) {
     impl_->config = openvpn::ClientAPI::Config{};
     impl_->config.content.assign(profile_content.data(), profile_content.size());
+    impl_->config.content += "\nsetenv VPN_DESKTOP_SESSION_ID " +
+                             session_id_for_profile(sessionId()) + "\n";
     const openvpn::ClientAPI::EvalConfig evaluation =
         impl_->client->eval_config(impl_->config);
 

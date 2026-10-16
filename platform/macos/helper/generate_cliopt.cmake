@@ -1,0 +1,54 @@
+if(NOT DEFINED INPUT_SOURCE OR NOT DEFINED OUTPUT_SOURCE)
+    message(FATAL_ERROR "需要 INPUT_SOURCE 和 OUTPUT_SOURCE")
+endif()
+
+file(READ "${INPUT_SOURCE}" SOURCE)
+
+function(replace_required OLD_TEXT NEW_TEXT DESCRIPTION)
+    string(FIND "${SOURCE}" "${OLD_TEXT}" FOUND_AT)
+    if(FOUND_AT EQUAL -1)
+        message(FATAL_ERROR "OpenVPN3 cliopt 补丁未找到目标片段：${DESCRIPTION}")
+    endif()
+    string(REPLACE "${OLD_TEXT}" "${NEW_TEXT}" SOURCE "${SOURCE}")
+    set(SOURCE "${SOURCE}" PARENT_SCOPE)
+endfunction()
+
+replace_required(
+    [=[        return remote_list->current_server_host();]=]
+    [=[        if (options)
+        {
+            const OptionList::IndexList *session_options = options->get_index_ptr("setenv");
+            if (session_options)
+            {
+                for (const unsigned int index : *session_options)
+                {
+                    const Option &option = (*options)[index];
+                    if (option.get_optional(1, 64) == "VPN_DESKTOP_SESSION_ID")
+                        session_name_override = option.get(2, 256);
+                }
+            }
+        }
+        if (!session_name_override.empty())
+            return session_name_override;
+        return remote_list->current_server_host();]=]
+    "桌面会话标识")
+
+replace_required(
+    [=[    std::string load_transport_config()]=]
+    [=[    std::string load_transport_config(const OptionList *options = nullptr)]=]
+    "transport 配置参数")
+
+replace_required(
+    [=[        const std::string session_name = load_transport_config();]=]
+    [=[        const std::string session_name = load_transport_config(&opt);]=]
+    "初次加载桌面会话标识")
+
+replace_required(
+    [=[    std::string userlocked_username;]=]
+    [=[    std::string session_name_override;
+    std::string userlocked_username;]=]
+    "桌面会话标识存储")
+
+get_filename_component(OUTPUT_DIRECTORY "${OUTPUT_SOURCE}" DIRECTORY)
+file(MAKE_DIRECTORY "${OUTPUT_DIRECTORY}")
+file(WRITE "${OUTPUT_SOURCE}" "${SOURCE}")

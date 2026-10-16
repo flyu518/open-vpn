@@ -29,9 +29,19 @@ ctest --test-dir /tmp/vpn-core-build --output-on-failure
 
 - 共享 C++ 核心、OpenVPN3 离线 profile 解析和多会话对象已可测试。
 - macOS/Windows 路由生命周期模型已可离线测试。
-- macOS helper 可构建，`packaging/macos/` 已提供 launchd 配置和本地安装脚本；真实安装、签名和 IPC 鉴权仍需在目标机验证。
+- macOS helper 已按“进程 PID + 独立会话标识”管理多个 utun，并在 helper 侧执行全隧道/重叠路由校验；`packaging/macos/` 已提供 launchd 配置和本地安装脚本。
 - Windows Wintun/Service 需要 Windows 主机完成运行验证。
 - Flutter SDK 当前未安装，中文桌面界面源码已写入但尚未运行 Flutter 测试。
+
+macOS 当前可以先做不联网的 profile 检查：
+
+```bash
+/tmp/vpn-core-build-x86/vpn_smoke_cli --offline \
+  vpn/tmp/profile-a.ovpn vpn/tmp/profile-b.ovpn
+```
+
+真实连接入口会在终端隐藏读取用户名和密码；在 helper 安装、签名和 IPC 鉴权完成前，
+不要输入真实凭据。
 
 如果 `third_party/openvpn3` 已经存在，CMake 会额外编译 OpenVPN3 Core
 离线测试。当前开发机的 `/usr/local` 依赖是 x86_64，使用 Rosetta 验证时执行：

@@ -10,6 +10,8 @@
 		<string>/Library/PrivilegedHelperTools/com.vpn.helper</string>
 		<string>--pidfile</string>
 		<string>/var/run/com.vpn.helper.pid</string>
+		<string>--group</string>
+		<string>staff</string>
 	</array>
 
 	<!-- 由 launchd 管理前台进程，不能传入 --daemon。 -->
