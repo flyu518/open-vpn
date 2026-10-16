@@ -45,6 +45,7 @@ class SessionViewModel extends ChangeNotifier {
       status: VpnStatus.disconnected,
       profileId: profile.id,
       profile: profile.contents,
+      username: profile.username,
     );
     notifyListeners();
   }
@@ -53,6 +54,14 @@ class SessionViewModel extends ChangeNotifier {
     final session = _sessions[id];
     if (session == null) return;
     _sessions[id] = session.copyWith(status: status);
+    notifyListeners();
+  }
+
+  void renameSession(String id, String name) {
+    final session = _sessions[id];
+    final normalizedName = name.trim();
+    if (session == null || normalizedName.isEmpty) return;
+    _sessions[id] = session.copyWith(name: normalizedName);
     notifyListeners();
   }
 

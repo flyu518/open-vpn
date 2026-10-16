@@ -17,4 +17,19 @@ void main() {
     expect(first.id, isNot(contains('/')));
     expect(first.displayName, '研发网络');
   });
+
+  test('从内嵌 auth-user-pass 中读取用户名但不暴露密码', () {
+    final profile = ImportedProfile.fromFile(
+      path: '/Users/test/研发网络.ovpn',
+      contents: '''client
+<auth-user-pass>
+cuikai
+不要保存这行密码
+</auth-user-pass>
+''',
+    );
+
+    expect(profile.username, 'cuikai');
+    expect(profile.username, isNot(contains('不要保存')));
+  });
 }

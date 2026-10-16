@@ -9,6 +9,7 @@ import 'screens/credentials_dialog.dart';
 import 'screens/profile_library_screen.dart';
 import 'screens/profile_import_screen.dart';
 import 'screens/route_strategy_dialog.dart';
+import 'screens/session_name_dialog.dart';
 import 'screens/sessions_screen.dart';
 import 'services/engine_client.dart';
 import 'view_models/session_view_model.dart';
@@ -80,7 +81,10 @@ class _VpnAppState extends State<VpnApp> {
     if (navigatorContext == null) return;
     final credentials = await showDialog<VpnCredentials>(
       context: navigatorContext,
-      builder: (_) => CredentialsDialog(profileName: session.name),
+      builder: (_) => CredentialsDialog(
+        profileName: session.name,
+        initialUsername: session.username,
+      ),
     );
     if (credentials == null) return;
     await viewModel.connectSession(
@@ -89,6 +93,16 @@ class _VpnAppState extends State<VpnApp> {
       password: credentials.password,
       rememberCredentials: credentials.remember,
     );
+  }
+
+  Future<void> _editName(VpnSession session) async {
+    final navigatorContext = _navigatorKey.currentState?.context;
+    if (navigatorContext == null) return;
+    final name = await showDialog<String>(
+      context: navigatorContext,
+      builder: (_) => SessionNameDialog(initialName: session.name),
+    );
+    if (name != null) viewModel.renameSession(session.id, name);
   }
 
   Future<void> _disconnect(VpnSession session) async {
@@ -119,6 +133,7 @@ class _VpnAppState extends State<VpnApp> {
         onOpenProfiles: _openProfiles,
         onConnect: _connect,
         onDisconnect: _disconnect,
+        onEditName: _editName,
         onEditStrategy: (session) => showDialog<RouteStrategy>(
           context: _navigatorKey.currentState!.context,
           builder: (_) => RouteStrategyDialog(initial: session.routeStrategy),

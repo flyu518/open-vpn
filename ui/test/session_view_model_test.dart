@@ -163,6 +163,23 @@ void main() {
     expect(viewModel.sessionById('office-b')!.routeStrategy.priority, 10);
   });
 
+  test('可以只修改连接显示名称而不改变 profile', () {
+    final viewModel = SessionViewModel();
+    viewModel.replaceSessions([
+      const VpnSession(
+        id: 'office-a',
+        name: '旧名称',
+        status: VpnStatus.disconnected,
+        profile: 'client\n',
+      ),
+    ]);
+
+    viewModel.renameSession('office-a', '研发专线');
+
+    expect(viewModel.sessionById('office-a')!.name, '研发专线');
+    expect(viewModel.sessionById('office-a')!.profile, 'client\n');
+  });
+
   test('拖动连接顺序会更新优先级', () {
     final viewModel = SessionViewModel();
     viewModel.replaceSessions([

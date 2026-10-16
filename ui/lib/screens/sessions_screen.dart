@@ -11,6 +11,7 @@ class SessionsScreen extends StatelessWidget {
     this.onOpenProfiles,
     this.onConnect,
     this.onDisconnect,
+    this.onEditName,
     this.onEditStrategy,
     this.onReorder,
   });
@@ -19,6 +20,7 @@ class SessionsScreen extends StatelessWidget {
   final VoidCallback? onOpenProfiles;
   final Future<void> Function(VpnSession)? onConnect;
   final Future<void> Function(VpnSession)? onDisconnect;
+  final Future<void> Function(VpnSession)? onEditName;
   final ValueChanged<VpnSession>? onEditStrategy;
   final void Function(int oldIndex, int newIndex)? onReorder;
 
@@ -92,6 +94,8 @@ class SessionsScreen extends StatelessWidget {
                                                 onConnect?.call(session),
                                             onDisconnect: () =>
                                                 onDisconnect?.call(session),
+                                            onEditName: () =>
+                                                onEditName?.call(session),
                                             onEditStrategy: () =>
                                                 onEditStrategy?.call(session),
                                           ),
@@ -634,6 +638,7 @@ class SessionCard extends StatelessWidget {
     this.error,
     this.onConnect,
     this.onDisconnect,
+    this.onEditName,
     this.onEditStrategy,
   });
 
@@ -641,6 +646,7 @@ class SessionCard extends StatelessWidget {
   final String? error;
   final VoidCallback? onConnect;
   final VoidCallback? onDisconnect;
+  final VoidCallback? onEditName;
   final VoidCallback? onEditStrategy;
 
   @override
@@ -686,8 +692,24 @@ class SessionCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(session.name,
-                        style: Theme.of(context).textTheme.titleMedium),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(session.name,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleMedium),
+                        ),
+                        IconButton(
+                          tooltip: '编辑连接名称',
+                          onPressed: onEditName,
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints.tightFor(
+                              width: 28, height: 28),
+                          icon: const Icon(Icons.edit_outlined, size: 16),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 4),
                     Text(
                       session.remoteHost.isEmpty

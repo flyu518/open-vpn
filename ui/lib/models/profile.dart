@@ -4,6 +4,7 @@ class ImportedProfile {
     required this.displayName,
     required this.path,
     required this.contents,
+    this.username = '',
   });
 
   factory ImportedProfile.fromFile({
@@ -20,6 +21,7 @@ class ImportedProfile {
       displayName: displayName.isEmpty ? '未命名配置' : displayName,
       path: path,
       contents: contents,
+      username: _extractUsername(contents),
     );
   }
 
@@ -27,6 +29,22 @@ class ImportedProfile {
   final String displayName;
   final String path;
   final String contents;
+  final String username;
+}
+
+String _extractUsername(String contents) {
+  final match = RegExp(
+    r'<auth-user-pass\s*>([\s\S]*?)</auth-user-pass\s*>',
+    caseSensitive: false,
+  ).firstMatch(contents);
+  if (match == null) return '';
+
+  final lines = match
+      .group(1)!
+      .split(RegExp(r'\r?\n'))
+      .map((line) => line.trim())
+      .where((line) => line.isNotEmpty);
+  return lines.isEmpty ? '' : lines.first;
 }
 
 String _stableProfileId(String value) {

@@ -3,9 +3,14 @@ import 'package:flutter/material.dart';
 import '../models/credentials.dart';
 
 class CredentialsDialog extends StatefulWidget {
-  const CredentialsDialog({super.key, required this.profileName});
+  const CredentialsDialog({
+    super.key,
+    required this.profileName,
+    this.initialUsername = '',
+  });
 
   final String profileName;
+  final String initialUsername;
 
   @override
   State<CredentialsDialog> createState() => _CredentialsDialogState();
@@ -16,6 +21,12 @@ class _CredentialsDialogState extends State<CredentialsDialog> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _remember = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _usernameController.text = widget.initialUsername;
+  }
 
   @override
   void dispose() {
