@@ -156,6 +156,25 @@ if(EXISTS "${OPENVPN3_SOURCE_DIR}/client/ovpncli.cpp")
 endif()
 
 if(APPLE)
+    find_library(CORE_FOUNDATION CoreFoundation REQUIRED)
+    find_library(SECURITY Security REQUIRED)
+    add_library(vpn_macos_secure_store STATIC
+        ../platform/macos/secure_store/keychain_store.mm
+    )
+    target_include_directories(vpn_macos_secure_store PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/..
+        ${CMAKE_CURRENT_SOURCE_DIR}/../platform/common
+    )
+    target_link_libraries(vpn_macos_secure_store PUBLIC
+        ${CORE_FOUNDATION}
+        ${SECURITY}
+    )
+    set_target_properties(vpn_macos_secure_store PROPERTIES
+        CXX_STANDARD 20
+        CXX_STANDARD_REQUIRED ON
+    )
+
     add_library(vpn_macos_adapter STATIC
         ../platform/macos/adapter/adapter.mm
     )
@@ -237,6 +256,22 @@ if(APPLE)
     )
     target_link_libraries(vpn_smoke_cli PRIVATE vpn_core)
     set_target_properties(vpn_smoke_cli PROPERTIES
+        CXX_STANDARD 20
+        CXX_STANDARD_REQUIRED ON
+    )
+endif()
+
+if(WIN32)
+    add_library(vpn_windows_secure_store STATIC
+        ../platform/windows/secure_store/credential_store.cpp
+    )
+    target_include_directories(vpn_windows_secure_store PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/..
+        ${CMAKE_CURRENT_SOURCE_DIR}/../platform/common
+    )
+    target_link_libraries(vpn_windows_secure_store PUBLIC advapi32)
+    set_target_properties(vpn_windows_secure_store PROPERTIES
         CXX_STANDARD 20
         CXX_STANDARD_REQUIRED ON
     )

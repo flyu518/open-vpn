@@ -75,3 +75,12 @@ add_executable(vpn_security_recovery_tests
 )
 target_link_libraries(vpn_security_recovery_tests PRIVATE vpn_core)
 add_test(NAME vpn_security_recovery_tests COMMAND vpn_security_recovery_tests)
+
+add_executable(vpn_credential_codec_tests
+    credential_codec_tests.cpp
+)
+target_include_directories(vpn_credential_codec_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../platform/common
+)
+add_test(NAME vpn_credential_codec_tests COMMAND vpn_credential_codec_tests)
