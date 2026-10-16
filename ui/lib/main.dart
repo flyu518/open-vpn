@@ -24,6 +24,7 @@ class VpnApp extends StatefulWidget {
 }
 
 class _VpnAppState extends State<VpnApp> {
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   late final EngineClient engineClient;
   late final SessionViewModel viewModel;
 
@@ -51,8 +52,10 @@ class _VpnAppState extends State<VpnApp> {
   }
 
   Future<void> _importProfile() async {
+    final navigatorContext = _navigatorKey.currentState?.context;
+    if (navigatorContext == null) return;
     await showDialog<void>(
-      context: context,
+      context: navigatorContext,
       builder: (_) => ProfileImportScreen(
         onImport: (profile) => viewModel.addImportedProfile(profile),
       ),
@@ -60,8 +63,10 @@ class _VpnAppState extends State<VpnApp> {
   }
 
   Future<void> _connect(VpnSession session) async {
+    final navigatorContext = _navigatorKey.currentState?.context;
+    if (navigatorContext == null) return;
     final credentials = await showDialog<VpnCredentials>(
-      context: context,
+      context: navigatorContext,
       builder: (_) => CredentialsDialog(profileName: session.name),
     );
     if (credentials == null) return;
@@ -81,6 +86,7 @@ class _VpnAppState extends State<VpnApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      navigatorKey: _navigatorKey,
       title: 'OpenVPN',
       theme: ThemeData(
         useMaterial3: true,
@@ -101,7 +107,7 @@ class _VpnAppState extends State<VpnApp> {
         onConnect: _connect,
         onDisconnect: _disconnect,
         onEditStrategy: (session) => showDialog<RouteStrategy>(
-          context: context,
+          context: _navigatorKey.currentState!.context,
           builder: (_) => RouteStrategyDialog(initial: session.routeStrategy),
         ).then((strategy) {
           if (strategy != null) {

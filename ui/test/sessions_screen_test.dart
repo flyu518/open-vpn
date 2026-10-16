@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:openvpn_ui/main.dart';
 import 'package:openvpn_ui/models/session.dart';
 import 'package:openvpn_ui/screens/sessions_screen.dart';
 import 'package:openvpn_ui/view_models/session_view_model.dart';
@@ -74,5 +75,15 @@ void main() {
     await tester.pump();
 
     expect(clicked, isTrue);
+  });
+
+  testWidgets('应用根页面点击添加会打开导入对话框', (tester) async {
+    await tester.pumpWidget(const VpnApp());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('添加 OpenVPN'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('导入 OpenVPN 配置'), findsOneWidget);
   });
 }
