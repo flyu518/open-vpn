@@ -18,6 +18,7 @@ replace_required(
 #include <string>
 #include <utility>]=]
     [=[#include <iostream>
+#include <algorithm>
 #include <map>
 #include <set>
 #include <string>
@@ -174,8 +175,8 @@ replace_required(
         return policy;
     }
 
-    void validate_route_policy(const std::string &key,
-                               const vpn::RoutePolicy &candidate) const
+    vpn::RouteDecision validate_route_policy(const std::string &key,
+                                             const vpn::RoutePolicy &candidate) const
     {
         std::vector<vpn::RoutePolicy> active;
         for (const auto &item : route_policies)
@@ -183,9 +184,8 @@ replace_required(
             if (item.first != key)
                 active.push_back(item.second);
         }
-        const vpn::RouteDecision decision = vpn::vpn_route_policy_validate(active, candidate);
-        if (decision.code != vpn::RouteDecisionCode::Allowed)
-            throw Exception(decision.diagnostic);
+        return vpn::vpn_route_policy_validate(
+            active, candidate, vpn::RouteConflictMode::Compatible);
     }
 
     ScopedFD establish_tun(const pid_t pid,
@@ -196,15 +196,45 @@ replace_required(
                            std::ostream &os)
     {
         const std::string key = session_key(pid, name);
-        const vpn::RoutePolicy candidate = route_policy(key, tbc);
-        validate_route_policy(key, candidate);
+        const vpn::RoutePolicy requested = route_policy(key, tbc);
+        const vpn::RouteDecision decision = validate_route_policy(key, requested);
+        if (decision.code != vpn::RouteDecisionCode::Allowed)
+            throw Exception(decision.diagnostic);
+        if (decision.conflicts.size() > 32)
+            throw Exception("冲突路由数量过多，需用户断开一个会话后重试");
+
+        TunBuilderCapture::Ptr effective = TunBuilderCapture::from_json(tbc.to_json());
+        std::set<std::string> skipped_routes;
+        for (const vpn::RouteConflict &conflict : decision.conflicts)
+            skipped_routes.insert(conflict.candidate_route);
+        if (!skipped_routes.empty())
+        {
+            effective->add_routes.erase(
+                std::remove_if(effective->add_routes.begin(), effective->add_routes.end(),
+                               [&](const TunBuilderCapture::Route &route) {
+                                   const std::string value =
+                                       route.address + "/" +
+                                       std::to_string(static_cast<unsigned int>(route.prefix_length));
+                                   return skipped_routes.find(value) != skipped_routes.end();
+                               }),
+                effective->add_routes.end());
+            os << "兼容模式：会话 " << name << " 跳过 " << skipped_routes.size()
+               << " 条冲突路由，保留前一个会话的路由所有权\n";
+            for (const vpn::RouteConflict &conflict : decision.conflicts)
+            {
+                os << "冲突：当前 " << conflict.candidate_route << "；前一个会话 "
+                   << conflict.active_session_id << " 使用 " << conflict.active_route << "\n";
+            }
+        }
+
+        const vpn::RoutePolicy installed = route_policy(key, *effective);
         TunMac::Setup::Ptr &tun = tuns[key];
         if (!tun)
             tun.reset(new TunMac::Setup);
-        if (tbc.remote_address.defined())
-            session_bypass_hosts[key] = tbc.remote_address.address;
-        ScopedFD result(tun->establish(tbc, config, stop, os));
-        route_policies[key] = candidate;
+        if (effective->remote_address.defined())
+            session_bypass_hosts[key] = effective->remote_address.address;
+        ScopedFD result(tun->establish(*effective, config, stop, os));
+        route_policies[key] = installed;
         return result;
     }
 

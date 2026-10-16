@@ -91,7 +91,10 @@ class EventTracker {
 public:
     void onEvent(const std::string& label, const vpn::EngineEvent& event) {
         const std::string safe_info = vpn::redactSecrets(event.info);
-        if (event.name != "LOG" || event.error || event.fatal) {
+        const bool route_warning = safe_info.find("兼容模式") != std::string::npos ||
+                                   safe_info.find("冲突") != std::string::npos ||
+                                   safe_info.find("重叠") != std::string::npos;
+        if (event.name != "LOG" || event.error || event.fatal || route_warning) {
             std::cout << "[" << label << "] " << event.name;
             if (!safe_info.empty()) {
                 std::cout << "：" << safe_info;

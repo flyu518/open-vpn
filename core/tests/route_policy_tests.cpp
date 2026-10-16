@@ -68,6 +68,20 @@ void rejects_second_full_tunnel() {
     assert(decision.code == vpn::RouteDecisionCode::FullTunnelExclusive);
 }
 
+void compatible_mode_reports_but_allows_overlap() {
+    const std::vector<vpn::RoutePolicy> active = {
+        split_policy("office-a", {"10.20.0.0/16"})};
+    const vpn::RoutePolicy candidate =
+        split_policy("office-b", {"10.20.10.0/24", "10.30.0.0/16"});
+
+    const vpn::RouteDecision decision = vpn::vpn_route_policy_validate(
+        active, candidate, vpn::RouteConflictMode::Compatible);
+    assert(decision.code == vpn::RouteDecisionCode::Allowed);
+    assert(decision.conflicts.size() == 1);
+    assert(decision.conflicts.front().candidate_route == "10.20.10.0/24");
+    assert(decision.conflicts.front().active_session_id == "office-a");
+}
+
 void allows_first_full_tunnel_when_no_session_is_active() {
     const vpn::RoutePolicy candidate = full_policy("office-a");
 
@@ -83,6 +97,7 @@ int main() {
     rejects_ipv6_overlap();
     allows_disjoint_split_routes();
     rejects_second_full_tunnel();
+    compatible_mode_reports_but_allows_overlap();
     allows_first_full_tunnel_when_no_session_is_active();
     return 0;
 }

@@ -113,6 +113,7 @@ private:
         std::string remote_host;
         vpn::SessionState state = vpn::SessionState::Idle;
         std::string error;
+        std::vector<std::string> warnings;
     };
 
     static vpn::SessionState state_from_event(const vpn::EngineEvent& event,
@@ -199,6 +200,11 @@ Json::Value SessionController::record_json(const std::string& session_id,
     if (!record.error.empty()) {
         value["error"] = vpn::redactSecrets(record.error);
     }
+    Json::Value warnings(Json::arrayValue);
+    for (const std::string& warning : record.warnings) {
+        warnings.append(vpn::redactSecrets(warning));
+    }
+    value["warnings"] = warnings;
     return value;
 }
 
@@ -361,6 +367,12 @@ void SessionController::onEngineEvent(const std::string& session_id,
         it->second.state = state_from_event(event, it->second.state);
         if (event.error || event.fatal) {
             it->second.error = event.info;
+        }
+        if (event.name == "LOG" &&
+            (event.info.find("兼容模式") != std::string::npos ||
+             event.info.find("冲突") != std::string::npos ||
+             event.info.find("重叠") != std::string::npos)) {
+            it->second.warnings.push_back(event.info);
         }
         notification["session"] = record_json(session_id, it->second);
     }

@@ -116,7 +116,8 @@ RouteDecision invalid_route() {
 
 RouteDecision vpn_route_policy_validate(
     const std::vector<RoutePolicy>& active_policies,
-    const RoutePolicy& candidate) {
+    const RoutePolicy& candidate,
+    RouteConflictMode mode) {
     if (candidate.mode == RouteMode::Full) {
         if (!active_policies.empty()) {
             return {RouteDecisionCode::FullTunnelExclusive,
@@ -154,16 +155,58 @@ RouteDecision vpn_route_policy_validate(
                 const ParsedNetwork& candidate_network = candidate_networks[candidate_index];
                 const std::string& candidate_route = candidate.routes[candidate_index];
                 if (networks_overlap(active_network, candidate_network)) {
-                    return {RouteDecisionCode::RouteConflict,
+                    RouteConflict conflict;
+                    conflict.candidate_route = candidate_route;
+                    conflict.active_session_id = active.session_id;
+                    conflict.active_route = active_route;
+                    if (mode == RouteConflictMode::Strict) {
+                        RouteDecision decision{
+                            RouteDecisionCode::RouteConflict,
                             "路由与活动 VPN 重叠：候选会话 " + candidate.session_id +
                                 " 的 " + candidate_route + " 与活动会话 " +
-                                active.session_id + " 的 " + active_route + " 重叠"};
+                                active.session_id + " 的 " + active_route + " 重叠",
+                            {conflict}};
+                        return decision;
+                    }
                 }
             }
         }
     }
 
-    return {RouteDecisionCode::Allowed, "允许建立连接"};
+    RouteDecision decision{RouteDecisionCode::Allowed, "允许建立连接"};
+    if (mode == RouteConflictMode::Compatible) {
+        for (const RoutePolicy& active : active_policies) {
+            for (const std::string& active_route : active.routes) {
+                ParsedNetwork active_network;
+                if (!parse_network(active_route, &active_network)) {
+                    return invalid_route();
+                }
+                for (const std::string& candidate_route : candidate.routes) {
+                    ParsedNetwork candidate_network;
+                    if (!parse_network(candidate_route, &candidate_network)) {
+                        return invalid_route();
+                    }
+                    if (networks_overlap(active_network, candidate_network)) {
+                        const auto duplicate = std::find_if(
+                            decision.conflicts.begin(), decision.conflicts.end(),
+                            [&](const RouteConflict& conflict) {
+                                return conflict.candidate_route == candidate_route &&
+                                       conflict.active_session_id == active.session_id &&
+                                       conflict.active_route == active_route;
+                            });
+                        if (duplicate == decision.conflicts.end()) {
+                            decision.conflicts.push_back(
+                                {candidate_route, active.session_id, active_route});
+                        }
+                    }
+                }
+            }
+        }
+        if (!decision.conflicts.empty()) {
+            decision.diagnostic = "兼容模式：当前连接将跳过与活动 VPN 重叠的路由";
+        }
+    }
+    return decision;
 }
 
 }  // namespace vpn
