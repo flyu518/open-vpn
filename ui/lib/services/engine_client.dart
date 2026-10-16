@@ -11,12 +11,14 @@ class EngineEvent {
     required this.status,
     this.message = '',
     this.session,
+    this.serviceAvailable = true,
   });
 
   final String sessionId;
   final VpnStatus status;
   final String message;
   final VpnSession? session;
+  final bool serviceAvailable;
 }
 
 class EngineResponse {
@@ -165,6 +167,14 @@ class UnixSocketEngineClient implements EngineClient {
 
   void _handleClosed() {
     _socket = null;
+    if (!_events.isClosed) {
+      _events.add(const EngineEvent(
+        sessionId: '',
+        status: VpnStatus.disconnected,
+        message: 'OpenVPN 服务连接已关闭',
+        serviceAvailable: false,
+      ));
+    }
     final pending = List<Completer<EngineResponse>>.from(_pendingResponses);
     _pendingResponses.clear();
     for (final completer in pending) {

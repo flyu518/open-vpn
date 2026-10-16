@@ -3,9 +3,11 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'dart:async';
 
+import 'package:openvpn_ui/models/profile.dart';
 import 'package:openvpn_ui/models/session.dart';
 import 'package:openvpn_ui/models/route_strategy.dart';
 import 'package:openvpn_ui/services/engine_client.dart';
+import 'package:openvpn_ui/services/profile_store.dart';
 import 'package:openvpn_ui/view_models/session_view_model.dart';
 
 void main() {
@@ -113,6 +115,39 @@ void main() {
 
     expect(viewModel.sessionById('office-a')!.status, VpnStatus.failed);
     expect(viewModel.errorFor('office-a'), isNotEmpty);
+    expect(viewModel.serviceError, contains('OpenVPN'));
+
+    viewModel.dispose();
+    await engine.dispose();
+  });
+
+  test('daemon 不可用时暴露服务状态错误', () async {
+    final engine = UnixSocketEngineClient(
+      socketPath: '/tmp/openvpn-ui-status-missing-$pid.sock',
+    );
+    final viewModel = SessionViewModel(engineClient: engine);
+
+    await viewModel.loadSnapshot();
+
+    expect(viewModel.serviceError, contains('OpenVPN'));
+
+    viewModel.dispose();
+    await engine.dispose();
+  });
+
+  test('daemon 运行中断开时更新服务状态', () async {
+    final engine = InMemoryEngineClient();
+    final viewModel = SessionViewModel(engineClient: engine);
+
+    engine.pushEvent(const EngineEvent(
+      sessionId: '',
+      status: VpnStatus.disconnected,
+      message: 'OpenVPN 服务连接已关闭',
+      serviceAvailable: false,
+    ));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(viewModel.serviceError, contains('连接已关闭'));
 
     viewModel.dispose();
     await engine.dispose();
@@ -180,6 +215,36 @@ void main() {
     expect(viewModel.sessionById('office-a')!.profile, 'client\n');
   });
 
+  test('重新导入同一路径不会覆盖自定义名称和路由策略', () async {
+    final viewModel = SessionViewModel();
+    final imported = ImportedProfile.fromFile(
+      path: '/tmp/profile-a.ovpn',
+      contents: 'client\nnew\n',
+    );
+    viewModel.replaceSessions([
+      VpnSession(
+        id: imported.id,
+        name: '研发专线',
+        status: VpnStatus.disconnected,
+        profileId: imported.id,
+        profilePath: '/tmp/profile-a.ovpn',
+        profile: 'client\nold\n',
+        routeStrategy: const RouteStrategy(
+          conflictMode: RouteConflictMode.ask,
+          priority: 9,
+        ),
+      ),
+    ]);
+
+    await viewModel.addImportedProfile(imported);
+
+    final session = viewModel.sessionById(imported.id)!;
+    expect(session.name, '研发专线');
+    expect(session.profile, 'client\nnew\n');
+    expect(session.routeStrategy.conflictMode, RouteConflictMode.ask);
+    expect(session.routeStrategy.priority, 9);
+  });
+
   test('拖动连接顺序会更新优先级', () {
     final viewModel = SessionViewModel();
     viewModel.replaceSessions([
@@ -194,6 +259,25 @@ void main() {
     expect(viewModel.sessions.first.id, 'office-b');
     expect(viewModel.sessionById('office-b')!.routeStrategy.priority, 2);
     expect(viewModel.sessionById('office-a')!.routeStrategy.priority, 1);
+  });
+
+  test('导入配置完成前会持久化 profile 元数据', () async {
+    final root = Directory.systemTemp.createTempSync('openvpn-import-');
+    final profileFile = File('${root.path}/研发网络.ovpn')
+      ..writeAsStringSync('client\n');
+    final store = JsonProfileStore(file: File('${root.path}/profiles.json'));
+    final viewModel = SessionViewModel(profileStore: store);
+
+    await viewModel.addImportedProfile(ImportedProfile.fromFile(
+      path: profileFile.path,
+      contents: 'client\n',
+    ));
+
+    final restored = await store.load();
+    expect(restored.single.profilePath, profileFile.path);
+
+    viewModel.dispose();
+    await root.delete(recursive: true);
   });
 }
 

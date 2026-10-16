@@ -88,7 +88,7 @@ class ProfileLibraryDialog extends StatelessWidget {
             onImport?.call();
           },
           icon: const Icon(Icons.upload_file_rounded),
-          label: const Text('导入配置'),
+          label: const Text('添加配置'),
         ),
       ],
     );

@@ -6,6 +6,34 @@ import 'package:openvpn_ui/screens/sessions_screen.dart';
 import 'package:openvpn_ui/view_models/session_view_model.dart';
 
 void main() {
+  testWidgets('服务尚未检查时不会显示为已就绪', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: SessionsScreen(viewModel: SessionViewModel()),
+    ));
+
+    expect(find.text('检查中'), findsOneWidget);
+    expect(find.text('服务已就绪'), findsNothing);
+  });
+
+  testWidgets('断开过程中不会再次显示连接按钮', (tester) async {
+    final viewModel = SessionViewModel();
+    viewModel.replaceSessions([
+      const VpnSession(
+        id: 'office-a',
+        name: '研发网络',
+        status: VpnStatus.disconnecting,
+        profile: 'client\n',
+      ),
+    ]);
+
+    await tester.pumpWidget(MaterialApp(
+      home: SessionsScreen(viewModel: viewModel),
+    ));
+
+    expect(find.text('断开中…'), findsOneWidget);
+    expect(find.text('连接'), findsNothing);
+  });
+
   testWidgets('路由冲突失败时显示先断开前一个会话的处理提示', (tester) async {
     final viewModel = SessionViewModel();
     viewModel.replaceSessions([
@@ -21,7 +49,7 @@ void main() {
       home: SessionsScreen(viewModel: viewModel),
     ));
 
-    expect(find.text('安全网络控制台'), findsNWidgets(2));
+    expect(find.text('连接列表'), findsOneWidget);
     expect(find.text('活动连接'), findsOneWidget);
     expect(find.textContaining('先断开提示中的前一个会话，再重试'), findsOneWidget);
   });
@@ -40,17 +68,21 @@ void main() {
       home: SessionsScreen(viewModel: viewModel),
     ));
 
-    expect(find.text('需要重新导入'), findsOneWidget);
+    expect(find.text('需重新导入'), findsOneWidget);
   });
 
-  testWidgets('总览页不重复显示导入按钮', (tester) async {
+  testWidgets('总览页提供唯一明确的导入入口', (tester) async {
     final viewModel = SessionViewModel();
 
     await tester.pumpWidget(MaterialApp(
-      home: SessionsScreen(viewModel: viewModel),
+      home: SessionsScreen(
+        viewModel: viewModel,
+        onImportProfile: () {},
+      ),
     ));
 
-    expect(find.text('添加 OpenVPN'), findsNothing);
+    expect(find.text('导入配置'), findsOneWidget);
+    expect(find.text('导入第一个配置'), findsNothing);
   });
 
   testWidgets('配置文件导航进入配置管理而不是直接导入', (tester) async {
@@ -78,6 +110,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('配置文件'), findsWidgets);
-    expect(find.text('导入配置'), findsOneWidget);
+    expect(find.text('添加配置'), findsOneWidget);
   });
 }

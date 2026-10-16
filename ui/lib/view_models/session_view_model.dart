@@ -22,6 +22,9 @@ class SessionViewModel extends ChangeNotifier {
   final EngineClient? _engineClient;
   final ProfileStore? _profileStore;
   StreamSubscription<EngineEvent>? _engineSubscription;
+  bool _serviceChecked = false;
+  String? _serviceError;
+  String? _profileStoreError;
 
   List<VpnSession> get sessions => List.unmodifiable(_sessions.values);
 
@@ -36,6 +39,12 @@ class SessionViewModel extends ChangeNotifier {
 
   String? errorFor(String id) => _errors[id];
 
+  String? get serviceError => _serviceError;
+
+  bool get serviceChecked => _serviceChecked;
+
+  String? get profileStoreError => _profileStoreError;
+
   void replaceSessions(Iterable<VpnSession> sessions) {
     _sessions
       ..clear()
@@ -43,8 +52,9 @@ class SessionViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void addImportedProfile(ImportedProfile profile) {
-    _sessions[profile.id] = VpnSession(
+  Future<void> addImportedProfile(ImportedProfile profile) async {
+    final existing = _sessions[profile.id];
+    final imported = VpnSession(
       id: profile.id,
       name: profile.displayName,
       status: VpnStatus.disconnected,
@@ -53,8 +63,19 @@ class SessionViewModel extends ChangeNotifier {
       profilePath: profile.path,
       username: profile.username,
     );
+    _sessions[profile.id] = existing == null
+        ? imported
+        : existing.copyWith(
+            name: _keepSessionName(existing.name)
+                ? existing.name
+                : profile.displayName,
+            profileId: profile.id,
+            profile: profile.contents,
+            profilePath: profile.path,
+            username: profile.username,
+          );
     notifyListeners();
-    unawaited(_saveProfiles());
+    await _saveProfiles(throwOnError: true);
   }
 
   Future<void> loadProfiles() async {
@@ -67,19 +88,26 @@ class SessionViewModel extends ChangeNotifier {
     if (restored.isNotEmpty) notifyListeners();
   }
 
-  Future<void> _saveProfiles() async {
+  Future<void> _saveProfiles({bool throwOnError = false}) async {
     final profileStore = _profileStore;
     if (profileStore == null) return;
     try {
       await profileStore.save(_sessions.values);
+      if (_profileStoreError != null) {
+        _profileStoreError = null;
+        notifyListeners();
+      }
     } on Object {
-      // 配置持久化失败不影响当前连接，下一次导入或修改时继续尝试。
+      _profileStoreError = '配置保存失败，请检查配置目录权限后重试';
+      notifyListeners();
+      if (throwOnError) rethrow;
     }
   }
 
   void updateStatus(String id, VpnStatus status) {
     final session = _sessions[id];
     if (session == null) return;
+
     _sessions[id] = session.copyWith(status: status);
     notifyListeners();
   }
@@ -103,9 +131,17 @@ class SessionViewModel extends ChangeNotifier {
   }
 
   void _applyEngineEvent(EngineEvent event) {
+    if (!event.serviceAvailable) {
+      _serviceChecked = true;
+      _serviceError = event.message.isEmpty ? 'OpenVPN 服务不可用' : event.message;
+      notifyListeners();
+      return;
+    }
     final session = _sessions[event.sessionId];
     if (session == null) return;
 
+    _serviceChecked = true;
+    _serviceError = null;
     _sessions[event.sessionId] = event.session == null
         ? session.copyWith(status: event.status)
         : session.copyWith(
@@ -150,19 +186,28 @@ class SessionViewModel extends ChangeNotifier {
         routeStrategy: session.routeStrategy,
       );
       if (!result.ok) {
+        _serviceChecked = true;
         _sessions[id] = session.copyWith(status: VpnStatus.failed);
         _errors[id] = result.message;
+        if (_looksLikeServiceError(result.message)) {
+          _serviceError = result.message;
+        }
         notifyListeners();
         return;
       }
       if (result.session != null) {
+        _serviceChecked = true;
+        _serviceError = null;
         final current = _sessions[id] ?? session;
         _sessions[id] = _mergeRemote(current, result.session!);
         notifyListeners();
       }
     } on Object catch (error) {
+      _serviceChecked = true;
       _sessions[id] = session.copyWith(status: VpnStatus.failed);
-      _errors[id] = _errorMessage(error);
+      final message = _errorMessage(error);
+      _errors[id] = message;
+      if (_looksLikeServiceError(message)) _serviceError = message;
       notifyListeners();
     }
   }
@@ -182,26 +227,47 @@ class SessionViewModel extends ChangeNotifier {
         notifyListeners();
       }
     } on Object catch (error) {
+      _serviceChecked = true;
       _sessions[id] = session.copyWith(status: VpnStatus.failed);
-      _errors[id] = _errorMessage(error);
+      final message = _errorMessage(error);
+      _errors[id] = message;
+      if (_looksLikeServiceError(message)) _serviceError = message;
       notifyListeners();
     }
   }
 
   Future<void> loadSnapshot() async {
     final engineClient = _engineClient;
-    if (engineClient == null) return;
+    if (engineClient == null) {
+      _serviceChecked = true;
+      _serviceError = 'OpenVPN 服务未接入';
+      notifyListeners();
+      return;
+    }
+    _serviceChecked = false;
+    _serviceError = null;
+    notifyListeners();
     try {
       final result = await engineClient.snapshot();
-      if (!result.ok) return;
+      if (!result.ok) {
+        _serviceChecked = true;
+        _serviceError =
+            result.message.isEmpty ? 'OpenVPN 服务不可用' : result.message;
+        notifyListeners();
+        return;
+      }
+      _serviceChecked = true;
+      _serviceError = null;
       for (final remote in result.sessions) {
         final local = _sessions[remote.id];
         _sessions[remote.id] =
             local == null ? remote : _mergeRemote(local, remote);
       }
       notifyListeners();
-    } on Object catch (_) {
-      // daemon 尚未启动时保持空白界面，用户仍可先导入配置。
+    } on Object catch (error) {
+      _serviceChecked = true;
+      _serviceError = _errorMessage(error);
+      notifyListeners();
     }
   }
 
@@ -209,6 +275,16 @@ class SessionViewModel extends ChangeNotifier {
     if (error is EngineClientException) return error.message;
     return 'OpenVPN 服务调用失败：$error';
   }
+
+  bool _looksLikeServiceError(String message) =>
+      message.contains('OpenVPN 服务') ||
+      message.contains('daemon') ||
+      message.contains('socket');
+
+  bool _keepSessionName(String value) =>
+      value.trim().isNotEmpty &&
+      !RegExp(r'^profile-[0-9a-f]{8,}(?:\(\d+\))?$', caseSensitive: false)
+          .hasMatch(value.trim());
 
   VpnSession _mergeRemote(VpnSession local, VpnSession remote) {
     final keepConnected = local.status == VpnStatus.connected &&

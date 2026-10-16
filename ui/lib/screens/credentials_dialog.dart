@@ -21,6 +21,7 @@ class _CredentialsDialogState extends State<CredentialsDialog> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _remember = false;
+  bool _useSaved = false;
 
   @override
   void initState() {
@@ -36,11 +37,20 @@ class _CredentialsDialogState extends State<CredentialsDialog> {
   }
 
   void _submit() {
+    if (_useSaved) {
+      Navigator.of(context).pop(const VpnCredentials(
+            username: '',
+            password: '',
+            useSaved: true,
+          ));
+      return;
+    }
     if (!(_formKey.currentState?.validate() ?? false)) return;
     Navigator.of(context).pop(VpnCredentials(
       username: _usernameController.text.trim(),
       password: _passwordController.text,
       remember: _remember,
+      useSaved: false,
     ));
   }
 
@@ -58,6 +68,7 @@ class _CredentialsDialogState extends State<CredentialsDialog> {
               TextFormField(
                 controller: _usernameController,
                 autofocus: true,
+                enabled: !_useSaved,
                 decoration: const InputDecoration(
                   labelText: '用户名',
                   prefixIcon: Icon(Icons.person_outline_rounded),
@@ -66,28 +77,54 @@ class _CredentialsDialogState extends State<CredentialsDialog> {
                     value == null || value.trim().isEmpty ? '请输入用户名' : null,
                 onFieldSubmitted: (_) => _submit(),
               ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: '密码',
-                  prefixIcon: Icon(Icons.lock_outline_rounded),
+              if (widget.initialUsername.isNotEmpty && !_useSaved)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 5, left: 12),
+                    child: Text(
+                      '已从配置文件读取，可按需修改',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
+                          ),
+                    ),
+                  ),
                 ),
-                validator: (value) =>
-                    value == null || value.isEmpty ? '请输入密码' : null,
-                onFieldSubmitted: (_) => _submit(),
-              ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               CheckboxListTile(
-                value: _remember,
-                onChanged: (value) =>
-                    setState(() => _remember = value ?? false),
+                value: _useSaved,
+                onChanged: (value) => setState(() => _useSaved = value ?? false),
                 contentPadding: EdgeInsets.zero,
-                title: const Text('保存到系统安全存储'),
-                subtitle: const Text('只保存到 macOS 钥匙串或 Windows 凭据管理器'),
+                title: const Text('使用已保存的凭据'),
+                subtitle: const Text('从系统安全存储读取，不再次输入密码'),
                 controlAffinity: ListTileControlAffinity.leading,
               ),
+              if (!_useSaved) ...[
+                TextFormField(
+                  controller: _passwordController,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: '密码',
+                    prefixIcon: Icon(Icons.lock_outline_rounded),
+                  ),
+                  validator: (value) =>
+                      value == null || value.isEmpty ? '请输入密码' : null,
+                  onFieldSubmitted: (_) => _submit(),
+                ),
+                const SizedBox(height: 8),
+                CheckboxListTile(
+                  value: _remember,
+                  onChanged: (value) =>
+                      setState(() => _remember = value ?? false),
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('保存到系统安全存储'),
+                  subtitle:
+                      const Text('只保存到 macOS 钥匙串或 Windows 凭据管理器'),
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
+              ],
             ],
           ),
         ),

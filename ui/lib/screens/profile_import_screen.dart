@@ -43,7 +43,7 @@ class _ProfileImportScreenState extends State<ProfileImportScreen> {
       if (mounted) Navigator.of(context).pop();
     } on Object catch (error) {
       if (!mounted) return;
-      setState(() => _error = '读取配置失败：$error');
+      setState(() => _error = '导入配置失败：$error');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -62,7 +62,7 @@ class _ProfileImportScreenState extends State<ProfileImportScreen> {
             const Text('选择 .ovpn 或 .conf 文件后，配置会出现在连接总览中。'),
             const SizedBox(height: 12),
             const Text(
-              '配置内容只在当前进程中使用，不会写入应用日志。连接密码会在连接时单独询问。',
+              '只保存配置文件路径和显示名称，密码不会写入普通配置文件；连接时可以选择保存到系统安全存储。',
               style: TextStyle(fontSize: 12),
             ),
             if (_error != null) ...[

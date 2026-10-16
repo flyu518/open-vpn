@@ -6,6 +6,7 @@
 - `install-helper.sh`：校验 plist、安装 helper、创建日志目录并加载 launchd 服务。
 - `com.openvpn.daemon.plist`：用户权限 daemon 的 launchd 配置，负责给 Flutter 界面提供 `/tmp/openvpn-ui.sock`。
 - `install-daemon.sh`：把 daemon 安装到当前用户目录并加载 `gui/<uid>` 服务，不需要 sudo。
+- `install-openvpn.sh`：一次安装 OpenVPN.app、macOS helper 和用户 daemon；普通用户执行，只有 helper 安装步骤请求 sudo。
 
 构建出 `openvpn_macos_agent` 后，可以使用下面的命令安装本地开发版本：
 
@@ -47,4 +48,13 @@ sudo rm /Library/PrivilegedHelperTools/com.openvpn.helper
 launchctl bootout gui/$(id -u)/com.openvpn.daemon
 rm "$HOME/Library/LaunchAgents/com.openvpn.daemon.plist"
 rm -rf "$HOME/Library/Application Support/OpenVPN"
+```
+
+开发版推荐使用一次性安装脚本：
+
+```bash
+./packaging/macos/install-openvpn.sh \
+  /绝对路径/open-vpn/ui/build/macos/Build/Products/Release/OpenVPN.app \
+  /tmp/openvpn-core-build-x86/openvpn_macos_agent \
+  /tmp/openvpn-core-build-x86/openvpn_daemon
 ```

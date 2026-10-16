@@ -19,14 +19,19 @@ class JsonProfileStore implements ProfileStore {
   @override
   Future<List<VpnSession>> load() async {
     if (!await file.exists()) return <VpnSession>[];
+    dynamic value;
     try {
-      final value = jsonDecode(await file.readAsString());
-      if (value is! Map) return <VpnSession>[];
-      final rawProfiles = value['profiles'];
-      if (rawProfiles is! List) return <VpnSession>[];
+      value = jsonDecode(await file.readAsString());
+    } on Object {
+      return <VpnSession>[];
+    }
+    if (value is! Map) return <VpnSession>[];
+    final rawProfiles = value['profiles'];
+    if (rawProfiles is! List) return <VpnSession>[];
 
-      final sessions = <VpnSession>[];
-      for (final raw in rawProfiles.whereType<Map>()) {
+    final sessions = <VpnSession>[];
+    for (final raw in rawProfiles.whereType<Map>()) {
+      try {
         final item = Map<String, dynamic>.from(raw);
         final path = item['path'] as String? ?? '';
         final id = item['id'] as String? ?? '';
@@ -35,13 +40,16 @@ class JsonProfileStore implements ProfileStore {
 
         var contents = '';
         var username = '';
+        var resolvedName = name;
         final profileFile = File(path);
         if (await profileFile.exists()) {
           contents = await profileFile.readAsString();
-          username = ImportedProfile.fromFile(
+          final parsed = ImportedProfile.fromFile(
             path: path,
             contents: contents,
-          ).username;
+          );
+          username = parsed.username;
+          if (_isGeneratedName(name)) resolvedName = parsed.displayName;
         }
         final strategyValue = item['routeStrategy'];
         final strategy = strategyValue is Map
@@ -49,7 +57,7 @@ class JsonProfileStore implements ProfileStore {
             : const RouteStrategy();
         sessions.add(VpnSession(
           id: id,
-          name: name,
+          name: resolvedName,
           status: VpnStatus.disconnected,
           profileId: id,
           profile: contents,
@@ -57,11 +65,12 @@ class JsonProfileStore implements ProfileStore {
           username: username,
           routeStrategy: strategy,
         ));
+      } on Object {
+        // 单个条目损坏时跳过它，保留其他仍可读取的配置。
+        continue;
       }
-      return sessions;
-    } on Object {
-      return <VpnSession>[];
     }
+    return sessions;
   }
 
   @override
@@ -82,15 +91,29 @@ class JsonProfileStore implements ProfileStore {
       'profiles': profiles,
     });
     await file.parent.create(recursive: true);
-    await file.writeAsString('$payload\n');
+    final temporary = File('${file.path}.tmp');
+    try {
+      await temporary.writeAsString('$payload\n');
+      try {
+        await temporary.rename(file.path);
+      } on FileSystemException {
+        if (!Platform.isWindows) rethrow;
+        await file.writeAsString('$payload\n');
+        await temporary.delete();
+      }
+    } finally {
+      if (await temporary.exists()) await temporary.delete();
+    }
   }
 }
 
+bool _isGeneratedName(String value) =>
+    RegExp(r'^profile-[0-9a-f]{8,}(?:\(\d+\))?$', caseSensitive: false)
+        .hasMatch(value);
+
 File _defaultFile() {
   final environment = Platform.environment;
-  final home = environment['HOME'] ??
-      environment['USERPROFILE'] ??
-      Directory.current.path;
+  final home = _homeDirectory(environment);
   final root = Platform.isMacOS
       ? _join(home, 'Library', 'Application Support', 'OpenVPN')
       : Platform.isWindows
@@ -100,6 +123,37 @@ File _defaultFile() {
               'OpenVPN',
             );
   return File(_join(root, 'profiles.json'));
+}
+
+String _homeDirectory(Map<String, String> environment) {
+  final configured = environment['HOME'] ?? environment['USERPROFILE'];
+  if (Platform.isMacOS) {
+    final user = environment['USER'] ??
+        environment['LOGNAME'] ??
+        _currentMacUser();
+    // 从 Finder、launchd 或自动化工具启动 macOS 应用时，HOME 可能缺失或
+    // 被设置为服务用户目录；优先使用当前登录用户的固定目录，保证升级后
+    // 仍然读取同一份 OpenVPN 配置索引。
+    if (user.isNotEmpty) {
+      final macHome = _join('/Users', user);
+      if (configured == null ||
+          configured.isEmpty ||
+          !configured.startsWith('/Users/')) {
+        return macHome;
+      }
+    }
+  }
+  if (configured != null && configured.isNotEmpty) return configured;
+  return Directory.current.path;
+}
+
+String _currentMacUser() {
+  try {
+    final result = Process.runSync('/usr/bin/id', <String>['-un']);
+    return result.exitCode == 0 ? result.stdout.toString().trim() : '';
+  } on Object {
+    return '';
+  }
 }
 
 String _join(String first,

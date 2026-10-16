@@ -13,9 +13,11 @@ class ImportedProfile {
   }) {
     final normalizedPath = path.replaceAll('\\', '/');
     final fileName = normalizedPath.split('/').last;
-    final displayName = fileName.toLowerCase().endsWith('.ovpn')
+    final fileDisplayName = fileName.toLowerCase().endsWith('.ovpn')
         ? fileName.substring(0, fileName.length - '.ovpn'.length)
         : fileName;
+    final displayName =
+        _extractAccessServerProfile(contents) ?? fileDisplayName;
     return ImportedProfile(
       id: _stableProfileId(normalizedPath),
       displayName: displayName.isEmpty ? '未命名配置' : displayName,
@@ -30,6 +32,16 @@ class ImportedProfile {
   final String path;
   final String contents;
   final String username;
+}
+
+String? _extractAccessServerProfile(String contents) {
+  final match = RegExp(
+    r'^\s*#\s*OVPN_ACCESS_SERVER_PROFILE\s*=\s*([^\r\n#]+?)\s*$',
+    multiLine: true,
+    caseSensitive: false,
+  ).firstMatch(contents);
+  final value = match?.group(1)?.trim();
+  return value == null || value.isEmpty ? null : value;
 }
 
 String _extractUsername(String contents) {

@@ -4,11 +4,18 @@ import '../models/route_strategy.dart';
 import '../models/session.dart';
 import '../view_models/session_view_model.dart';
 
+Color _successColor(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark
+        ? const Color(0xFF77E0B0)
+        : const Color(0xFF287A5C);
+
 class SessionsScreen extends StatelessWidget {
   const SessionsScreen({
     super.key,
     required this.viewModel,
     this.onOpenProfiles,
+    this.onImportProfile,
+    this.onRefreshService,
     this.onConnect,
     this.onDisconnect,
     this.onEditName,
@@ -18,6 +25,8 @@ class SessionsScreen extends StatelessWidget {
 
   final SessionViewModel viewModel;
   final VoidCallback? onOpenProfiles;
+  final VoidCallback? onImportProfile;
+  final Future<void> Function()? onRefreshService;
   final Future<void> Function(VpnSession)? onConnect;
   final Future<void> Function(VpnSession)? onDisconnect;
   final Future<void> Function(VpnSession)? onEditName;
@@ -43,17 +52,20 @@ class SessionsScreen extends StatelessWidget {
 
         return Scaffold(
           backgroundColor: colors.surface,
-          body: Stack(
-            children: [
-              const Positioned.fill(
-                  child: IgnorePointer(child: _AmbientBackground())),
-              SafeArea(
-                child: Row(
-                  children: [
-                    _Sidebar(
-                      onOpenProfiles: onOpenProfiles,
-                    ),
-                    Expanded(
+          body: SafeArea(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _Sidebar(
+                  onOpenProfiles: onOpenProfiles,
+                  sessionCount: sessions.length,
+                  activeCount: activeCount,
+                ),
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1220),
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(32, 28, 32, 24),
                         child: Column(
@@ -63,18 +75,26 @@ class SessionsScreen extends StatelessWidget {
                               activeCount: activeCount,
                               profileCount: sessions.length,
                               warningCount: warningCount + errorCount,
+                              serviceError: viewModel.serviceError,
+                              serviceChecking: !viewModel.serviceChecked,
+                              storageError: viewModel.profileStoreError,
+                              onImportProfile: onImportProfile,
+                              onRefreshService: onRefreshService,
                             ),
-                            const SizedBox(height: 28),
+                            const SizedBox(height: 22),
                             _SectionHeader(
                               activeCount: activeCount,
                               sessionCount: sessions.length,
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 10),
                             Expanded(
                               child: sessions.isEmpty
-                                  ? _EmptyState(onOpenProfiles: onOpenProfiles)
+                                  ? _EmptyState(
+                                      hasImportAction: onImportProfile != null,
+                                      onOpenProfiles: onOpenProfiles,
+                                    )
                                   : ReorderableListView.builder(
-                                      buildDefaultDragHandles: true,
+                                      buildDefaultDragHandles: false,
                                       itemCount: sessions.length,
                                       onReorderItem: (oldIndex, newIndex) =>
                                           onReorder?.call(oldIndex, newIndex),
@@ -85,9 +105,13 @@ class SessionsScreen extends StatelessWidget {
                                         return Padding(
                                           key: ValueKey(session.id),
                                           padding:
-                                              const EdgeInsets.only(bottom: 14),
+                                              const EdgeInsets.only(bottom: 10),
                                           child: SessionCard(
                                             session: session,
+                                            index: index,
+                                            serviceReady:
+                                                viewModel.serviceChecked &&
+                                                    viewModel.serviceError == null,
                                             error:
                                                 viewModel.errorFor(session.id),
                                             onConnect: () =>
@@ -107,10 +131,10 @@ class SessionsScreen extends StatelessWidget {
                         ),
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -118,122 +142,36 @@ class SessionsScreen extends StatelessWidget {
   }
 }
 
-class _AmbientBackground extends StatelessWidget {
-  const _AmbientBackground();
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            colors.surface,
-            colors.surface,
-            colors.primary.withValues(alpha: .055),
-          ],
-          stops: const [0, .55, 1],
-        ),
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            top: -170,
-            right: -130,
-            child: _GlowOrb(
-              size: 420,
-              color: colors.primary.withValues(alpha: .08),
-            ),
-          ),
-          Positioned(
-            bottom: -220,
-            left: 210,
-            child: _GlowOrb(
-              size: 460,
-              color: colors.tertiary.withValues(alpha: .045),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _GlowOrb extends StatelessWidget {
-  const _GlowOrb({required this.size, required this.color});
-
-  final double size;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: RadialGradient(
-            colors: [color, color.withValues(alpha: 0)],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _Sidebar extends StatelessWidget {
-  const _Sidebar({this.onOpenProfiles});
+  const _Sidebar({
+    this.onOpenProfiles,
+    required this.sessionCount,
+    required this.activeCount,
+  });
 
   final VoidCallback? onOpenProfiles;
+  final int sessionCount;
+  final int activeCount;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return Container(
-      width: 250,
-      margin: const EdgeInsets.all(12),
-      padding: const EdgeInsets.fromLTRB(18, 20, 14, 16),
+      width: 224,
+      margin: const EdgeInsets.fromLTRB(16, 16, 0, 16),
+      padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
       decoration: BoxDecoration(
-        color: colors.surfaceContainerHighest.withValues(alpha: .62),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: colors.outlineVariant.withValues(alpha: .5)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: .16),
-            blurRadius: 30,
-            offset: const Offset(0, 16),
-          ),
-        ],
+        color: colors.surfaceContainer,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: colors.outlineVariant.withValues(alpha: .55)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const _BrandMark(),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('OpenVPN',
-                      style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 2),
-                  Text('安全网络控制台',
-                      style: Theme.of(context).textTheme.labelSmall),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 32),
-          Text('工作区',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: colors.onSurfaceVariant,
-                    letterSpacing: 1.2,
-                  )),
-          const SizedBox(height: 10),
+          const _BrandHeader(),
+          const SizedBox(height: 28),
+          const _SidebarLabel(text: '工作区'),
+          const SizedBox(height: 8),
           const _NavItem(
             icon: Icons.grid_view_rounded,
             label: '连接总览',
@@ -243,51 +181,97 @@ class _Sidebar extends StatelessWidget {
           _NavItem(
             icon: Icons.folder_copy_outlined,
             label: '配置文件',
-            detail: '管理 OpenVPN 配置',
+            detail: sessionCount == 0 ? '管理配置文件' : '$sessionCount 个已导入配置',
             onTap: onOpenProfiles,
           ),
-          _NavItem(
+          const _NavItem(
             icon: Icons.history_rounded,
             label: '连接记录',
-            detail: '查看历史活动',
-            onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('连接记录功能将在后续版本开放。')),
-            ),
+            detail: '即将支持',
+            enabled: false,
           ),
           const Spacer(),
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: colors.primary.withValues(alpha: .09),
-              borderRadius: BorderRadius.circular(16),
+              color: colors.primary.withValues(alpha: .08),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(color: colors.primary.withValues(alpha: .16)),
             ),
             child: Row(
               children: [
-                Icon(Icons.shield_outlined, color: colors.primary, size: 22),
-                const SizedBox(width: 10),
+                Icon(Icons.alt_route_rounded, color: colors.primary, size: 20),
+                const SizedBox(width: 9),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('安全模式',
+                      Text('兼容路由',
                           style: Theme.of(context).textTheme.labelLarge),
                       const SizedBox(height: 3),
-                      Text('兼容路由策略已启用',
-                          style: Theme.of(context).textTheme.labelSmall),
+                      Text(
+                        activeCount == 0 ? '默认策略已启用' : '$activeCount 个连接活动中',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: colors.onSurfaceVariant,
+                            ),
+                      ),
                     ],
                   ),
                 ),
-                Icon(Icons.check_circle_rounded,
-                    color: Colors.greenAccent.shade400, size: 17),
+                Icon(Icons.check_circle_outline_rounded,
+                    color: colors.primary, size: 17),
               ],
             ),
           ),
-          const SizedBox(height: 12),
-          const Text('OpenVPN · Windows / macOS',
-              style: TextStyle(fontSize: 11)),
+          const SizedBox(height: 14),
+          Text('OpenVPN · Windows / macOS',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  )),
         ],
       ),
+    );
+  }
+}
+
+class _BrandHeader extends StatelessWidget {
+  const _BrandHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const _BrandMark(),
+        const SizedBox(width: 10),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('OpenVPN', style: Theme.of(context).textTheme.titleMedium),
+            Text('多连接控制台',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    )),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _SidebarLabel extends StatelessWidget {
+  const _SidebarLabel({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            letterSpacing: .8,
+            fontWeight: FontWeight.w700,
+          ),
     );
   }
 }
@@ -299,24 +283,13 @@ class _BrandMark extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return Container(
-      width: 42,
-      height: 42,
+      width: 38,
+      height: 38,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [colors.primary, colors.tertiary],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: colors.primary.withValues(alpha: .34),
-            blurRadius: 18,
-            offset: const Offset(0, 7),
-          ),
-        ],
+        color: colors.primary,
+        borderRadius: BorderRadius.circular(12),
       ),
-      child: Icon(Icons.shield_rounded, color: colors.onPrimary, size: 24),
+      child: Icon(Icons.shield_rounded, color: colors.onPrimary, size: 22),
     );
   }
 }
@@ -327,6 +300,7 @@ class _NavItem extends StatelessWidget {
     required this.label,
     required this.detail,
     this.selected = false,
+    this.enabled = true,
     this.onTap,
   });
 
@@ -334,34 +308,39 @@ class _NavItem extends StatelessWidget {
   final String label;
   final String detail;
   final bool selected;
+  final bool enabled;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final foreground = !enabled
+        ? colors.onSurface.withValues(alpha: .38)
+        : selected
+            ? colors.primary
+            : colors.onSurfaceVariant;
     return Container(
-      margin: const EdgeInsets.only(top: 5),
+      margin: const EdgeInsets.only(top: 4),
       decoration: BoxDecoration(
-        color: selected ? colors.primary.withValues(alpha: .13) : null,
-        borderRadius: BorderRadius.circular(14),
+        color: selected ? colors.primary.withValues(alpha: .12) : null,
+        borderRadius: BorderRadius.circular(12),
         border: selected
-            ? Border.all(color: colors.primary.withValues(alpha: .19))
+            ? Border.all(color: colors.primary.withValues(alpha: .22))
             : null,
       ),
       child: Material(
         type: MaterialType.transparency,
         child: ListTile(
+          enabled: enabled,
           dense: true,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 11, vertical: 3),
-          leading: Icon(icon,
-              size: 21,
-              color: selected ? colors.primary : colors.onSurfaceVariant),
+          minVerticalPadding: 6,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+          leading: Icon(icon, size: 20, color: foreground),
           title: Text(label),
           subtitle: Text(detail),
           shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          onTap: onTap,
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          onTap: enabled ? onTap : null,
         ),
       ),
     );
@@ -373,11 +352,21 @@ class _Header extends StatelessWidget {
     required this.activeCount,
     required this.profileCount,
     required this.warningCount,
+    required this.serviceError,
+    required this.serviceChecking,
+    this.storageError,
+    this.onImportProfile,
+    this.onRefreshService,
   });
 
   final int activeCount;
   final int profileCount;
   final int warningCount;
+  final String? serviceError;
+  final bool serviceChecking;
+  final String? storageError;
+  final VoidCallback? onImportProfile;
+  final Future<void> Function()? onRefreshService;
 
   @override
   Widget build(BuildContext context) {
@@ -392,31 +381,20 @@ class _Header extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: colors.primary.withValues(alpha: .10),
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    child: Text(
-                      '安全网络控制台',
+                  Text('工作区 / 连接总览',
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
                             color: colors.primary,
                             fontWeight: FontWeight.w700,
-                            letterSpacing: .4,
-                          ),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Text('连接总览',
-                      style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: -.7,
                           )),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
+                  Text('连接总览',
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -.5,
+                          )),
+                  const SizedBox(height: 5),
                   Text(
-                    '管理多个独立 OpenVPN 网络，让每一条路由都清晰可控。',
+                    '同时管理多个 OpenVPN 连接，清楚看到每条连接的状态与路由。',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: colors.onSurfaceVariant,
                         ),
@@ -424,38 +402,150 @@ class _Header extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 16),
-            const _ServicePill(),
+            const SizedBox(width: 20),
+            Wrap(
+              spacing: 10,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                _ServicePill(
+                  error: serviceError,
+                  checking: serviceChecking,
+                ),
+                FilledButton.icon(
+                  onPressed: onImportProfile,
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text('导入配置'),
+                ),
+              ],
+            ),
           ],
         ),
-        const SizedBox(height: 24),
+        if (serviceError != null) ...[
+          const SizedBox(height: 16),
+          _ServiceBanner(
+            message: serviceError!,
+            onRefresh: onRefreshService,
+          ),
+        ],
+        if (storageError != null) ...[
+          const SizedBox(height: 10),
+          _ServiceBanner(message: storageError!),
+        ],
+        const SizedBox(height: 18),
         Wrap(
-          spacing: 12,
-          runSpacing: 12,
+          spacing: 10,
+          runSpacing: 10,
           children: [
             _MetricCard(
               icon: Icons.bolt_rounded,
               label: '活动连接',
               value: '$activeCount',
-              accent: Colors.greenAccent,
+              accent: _successColor(context),
             ),
             _MetricCard(
-              icon: Icons.layers_rounded,
+              icon: Icons.layers_outlined,
               label: '已载入配置',
               value: '$profileCount',
               accent: colors.primary,
             ),
             _MetricCard(
-              icon: Icons.notifications_none_rounded,
-              label: '策略提醒',
+              icon: Icons.warning_amber_rounded,
+              label: '待处理',
               value: '$warningCount',
-              accent: warningCount == 0
-                  ? colors.onSurfaceVariant
-                  : Colors.orangeAccent,
+              accent: warningCount == 0 ? colors.onSurfaceVariant : colors.error,
             ),
           ],
         ),
       ],
+    );
+  }
+}
+
+class _ServicePill extends StatelessWidget {
+  const _ServicePill({this.error, this.checking = false});
+
+  final String? error;
+  final bool checking;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final ready = !checking && error == null;
+    final color = checking
+        ? colors.onSurfaceVariant
+        : ready
+            ? _successColor(context)
+            : colors.error;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .10),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: .24)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            checking
+                ? Icons.sync_rounded
+                : ready
+                    ? Icons.check_circle_outline_rounded
+                    : Icons.cloud_off_rounded,
+            size: 17,
+            color: color,
+          ),
+          const SizedBox(width: 7),
+          Text(checking ? '检查中' : ready ? '服务已就绪' : '服务未连接',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w700,
+                  )),
+        ],
+      ),
+    );
+  }
+}
+
+class _ServiceBanner extends StatelessWidget {
+  const _ServiceBanner({required this.message, this.onRefresh});
+
+  final String message;
+  final Future<void> Function()? onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+      decoration: BoxDecoration(
+        color: colors.error.withValues(alpha: .08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colors.error.withValues(alpha: .22)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline_rounded, size: 19, color: colors.error),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colors.error,
+                  ),
+            ),
+          ),
+          if (onRefresh != null)
+            TextButton.icon(
+              onPressed: () => onRefresh!(),
+              icon: const Icon(Icons.refresh_rounded, size: 16),
+              label: const Text('重新检查'),
+              style: TextButton.styleFrom(foregroundColor: colors.error),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -477,63 +567,29 @@ class _MetricCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return Container(
-      constraints: const BoxConstraints(minWidth: 145),
-      padding: const EdgeInsets.fromLTRB(14, 12, 20, 12),
+      constraints: const BoxConstraints(minWidth: 148),
+      padding: const EdgeInsets.fromLTRB(12, 10, 18, 10),
       decoration: BoxDecoration(
-        color: colors.surfaceContainerHighest.withValues(alpha: .48),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colors.outlineVariant.withValues(alpha: .6)),
+        color: colors.surfaceContainer,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colors.outlineVariant.withValues(alpha: .55)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: .12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: accent, size: 18),
-          ),
-          const SizedBox(width: 10),
+          Icon(icon, color: accent, size: 18),
+          const SizedBox(width: 9),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(label, style: Theme.of(context).textTheme.labelSmall),
-              const SizedBox(height: 2),
+              const SizedBox(height: 1),
               Text(value,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w700,
                       )),
             ],
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ServicePill extends StatelessWidget {
-  const _ServicePill();
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: colors.surfaceContainerHighest.withValues(alpha: .55),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: colors.outlineVariant.withValues(alpha: .6)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.cloud_done_rounded,
-              size: 17, color: Colors.greenAccent),
-          const SizedBox(width: 7),
-          Text('OpenVPN 服务', style: Theme.of(context).textTheme.labelMedium),
         ],
       ),
     );
@@ -551,26 +607,26 @@ class _SectionHeader extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     return Row(
       children: [
-        Text('连接会话', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(width: 10),
+        Text('连接列表', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(width: 8),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
             color: colors.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(30),
+            borderRadius: BorderRadius.circular(20),
           ),
           child: Text('$sessionCount',
               style: Theme.of(context).textTheme.labelMedium),
         ),
         const Spacer(),
-        Icon(Icons.drag_indicator_rounded,
+        Icon(Icons.drag_handle_rounded,
             size: 17, color: colors.onSurfaceVariant),
         const SizedBox(width: 5),
         Text(
-          activeCount > 0 ? '实时同步中' : '拖动调整优先级',
+          activeCount > 0 ? '$activeCount 个连接活动中' : '拖动手柄调整优先级',
           style: Theme.of(context).textTheme.labelMedium?.copyWith(
                 color: activeCount > 0
-                    ? Colors.greenAccent
+                    ? _successColor(context)
                     : colors.onSurfaceVariant,
               ),
         ),
@@ -580,51 +636,57 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({this.onOpenProfiles});
+  const _EmptyState({
+    required this.hasImportAction,
+    this.onOpenProfiles,
+  });
 
+  final bool hasImportAction;
   final VoidCallback? onOpenProfiles;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return SingleChildScrollView(
-      padding: const EdgeInsets.only(bottom: 24),
-      child: Center(
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 620),
-          padding: const EdgeInsets.all(44),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                colors.surfaceContainerHighest.withValues(alpha: .66),
-                colors.primary.withValues(alpha: .07),
-              ],
+    return Center(
+      child: Container(
+        width: double.infinity,
+        constraints: const BoxConstraints(maxWidth: 620),
+        padding: const EdgeInsets.all(34),
+        decoration: BoxDecoration(
+          color: colors.surfaceContainer,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colors.outlineVariant.withValues(alpha: .55)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.shield_outlined, size: 42, color: colors.primary),
+            const SizedBox(height: 14),
+            Text('还没有连接配置',
+                style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 7),
+            Text(
+              '导入 .ovpn 或 .conf 文件后，可以在这里分别连接、断开并管理路由。',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
             ),
-            borderRadius: BorderRadius.circular(26),
-            border:
-                Border.all(color: colors.outlineVariant.withValues(alpha: .65)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const _BrandMark(),
-              const SizedBox(height: 20),
-              Text('准备好连接你的网络',
-                  style: Theme.of(context).textTheme.headlineSmall),
-              const SizedBox(height: 9),
-              Text('导入 OpenVPN 配置后，你可以同时管理多个公司网络。',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium),
-              const SizedBox(height: 24),
-              FilledButton.icon(
+            const SizedBox(height: 18),
+            if (hasImportAction)
+              Text(
+                '请点击右上角“导入配置”开始。',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: colors.primary,
+                    ),
+              )
+            else if (onOpenProfiles != null)
+              OutlinedButton.icon(
                 onPressed: onOpenProfiles,
                 icon: const Icon(Icons.folder_open_rounded),
-                label: const Text('查看配置文件'),
+                label: const Text('打开配置管理'),
               ),
-            ],
-          ),
+          ],
         ),
       ),
     );
@@ -635,6 +697,8 @@ class SessionCard extends StatelessWidget {
   const SessionCard({
     super.key,
     required this.session,
+    required this.index,
+    required this.serviceReady,
     this.error,
     this.onConnect,
     this.onDisconnect,
@@ -643,6 +707,8 @@ class SessionCard extends StatelessWidget {
   });
 
   final VpnSession session;
+  final int index;
+  final bool serviceReady;
   final String? error;
   final VoidCallback? onConnect;
   final VoidCallback? onDisconnect;
@@ -654,40 +720,37 @@ class SessionCard extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     final connected = session.status == VpnStatus.connected;
     final profileMissing = session.profile.trim().isEmpty;
-    final accent = connected ? Colors.greenAccent : colors.primary;
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(12, 12, 14, 12),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            colors.surfaceContainerHighest.withValues(alpha: .72),
-            accent.withValues(alpha: .055),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(22),
+        color: colors.surfaceContainer,
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: connected
-              ? Colors.greenAccent.withValues(alpha: .30)
-              : colors.outlineVariant.withValues(alpha: .72),
+              ? _successColor(context).withValues(alpha: .42)
+              : colors.outlineVariant.withValues(alpha: .62),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: accent.withValues(alpha: connected ? .08 : .025),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              ReorderableDragStartListener(
+                index: index,
+                child: Tooltip(
+                  message: '拖动调整优先级',
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Icon(Icons.drag_handle_rounded,
+                        color: colors.onSurfaceVariant, size: 20),
+                  ),
+                ),
+              ),
               _SessionIcon(connected: connected),
-              const SizedBox(width: 12),
+              const SizedBox(width: 11),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -695,9 +758,13 @@ class SessionCard extends StatelessWidget {
                     Row(
                       children: [
                         Flexible(
-                          child: Text(session.name,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.titleMedium),
+                          child: Text(
+                            session.name,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
                         ),
                         IconButton(
                           tooltip: '编辑连接名称',
@@ -710,11 +777,9 @@ class SessionCard extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Text(
-                      session.remoteHost.isEmpty
-                          ? '等待 OpenVPN 服务连接'
-                          : session.remoteHost,
+                      _subtitle(),
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: colors.onSurfaceVariant,
@@ -723,45 +788,35 @@ class SessionCard extends StatelessWidget {
                   ],
                 ),
               ),
+              const SizedBox(width: 12),
               _StatusBadge(status: session.status),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _SessionMetric(
-                icon: Icons.public_rounded,
-                label: '服务器',
-                value: session.remoteHost.isEmpty ? '未连接' : session.remoteHost,
-              ),
-              _SessionMetric(
-                icon: Icons.lan_rounded,
-                label: '接口',
-                value: session.interfaceName.isEmpty
-                    ? '等待分配'
-                    : session.interfaceName,
-              ),
-              _SessionMetric(
-                icon: Icons.timer_outlined,
-                label: '时长',
-                value: _formatDuration(session.duration),
-              ),
-              _SessionMetric(
-                icon: Icons.swap_vert_rounded,
-                label: '流量',
-                value:
-                    _formatBytes(session.downloadBytes + session.uploadBytes),
+              const SizedBox(width: 10),
+              _PrimaryAction(
+                session: session,
+                serviceReady: serviceReady,
+                profileMissing: profileMissing,
+                onConnect: onConnect,
+                onDisconnect: onDisconnect,
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 11),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: 7,
+            runSpacing: 7,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
+              _InfoChip(
+                icon: Icons.public_rounded,
+                label: session.remoteHost.isEmpty
+                    ? '服务器待连接后显示'
+                    : session.remoteHost,
+              ),
+              if (session.interfaceName.isNotEmpty)
+                _InfoChip(
+                  icon: Icons.lan_rounded,
+                  label: session.interfaceName,
+                ),
               _StrategyChip(
                 icon: Icons.alt_route_rounded,
                 label: _strategyLabel(session),
@@ -772,86 +827,71 @@ class SessionCard extends StatelessWidget {
               ),
               OutlinedButton.icon(
                 onPressed: onEditStrategy,
-                icon: const Icon(Icons.tune_rounded, size: 16),
+                icon: const Icon(Icons.tune_rounded, size: 15),
                 label: const Text('路由策略'),
                 style: OutlinedButton.styleFrom(
                   visualDensity: VisualDensity.compact,
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(11)),
+                      borderRadius: BorderRadius.circular(9)),
                 ),
               ),
               if (connected)
-                OutlinedButton.icon(
-                  onPressed: onDisconnect,
-                  icon: const Icon(Icons.stop_circle_outlined, size: 16),
-                  label: const Text('断开'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.orangeAccent,
-                    side: BorderSide(
-                        color: Colors.orangeAccent.withValues(alpha: .42)),
-                    visualDensity: VisualDensity.compact,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(11)),
-                  ),
-                )
-              else
-                FilledButton.icon(
-                  onPressed: profileMissing ||
-                          session.status == VpnStatus.connecting ||
-                          onConnect == null
-                      ? null
-                      : onConnect,
-                  icon: const Icon(Icons.bolt_rounded, size: 17),
-                  label: Text(profileMissing ? '需要重新导入' : '连接'),
-                  style: FilledButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(11)),
-                  ),
+                _ConnectionStat(
+                  icon: Icons.timer_outlined,
+                  value: _formatDuration(session.duration),
+                ),
+              if (connected)
+                _ConnectionStat(
+                  icon: Icons.swap_vert_rounded,
+                  value: _formatBytes(
+                      session.downloadBytes + session.uploadBytes),
                 ),
             ],
           ),
           if (session.routes.isNotEmpty) ...[
-            const SizedBox(height: 14),
+            const SizedBox(height: 10),
             _RouteLine(routes: session.routes),
           ],
           if (profileMissing) ...[
             const SizedBox(height: 10),
-            Text(
-              '当前会话没有本地 profile，请重新导入配置后再连接。',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colors.onSurfaceVariant,
-                  ),
+            _DiagnosticBox(
+              icon: Icons.description_outlined,
+              message: '配置文件不在原路径，重新导入后才能连接。',
+              color: colors.error,
             ),
           ],
           if (error != null) ...[
-            const SizedBox(height: 14),
+            const SizedBox(height: 10),
             _DiagnosticBox(
               icon: Icons.error_outline_rounded,
               message: error!,
               color: colors.error,
               hint: _isRouteConflict(error!)
-                  ? '处理建议：请先断开提示中的前一个会话，再重试；也可以改用兼容模式。'
+                  ? '请先断开提示中的前一个会话，再重试；也可以将策略改为兼容模式。'
                   : null,
             ),
           ],
           if (session.warnings.isNotEmpty) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             _DiagnosticBox(
               icon: Icons.warning_amber_rounded,
               message: session.warnings.join('\n'),
-              color: Colors.orangeAccent,
+              color: Colors.orange.shade300,
             ),
           ],
         ],
       ),
     );
+  }
+
+  String _subtitle() {
+    final parts = <String>[];
+    if (session.username.isNotEmpty) parts.add('用户 ${session.username}');
+    if (session.remoteHost.isNotEmpty) parts.add(session.remoteHost);
+    if (parts.isEmpty) return '尚未连接';
+    return parts.join('  ·  ');
   }
 
   String _formatDuration(Duration value) {
@@ -880,6 +920,76 @@ class SessionCard extends StatelessWidget {
       value.contains('冲突') || value.contains('重叠');
 }
 
+class _PrimaryAction extends StatelessWidget {
+  const _PrimaryAction({
+    required this.session,
+    required this.serviceReady,
+    required this.profileMissing,
+    this.onConnect,
+    this.onDisconnect,
+  });
+
+  final VpnSession session;
+  final bool serviceReady;
+  final bool profileMissing;
+  final VoidCallback? onConnect;
+  final VoidCallback? onDisconnect;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    if (session.status == VpnStatus.connected) {
+      return OutlinedButton.icon(
+        onPressed: onDisconnect,
+        icon: const Icon(Icons.stop_rounded, size: 16),
+        label: const Text('断开'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: colors.error,
+          side: BorderSide(color: colors.error.withValues(alpha: .42)),
+          visualDensity: VisualDensity.compact,
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+        ),
+      );
+    }
+
+    if (session.status == VpnStatus.disconnecting) {
+      return OutlinedButton.icon(
+        onPressed: null,
+        icon: const Icon(Icons.sync_disabled_rounded, size: 16),
+        label: const Text('断开中…'),
+        style: OutlinedButton.styleFrom(
+          visualDensity: VisualDensity.compact,
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+        ),
+      );
+    }
+
+    final connecting = session.status == VpnStatus.connecting;
+    final unavailable = !serviceReady;
+    final disabled = profileMissing || connecting || unavailable;
+    final label = profileMissing
+        ? '需重新导入'
+        : connecting
+            ? '连接中…'
+            : unavailable
+                ? '服务未就绪'
+                : session.status == VpnStatus.failed
+                    ? '重试连接'
+                    : '连接';
+    return FilledButton.icon(
+      onPressed: disabled ? null : onConnect,
+      icon: Icon(
+          unavailable ? Icons.cloud_off_rounded : Icons.play_arrow_rounded,
+          size: 17),
+      label: Text(label),
+      style: FilledButton.styleFrom(
+        visualDensity: VisualDensity.compact,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      ),
+    );
+  }
+}
+
 class _SessionIcon extends StatelessWidget {
   const _SessionIcon({required this.connected});
 
@@ -888,66 +998,71 @@ class _SessionIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final accent = connected ? Colors.greenAccent : colors.primary;
+    final accent = connected ? _successColor(context) : colors.primary;
     return Container(
-      width: 44,
-      height: 44,
+      width: 38,
+      height: 38,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(11),
         color: accent.withValues(alpha: .12),
-        border: Border.all(color: accent.withValues(alpha: .22)),
       ),
       child: Icon(
         connected ? Icons.shield_rounded : Icons.shield_outlined,
         color: accent,
-        size: 23,
+        size: 21,
       ),
     );
   }
 }
 
-class _SessionMetric extends StatelessWidget {
-  const _SessionMetric({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
+class _InfoChip extends StatelessWidget {
+  const _InfoChip({required this.icon, required this.label});
 
   final IconData icon;
   final String label;
-  final String value;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return Container(
-      constraints: const BoxConstraints(minWidth: 128),
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
       decoration: BoxDecoration(
-        color: colors.surface.withValues(alpha: .34),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colors.outlineVariant.withValues(alpha: .45)),
+        color: colors.surfaceContainerHighest.withValues(alpha: .65),
+        borderRadius: BorderRadius.circular(9),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: colors.onSurfaceVariant),
-          const SizedBox(width: 7),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: Theme.of(context).textTheme.labelSmall),
-              const SizedBox(height: 2),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 142),
-                child: Text(value,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall),
-              ),
-            ],
+          Icon(icon, size: 15, color: colors.onSurfaceVariant),
+          const SizedBox(width: 6),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 240),
+            child: Text(label,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelMedium),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ConnectionStat extends StatelessWidget {
+  const _ConnectionStat({required this.icon, required this.value});
+
+  final IconData icon;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon,
+            size: 15, color: Theme.of(context).colorScheme.onSurfaceVariant),
+        const SizedBox(width: 5),
+        Text(value, style: Theme.of(context).textTheme.labelMedium),
+      ],
     );
   }
 }
@@ -962,17 +1077,17 @@ class _StrategyChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
       decoration: BoxDecoration(
         color: colors.primary.withValues(alpha: .08),
-        borderRadius: BorderRadius.circular(11),
-        border: Border.all(color: colors.primary.withValues(alpha: .16)),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: colors.primary.withValues(alpha: .15)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: colors.primary),
-          const SizedBox(width: 6),
+          Icon(icon, size: 15, color: colors.primary),
+          const SizedBox(width: 5),
           Text(label, style: Theme.of(context).textTheme.labelMedium),
         ],
       ),
@@ -991,7 +1106,7 @@ class _RouteLine extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(Icons.route_rounded, size: 17, color: colors.onSurfaceVariant),
+        Icon(Icons.route_rounded, size: 16, color: colors.onSurfaceVariant),
         const SizedBox(width: 8),
         Expanded(
           child: Wrap(
@@ -1000,10 +1115,10 @@ class _RouteLine extends StatelessWidget {
             children: routes
                 .map((route) => Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 9, vertical: 5),
+                          horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: colors.surface.withValues(alpha: .45),
-                        borderRadius: BorderRadius.circular(8),
+                        color: colors.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(7),
                       ),
                       child: Text(route,
                           style: Theme.of(context).textTheme.labelSmall),
@@ -1033,17 +1148,17 @@ class _DiagnosticBox extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: .10),
-        borderRadius: BorderRadius.circular(12),
+        color: color.withValues(alpha: .08),
+        borderRadius: BorderRadius.circular(9),
         border: Border.all(color: color.withValues(alpha: .18)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: color),
-          const SizedBox(width: 9),
+          Icon(icon, size: 17, color: color),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1053,7 +1168,7 @@ class _DiagnosticBox extends StatelessWidget {
                           color: color,
                         )),
                 if (hint != null) ...[
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   Text(hint!,
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
                             color: color,
@@ -1077,11 +1192,14 @@ class _StatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final (color, icon) = switch (status) {
-      VpnStatus.connected => (Colors.greenAccent, Icons.check_circle_rounded),
+      VpnStatus.connected => (
+          _successColor(context),
+          Icons.check_circle_rounded
+        ),
       VpnStatus.failed => (colors.error, Icons.error_rounded),
       VpnStatus.connecting => (colors.primary, Icons.sync_rounded),
       VpnStatus.disconnecting => (
-          Colors.orangeAccent,
+          Colors.orange.shade300,
           Icons.sync_disabled_rounded
         ),
       VpnStatus.disconnected => (
@@ -1090,11 +1208,11 @@ class _StatusBadge extends StatelessWidget {
         ),
     };
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: .11),
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: color.withValues(alpha: .18)),
+        color: color.withValues(alpha: .10),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: .20)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

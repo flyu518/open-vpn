@@ -37,10 +37,12 @@ cuikai
     final profile = ImportedProfile.fromFile(
       path: '/Users/test/profile-a.ovpn',
       contents: '''# OVPN_ACCESS_SERVER_USERNAME=cuikai
+# OVPN_ACCESS_SERVER_PROFILE=cuikai@server2.lingmou.ai
 auth-user-pass
 ''',
     );
 
     expect(profile.username, 'cuikai');
+    expect(profile.displayName, 'cuikai@server2.lingmou.ai');
   });
 }
