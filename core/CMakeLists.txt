@@ -33,6 +33,9 @@ if(EXISTS "${OPENVPN3_SOURCE_DIR}/client/ovpncli.cpp")
         HAVE_LZ4
         USE_OPENSSL
         ENABLE_EXTERNAL_PKI
+        HAVE_JSONCPP
+        OPENVPN_COMMAND_AGENT
+        OVPNAGENT_NAME=vpn
         OPENVPN_CORE_API_VISIBILITY_HIDDEN
     )
 
@@ -42,6 +45,7 @@ if(EXISTS "${OPENVPN3_SOURCE_DIR}/client/ovpncli.cpp")
         ${XXHASH_ROOT_DIR}
         /usr/local/opt/asio/include
         /usr/local/opt/fmt/include
+        /usr/local/opt/jsoncpp/include
         /usr/local/opt/lz4/include
         /usr/local/opt/openssl/include
     )
@@ -61,12 +65,14 @@ if(EXISTS "${OPENVPN3_SOURCE_DIR}/client/ovpncli.cpp")
     find_package(Threads REQUIRED)
     find_library(LZ4_LIBRARY NAMES lz4 PATHS /usr/local/opt/lz4/lib REQUIRED)
     find_library(FMT_LIBRARY NAMES fmt PATHS /usr/local/opt/fmt/lib REQUIRED)
+    find_library(JSONCPP_LIBRARY NAMES jsoncpp PATHS /usr/local/opt/jsoncpp/lib REQUIRED)
 
     target_link_libraries(vpn_core PUBLIC
         OpenSSL::SSL
         OpenSSL::Crypto
         ${LZ4_LIBRARY}
         ${FMT_LIBRARY}
+        ${JSONCPP_LIBRARY}
         Threads::Threads
     )
 
