@@ -11,5 +11,9 @@
 - 路由冲突的行内提示
 - 系统浅色/深色主题
 
-真实引擎通过 `EngineClient` 接入；目前 UI 代码使用可注入的内存客户端，
-避免界面测试依赖真实 VPN。
+真实引擎通过 `EngineClient` 接入；macOS 开发版提供 `UnixSocketEngineClient`，连接
+`vpn_daemon` 的用户权限 Unix socket。Windows 将复用相同命令协议，底层替换为受保护
+的 named pipe。
+
+界面测试仍可注入内存客户端，避免测试依赖真实 VPN。真实凭据只应由本机交互输入或
+Keychain/Credential Manager 提供，不能写入 UI 日志。

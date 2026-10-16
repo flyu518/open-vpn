@@ -43,6 +43,15 @@ macOS 当前可以先做不联网的 profile 检查：
 真实连接入口会在终端隐藏读取用户名和密码；在 helper 安装、签名和 IPC 鉴权完成前，
 不要输入真实凭据。
 
+macOS 本地 UI daemon 可以这样启动：
+
+```bash
+/tmp/vpn-core-build-x86/vpn_daemon --socket /tmp/vpn-ui.sock
+```
+
+它使用用户权限 Unix socket 接受界面命令，并把每个 OpenVPN3 会话的状态事件广播给
+已连接的桌面界面。
+
 如果 `third_party/openvpn3` 已经存在，CMake 会额外编译 OpenVPN3 Core
 离线测试。当前开发机的 `/usr/local` 依赖是 x86_64，使用 Rosetta 验证时执行：
 

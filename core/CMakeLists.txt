@@ -259,6 +259,19 @@ if(APPLE)
         CXX_STANDARD 20
         CXX_STANDARD_REQUIRED ON
     )
+
+    add_executable(vpn_daemon
+        tools/daemon_main.cpp
+    )
+    target_include_directories(vpn_daemon PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        /usr/local/opt/jsoncpp/include
+    )
+    target_link_libraries(vpn_daemon PRIVATE vpn_core)
+    set_target_properties(vpn_daemon PROPERTIES
+        CXX_STANDARD 20
+        CXX_STANDARD_REQUIRED ON
+    )
 endif()
 
 if(WIN32)

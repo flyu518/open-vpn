@@ -51,3 +51,16 @@ IPv4 和 IPv6 的网段包含关系都算作冲突；被拒绝的候选策略不
 ## 向前兼容
 
 读取方必须忽略未知字段；新增必填字段时必须升级协议版本。密码、私钥和挑战响应不能出现在普通会话快照或日志中。
+
+## macOS 本地 daemon
+
+macOS 桌面界面通过用户权限 Unix socket 与 `vpn_daemon` 通信，默认路径为
+`/tmp/vpn-ui.sock`。协议采用一行一个 JSON 对象：
+
+- `{"command":"ping"}`：检查 daemon 是否可用。
+- `{"command":"snapshot"}`：读取全部会话快照。
+- `{"command":"connect","sessionId":"...","name":"...","profile":"...","credentials":{...}}`：提交连接请求。
+- `{"command":"disconnect","sessionId":"..."}`：断开指定会话。
+
+daemon 只在内存中接收凭据，响应和事件经过脱敏；socket 默认权限为当前用户可读写。
+真正的 profile 密码应优先由 Keychain/Credential Manager 读取，不能由界面长期保存。
