@@ -103,16 +103,32 @@ if(EXISTS "${OPENVPN3_SOURCE_DIR}/client/ovpncli.cpp")
         OPENVPN_CORE_API_VISIBILITY_HIDDEN
     )
 
+    find_path(ASIO_INCLUDE_DIR NAMES asio.hpp
+        HINTS /usr/local/opt/asio/include)
+    find_path(FMT_INCLUDE_DIR NAMES fmt/format.h
+        HINTS /usr/local/opt/fmt/include)
+    find_path(JSONCPP_INCLUDE_DIR NAMES json/json.h
+        HINTS /usr/local/opt/jsoncpp/include)
+    find_path(LZ4_INCLUDE_DIR NAMES lz4.h
+        HINTS /usr/local/opt/lz4/include)
+    find_path(OPENSSL_INCLUDE_DIR NAMES openssl/ssl.h
+        HINTS /usr/local/opt/openssl/include)
+    foreach(REQUIRED_INCLUDE ASIO_INCLUDE_DIR FMT_INCLUDE_DIR JSONCPP_INCLUDE_DIR LZ4_INCLUDE_DIR OPENSSL_INCLUDE_DIR)
+        if(NOT ${REQUIRED_INCLUDE})
+            message(FATAL_ERROR "找不到 OpenVPN3 依赖头文件：${REQUIRED_INCLUDE}")
+        endif()
+    endforeach()
+
     target_include_directories(vpn_core PRIVATE
         ${VPN_OPENVPN3_PATCHED_INCLUDE}
         ${OPENVPN3_SOURCE_DIR}
         ${OPENVPN3_SOURCE_DIR}/client
         ${XXHASH_ROOT_DIR}
-        /usr/local/opt/asio/include
-        /usr/local/opt/fmt/include
-        /usr/local/opt/jsoncpp/include
-        /usr/local/opt/lz4/include
-        /usr/local/opt/openssl/include
+        ${ASIO_INCLUDE_DIR}
+        ${FMT_INCLUDE_DIR}
+        ${JSONCPP_INCLUDE_DIR}
+        ${LZ4_INCLUDE_DIR}
+        ${OPENSSL_INCLUDE_DIR}
     )
 
     find_path(XXHASH_INCLUDE_DIR
@@ -128,9 +144,14 @@ if(EXISTS "${OPENVPN3_SOURCE_DIR}/client/ovpncli.cpp")
 
     find_package(OpenSSL REQUIRED)
     find_package(Threads REQUIRED)
-    find_library(LZ4_LIBRARY NAMES lz4 PATHS /usr/local/opt/lz4/lib REQUIRED)
-    find_library(FMT_LIBRARY NAMES fmt PATHS /usr/local/opt/fmt/lib REQUIRED)
-    find_library(JSONCPP_LIBRARY NAMES jsoncpp PATHS /usr/local/opt/jsoncpp/lib REQUIRED)
+    find_library(LZ4_LIBRARY NAMES lz4 HINTS /usr/local/opt/lz4/lib)
+    find_library(FMT_LIBRARY NAMES fmt HINTS /usr/local/opt/fmt/lib)
+    find_library(JSONCPP_LIBRARY NAMES jsoncpp HINTS /usr/local/opt/jsoncpp/lib)
+    foreach(REQUIRED_LIBRARY LZ4_LIBRARY FMT_LIBRARY JSONCPP_LIBRARY)
+        if(NOT ${REQUIRED_LIBRARY})
+            message(FATAL_ERROR "找不到 OpenVPN3 依赖库：${REQUIRED_LIBRARY}")
+        endif()
+    endforeach()
 
     target_link_libraries(vpn_core PUBLIC
         OpenSSL::SSL
@@ -275,6 +296,48 @@ if(APPLE)
 endif()
 
 if(WIN32)
+    if(EXISTS "${OPENVPN3_SOURCE_DIR}/openvpn/ovpnagent/win/ovpnagent.cpp")
+        target_sources(vpn_windows_service PRIVATE
+            ${OPENVPN3_SOURCE_DIR}/openvpn/ovpnagent/win/ovpnagent.cpp
+            ${OPENVPN3_SOURCE_DIR}/openvpn/crypto/data_epoch.cpp
+            ${OPENVPN3_SOURCE_DIR}/openvpn/openssl/xkey/xkey_helper.c
+            ${OPENVPN3_SOURCE_DIR}/openvpn/openssl/xkey/xkey_provider.c
+        )
+        target_compile_definitions(vpn_windows_service PRIVATE
+            ASIO_STANDALONE
+            USE_ASIO
+            HAVE_LZ4
+            USE_OPENSSL
+            ENABLE_EXTERNAL_PKI
+            HAVE_JSONCPP
+            OPENVPN_COMMAND_AGENT
+            OVPNAGENT_NAME=vpn
+            OPENVPN_CORE_API_VISIBILITY_HIDDEN
+        )
+        target_include_directories(vpn_windows_service PRIVATE
+            ${VPN_OPENVPN3_PATCHED_INCLUDE}
+            ${OPENVPN3_SOURCE_DIR}
+            ${OPENVPN3_SOURCE_DIR}/client
+            ${XXHASH_INCLUDE_DIR}
+            ${ASIO_INCLUDE_DIR}
+            ${FMT_INCLUDE_DIR}
+            ${JSONCPP_INCLUDE_DIR}
+            ${LZ4_INCLUDE_DIR}
+            ${OPENSSL_INCLUDE_DIR}
+        )
+        target_link_libraries(vpn_windows_service PRIVATE
+            OpenSSL::SSL
+            OpenSSL::Crypto
+            ${LZ4_LIBRARY}
+            ${FMT_LIBRARY}
+            ${JSONCPP_LIBRARY}
+            Threads::Threads
+            ws2_32
+            advapi32
+            iphlpapi
+        )
+    endif()
+
     add_library(vpn_windows_secure_store STATIC
         ../platform/windows/secure_store/credential_store.cpp
     )

@@ -1,17 +1,16 @@
 #ifdef _WIN32
 
-#include <windows.h>
+#define OVPNAGENT_NAME vpn
 
-int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
-    // Windows Service registration and Wintun IPC are implemented in the
-    // platform packaging task. This entry point deliberately does not start
-    // a VPN or mutate routes by itself.
-    return 0;
-}
+#include "openvpn/ovpnagent/win/ovpnagent.cpp"
+
+// OpenVPN3 官方 Windows agent 提供 Service 控制入口、命名管道和 Wintun/TAP
+// 生命周期；本项目通过 OVPNAGENT_NAME=vpn 与 OpenVPN Connect 隔离。
 
 #else
 
 int main() {
+    // 非 Windows 构建只保留源码检查入口，不启动系统服务。
     return 0;
 }
 
