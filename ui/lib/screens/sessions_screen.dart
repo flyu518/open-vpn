@@ -53,18 +53,13 @@ class SessionsScreen extends StatelessWidget {
         return Scaffold(
           backgroundColor: colors.surface,
           body: SafeArea(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const _Sidebar(),
-                Expanded(
-                  child: Align(
-                    alignment: Alignment.topCenter,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 1220),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(32, 28, 32, 24),
-                        child: Column(
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1320),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(32, 28, 32, 24),
+                  child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _Header(
@@ -124,155 +119,13 @@ class SessionsScreen extends StatelessWidget {
                                     ),
                             ),
                           ],
-                        ),
-                      ),
-                    ),
                   ),
                 ),
-              ],
+              ),
             ),
           ),
         );
       },
-    );
-  }
-}
-
-class _Sidebar extends StatelessWidget {
-  const _Sidebar();
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Container(
-      width: 224,
-      margin: const EdgeInsets.fromLTRB(16, 16, 0, 16),
-      padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
-      decoration: BoxDecoration(
-        color: colors.surfaceContainer,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: colors.outlineVariant.withValues(alpha: .55)),
-      ),
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _BrandHeader(),
-          SizedBox(height: 28),
-          _SidebarLabel(text: '工作区'),
-          SizedBox(height: 8),
-          _NavItem(
-            icon: Icons.grid_view_rounded,
-            label: '连接总览',
-            detail: '实时状态与路由',
-            selected: true,
-          ),
-          Spacer(),
-        ],
-      ),
-    );
-  }
-}
-
-class _BrandHeader extends StatelessWidget {
-  const _BrandHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        const _BrandMark(),
-        const SizedBox(width: 10),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('OpenVPN', style: Theme.of(context).textTheme.titleMedium),
-            Text('多连接控制台',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    )),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _SidebarLabel extends StatelessWidget {
-  const _SidebarLabel({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-            letterSpacing: .8,
-            fontWeight: FontWeight.w700,
-          ),
-    );
-  }
-}
-
-class _BrandMark extends StatelessWidget {
-  const _BrandMark();
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Container(
-      width: 38,
-      height: 38,
-      decoration: BoxDecoration(
-        color: colors.primary,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Icon(Icons.shield_rounded, color: colors.onPrimary, size: 22),
-    );
-  }
-}
-
-class _NavItem extends StatelessWidget {
-  const _NavItem({
-    required this.icon,
-    required this.label,
-    required this.detail,
-    this.selected = false,
-  });
-
-  final IconData icon;
-  final String label;
-  final String detail;
-  final bool selected;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final foreground = selected ? colors.primary : colors.onSurfaceVariant;
-    return Container(
-      margin: const EdgeInsets.only(top: 4),
-      decoration: BoxDecoration(
-        color: selected ? colors.primary.withValues(alpha: .12) : null,
-        borderRadius: BorderRadius.circular(12),
-        border: selected
-            ? Border.all(color: colors.primary.withValues(alpha: .22))
-            : null,
-      ),
-      child: Material(
-        type: MaterialType.transparency,
-        child: ListTile(
-        dense: true,
-          minVerticalPadding: 6,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 10),
-          leading: Icon(icon, size: 20, color: foreground),
-          title: Text(label),
-          subtitle: Text(detail),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          onTap: null,
-        ),
-      ),
     );
   }
 }

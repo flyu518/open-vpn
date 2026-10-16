@@ -114,4 +114,14 @@ void main() {
     expect(find.text('安全模式'), findsNothing);
     expect(find.text('OpenVPN · Windows / macOS'), findsNothing);
   });
+
+  testWidgets('总览不再渲染没有操作价值的侧栏品牌壳', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: SessionsScreen(viewModel: SessionViewModel()),
+    ));
+
+    expect(find.text('多连接控制台'), findsNothing);
+    expect(find.text('工作区'), findsNothing);
+    expect(find.text('连接总览'), findsOneWidget);
+  });
 }
