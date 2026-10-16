@@ -13,23 +13,23 @@ class SessionsScreen extends StatelessWidget {
   const SessionsScreen({
     super.key,
     required this.viewModel,
-    this.onOpenProfiles,
     this.onImportProfile,
     this.onRefreshService,
     this.onConnect,
     this.onDisconnect,
     this.onEditName,
+    this.onViewDetails,
     this.onEditStrategy,
     this.onReorder,
   });
 
   final SessionViewModel viewModel;
-  final VoidCallback? onOpenProfiles;
   final VoidCallback? onImportProfile;
   final Future<void> Function()? onRefreshService;
   final Future<void> Function(VpnSession)? onConnect;
   final Future<void> Function(VpnSession)? onDisconnect;
   final Future<void> Function(VpnSession)? onEditName;
+  final Future<void> Function(VpnSession)? onViewDetails;
   final ValueChanged<VpnSession>? onEditStrategy;
   final void Function(int oldIndex, int newIndex)? onReorder;
 
@@ -56,11 +56,7 @@ class SessionsScreen extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _Sidebar(
-                  onOpenProfiles: onOpenProfiles,
-                  sessionCount: sessions.length,
-                  activeCount: activeCount,
-                ),
+                const _Sidebar(),
                 Expanded(
                   child: Align(
                     alignment: Alignment.topCenter,
@@ -76,7 +72,6 @@ class SessionsScreen extends StatelessWidget {
                               profileCount: sessions.length,
                               warningCount: warningCount + errorCount,
                               serviceError: viewModel.serviceError,
-                              serviceChecking: !viewModel.serviceChecked,
                               storageError: viewModel.profileStoreError,
                               onImportProfile: onImportProfile,
                               onRefreshService: onRefreshService,
@@ -91,7 +86,6 @@ class SessionsScreen extends StatelessWidget {
                               child: sessions.isEmpty
                                   ? _EmptyState(
                                       hasImportAction: onImportProfile != null,
-                                      onOpenProfiles: onOpenProfiles,
                                     )
                                   : ReorderableListView.builder(
                                       buildDefaultDragHandles: false,
@@ -120,6 +114,8 @@ class SessionsScreen extends StatelessWidget {
                                                 onDisconnect?.call(session),
                                             onEditName: () =>
                                                 onEditName?.call(session),
+                                            onViewDetails: () =>
+                                                onViewDetails?.call(session),
                                             onEditStrategy: () =>
                                                 onEditStrategy?.call(session),
                                           ),
@@ -143,15 +139,7 @@ class SessionsScreen extends StatelessWidget {
 }
 
 class _Sidebar extends StatelessWidget {
-  const _Sidebar({
-    this.onOpenProfiles,
-    required this.sessionCount,
-    required this.activeCount,
-  });
-
-  final VoidCallback? onOpenProfiles;
-  final int sessionCount;
-  final int activeCount;
+  const _Sidebar();
 
   @override
   Widget build(BuildContext context) {
@@ -165,63 +153,20 @@ class _Sidebar extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: colors.outlineVariant.withValues(alpha: .55)),
       ),
-      child: Column(
+      child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _BrandHeader(),
-          const SizedBox(height: 28),
-          const _SidebarLabel(text: '工作区'),
-          const SizedBox(height: 8),
-          const _NavItem(
+          _BrandHeader(),
+          SizedBox(height: 28),
+          _SidebarLabel(text: '工作区'),
+          SizedBox(height: 8),
+          _NavItem(
             icon: Icons.grid_view_rounded,
             label: '连接总览',
             detail: '实时状态与路由',
             selected: true,
           ),
-          _NavItem(
-            icon: Icons.folder_copy_outlined,
-            label: '配置文件',
-            detail: sessionCount == 0 ? '管理配置文件' : '$sessionCount 个已导入配置',
-            onTap: onOpenProfiles,
-          ),
-          const Spacer(),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: colors.primary.withValues(alpha: .08),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: colors.primary.withValues(alpha: .16)),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.alt_route_rounded, color: colors.primary, size: 20),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('兼容路由',
-                          style: Theme.of(context).textTheme.labelLarge),
-                      const SizedBox(height: 3),
-                      Text(
-                        activeCount == 0 ? '默认策略已启用' : '$activeCount 个连接活动中',
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: colors.onSurfaceVariant,
-                            ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(Icons.check_circle_outline_rounded,
-                    color: colors.primary, size: 17),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          Text('OpenVPN · Windows / macOS',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: colors.onSurfaceVariant,
-                  )),
+          Spacer(),
         ],
       ),
     );
@@ -294,14 +239,12 @@ class _NavItem extends StatelessWidget {
     required this.label,
     required this.detail,
     this.selected = false,
-    this.onTap,
   });
 
   final IconData icon;
   final String label;
   final String detail;
   final bool selected;
-  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -327,7 +270,7 @@ class _NavItem extends StatelessWidget {
           subtitle: Text(detail),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          onTap: onTap,
+          onTap: null,
         ),
       ),
     );
@@ -340,7 +283,6 @@ class _Header extends StatelessWidget {
     required this.profileCount,
     required this.warningCount,
     required this.serviceError,
-    required this.serviceChecking,
     this.storageError,
     this.onImportProfile,
     this.onRefreshService,
@@ -350,7 +292,6 @@ class _Header extends StatelessWidget {
   final int profileCount;
   final int warningCount;
   final String? serviceError;
-  final bool serviceChecking;
   final String? storageError;
   final VoidCallback? onImportProfile;
   final Future<void> Function()? onRefreshService;
@@ -395,14 +336,10 @@ class _Header extends StatelessWidget {
               runSpacing: 8,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                _ServicePill(
-                  error: serviceError,
-                  checking: serviceChecking,
-                ),
-                FilledButton.icon(
+                IconButton.filled(
                   onPressed: onImportProfile,
-                  icon: const Icon(Icons.add_rounded, size: 18),
-                  label: const Text('导入配置'),
+                  tooltip: '导入 OpenVPN 配置',
+                  icon: const Icon(Icons.add_rounded),
                 ),
               ],
             ),
@@ -445,52 +382,6 @@ class _Header extends StatelessWidget {
           ],
         ),
       ],
-    );
-  }
-}
-
-class _ServicePill extends StatelessWidget {
-  const _ServicePill({this.error, this.checking = false});
-
-  final String? error;
-  final bool checking;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final ready = !checking && error == null;
-    final color = checking
-        ? colors.onSurfaceVariant
-        : ready
-            ? _successColor(context)
-            : colors.error;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: .10),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: .24)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            checking
-                ? Icons.sync_rounded
-                : ready
-                    ? Icons.check_circle_outline_rounded
-                    : Icons.cloud_off_rounded,
-            size: 17,
-            color: color,
-          ),
-          const SizedBox(width: 7),
-          Text(checking ? '检查中' : ready ? '服务已就绪' : '服务未连接',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: color,
-                    fontWeight: FontWeight.w700,
-                  )),
-        ],
-      ),
     );
   }
 }
@@ -625,11 +516,9 @@ class _SectionHeader extends StatelessWidget {
 class _EmptyState extends StatelessWidget {
   const _EmptyState({
     required this.hasImportAction,
-    this.onOpenProfiles,
   });
 
   final bool hasImportAction;
-  final VoidCallback? onOpenProfiles;
 
   @override
   Widget build(BuildContext context) {
@@ -667,11 +556,12 @@ class _EmptyState extends StatelessWidget {
                       color: colors.primary,
                     ),
               )
-            else if (onOpenProfiles != null)
-              OutlinedButton.icon(
-                onPressed: onOpenProfiles,
-                icon: const Icon(Icons.folder_open_rounded),
-                label: const Text('打开配置管理'),
+            else
+              Text(
+                '请从右上角加号导入配置。',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: colors.primary,
+                    ),
               ),
           ],
         ),
@@ -690,6 +580,7 @@ class SessionCard extends StatelessWidget {
     this.onConnect,
     this.onDisconnect,
     this.onEditName,
+    this.onViewDetails,
     this.onEditStrategy,
   });
 
@@ -700,6 +591,7 @@ class SessionCard extends StatelessWidget {
   final VoidCallback? onConnect;
   final VoidCallback? onDisconnect;
   final VoidCallback? onEditName;
+  final VoidCallback? onViewDetails;
   final VoidCallback? onEditStrategy;
 
   @override
@@ -816,6 +708,18 @@ class SessionCard extends StatelessWidget {
                 onPressed: onEditStrategy,
                 icon: const Icon(Icons.tune_rounded, size: 15),
                 label: const Text('路由策略'),
+                style: OutlinedButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(9)),
+                  ),
+                ),
+              OutlinedButton.icon(
+                onPressed: onViewDetails,
+                icon: const Icon(Icons.info_outline_rounded, size: 15),
+                label: const Text('查看详情'),
                 style: OutlinedButton.styleFrom(
                   visualDensity: VisualDensity.compact,
                   padding:

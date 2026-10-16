@@ -272,6 +272,36 @@ void main() {
     expect(session.routeStrategy.priority, 9);
   });
 
+  test('重新导入新路径仍沿用原连接标识', () async {
+    final viewModel = SessionViewModel();
+    final original = ImportedProfile.fromFile(
+      path: '/tmp/profile-a.ovpn',
+      contents: 'client\n',
+    );
+    final replacement = ImportedProfile.fromFile(
+      path: '/tmp/profile-a-copy.ovpn',
+      contents: 'client\nremote replacement.example 1194 udp\n',
+    );
+    viewModel.replaceSessions([
+      VpnSession(
+        id: original.id,
+        name: '研发专线',
+        status: VpnStatus.disconnected,
+        profileId: original.id,
+        profilePath: original.path,
+        profile: original.contents,
+      ),
+    ]);
+
+    await viewModel.replaceImportedProfile(original.id, replacement);
+
+    final session = viewModel.sessionById(original.id)!;
+    expect(session.id, original.id);
+    expect(session.profilePath, replacement.path);
+    expect(session.profile, replacement.contents);
+    expect(viewModel.sessions, hasLength(1));
+  });
+
   test('拖动连接顺序会更新优先级', () {
     final viewModel = SessionViewModel();
     viewModel.replaceSessions([

@@ -5,6 +5,23 @@ import 'package:flutter/material.dart';
 
 import '../models/profile.dart';
 
+Future<ImportedProfile?> pickOpenVpnProfile() async {
+  const typeGroup = XTypeGroup(
+    label: 'OpenVPN 配置',
+    extensions: <String>['ovpn', 'conf'],
+  );
+  final file = await openFile(
+    acceptedTypeGroups: const <XTypeGroup>[typeGroup],
+  );
+  if (file == null) return null;
+
+  final contents = await file.readAsString();
+  if (contents.trim().isEmpty) {
+    throw const FormatException('配置文件为空');
+  }
+  return ImportedProfile.fromFile(path: file.path, contents: contents);
+}
+
 class ProfileImportScreen extends StatefulWidget {
   const ProfileImportScreen({super.key, this.onImport});
 
@@ -24,22 +41,9 @@ class _ProfileImportScreenState extends State<ProfileImportScreen> {
       _error = null;
     });
     try {
-      const typeGroup = XTypeGroup(
-        label: 'OpenVPN 配置',
-        extensions: <String>['ovpn', 'conf'],
-      );
-      final file = await openFile(
-        acceptedTypeGroups: const <XTypeGroup>[typeGroup],
-      );
-      if (file == null) return;
-
-      final contents = await file.readAsString();
-      if (contents.trim().isEmpty) {
-        throw const FormatException('配置文件为空');
-      }
-      await widget.onImport?.call(
-        ImportedProfile.fromFile(path: file.path, contents: contents),
-      );
+      final profile = await pickOpenVpnProfile();
+      if (profile == null) return;
+      await widget.onImport?.call(profile);
       if (mounted) Navigator.of(context).pop();
     } on Object catch (error) {
       if (!mounted) return;

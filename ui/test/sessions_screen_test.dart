@@ -11,8 +11,8 @@ void main() {
       home: SessionsScreen(viewModel: SessionViewModel()),
     ));
 
-    expect(find.text('检查中'), findsOneWidget);
     expect(find.text('服务已就绪'), findsNothing);
+    expect(find.text('服务未连接'), findsNothing);
   });
 
   testWidgets('断开过程中不会再次显示连接按钮', (tester) async {
@@ -81,35 +81,37 @@ void main() {
       ),
     ));
 
-    expect(find.text('导入配置'), findsOneWidget);
+    expect(find.byTooltip('导入 OpenVPN 配置'), findsOneWidget);
     expect(find.text('导入第一个配置'), findsNothing);
   });
 
-  testWidgets('配置文件导航进入配置管理而不是直接导入', (tester) async {
-    var opened = false;
+  testWidgets('连接卡片提供查看详情入口', (tester) async {
     final viewModel = SessionViewModel();
+    viewModel.replaceSessions([
+      const VpnSession(
+        id: 'office-a',
+        name: '研发网络',
+        status: VpnStatus.disconnected,
+        profile: 'client\n',
+      ),
+    ]);
 
     await tester.pumpWidget(MaterialApp(
       home: SessionsScreen(
         viewModel: viewModel,
-        onOpenProfiles: () => opened = true,
+        onViewDetails: (_) async {},
       ),
     ));
 
-    await tester.tap(find.text('配置文件'));
-    await tester.pump();
-
-    expect(opened, isTrue);
+    expect(find.text('查看详情'), findsOneWidget);
   });
 
-  testWidgets('应用根页面点击配置文件会打开配置管理', (tester) async {
+  testWidgets('左侧不显示未使用的配置文件菜单和平台标识', (tester) async {
     await tester.pumpWidget(const VpnApp());
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('配置文件').first);
-    await tester.pumpAndSettle();
-
-    expect(find.text('配置文件'), findsWidgets);
-    expect(find.text('添加配置'), findsOneWidget);
+    expect(find.text('配置文件'), findsNothing);
+    expect(find.text('安全模式'), findsNothing);
+    expect(find.text('OpenVPN · Windows / macOS'), findsNothing);
   });
 }

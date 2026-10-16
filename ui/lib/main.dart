@@ -1,13 +1,15 @@
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
 import 'models/credentials.dart';
 import 'models/session.dart';
 import 'models/route_strategy.dart';
 import 'screens/credentials_dialog.dart';
-import 'screens/profile_library_screen.dart';
 import 'screens/profile_import_screen.dart';
+import 'screens/profile_details_dialog.dart';
 import 'screens/route_strategy_dialog.dart';
 import 'screens/session_name_dialog.dart';
 import 'screens/sessions_screen.dart';
@@ -71,24 +73,22 @@ class _VpnAppState extends State<VpnApp> {
   Future<void> _importProfile() async {
     final navigatorContext = _navigatorKey.currentState?.context;
     if (navigatorContext == null) return;
-    await showDialog<void>(
-      context: navigatorContext,
-      builder: (_) => ProfileImportScreen(
-        onImport: (profile) => viewModel.addImportedProfile(profile),
-      ),
-    );
-  }
-
-  Future<void> _openProfiles() async {
-    final navigatorContext = _navigatorKey.currentState?.context;
-    if (navigatorContext == null) return;
-    await showDialog<void>(
-      context: navigatorContext,
-      builder: (_) => ProfileLibraryDialog(
-        sessions: viewModel.sessions,
-        onImport: _importProfile,
-      ),
-    );
+    try {
+      final profile = await pickOpenVpnProfile();
+      if (profile == null) return;
+      await viewModel.addImportedProfile(profile);
+      if (navigatorContext.mounted) {
+        ScaffoldMessenger.of(navigatorContext).showSnackBar(
+          SnackBar(content: Text('已导入：${profile.displayName}')),
+        );
+      }
+    } on Object catch (error) {
+      if (navigatorContext.mounted) {
+        ScaffoldMessenger.of(navigatorContext).showSnackBar(
+          SnackBar(content: Text('导入配置失败：$error')),
+        );
+      }
+    }
   }
 
   Future<void> _connect(VpnSession session) async {
@@ -124,6 +124,70 @@ class _VpnAppState extends State<VpnApp> {
     await viewModel.disconnectSession(session.id);
   }
 
+  Future<void> _viewDetails(VpnSession session) async {
+    final context = _navigatorKey.currentState?.context;
+    if (context == null) return;
+    await showDialog<void>(
+      context: context,
+      builder: (_) => ProfileDetailsDialog(
+        session: session,
+        onExport: () => _exportProfile(session),
+        onReimport: () => _reimportProfile(session),
+      ),
+    );
+  }
+
+  Future<void> _reimportProfile(VpnSession session) async {
+    final profile = await pickOpenVpnProfile();
+    if (profile == null) return;
+    await viewModel.replaceImportedProfile(session.id, profile);
+  }
+
+  Future<void> _exportProfile(VpnSession session) async {
+    final context = _navigatorKey.currentState?.context;
+    if (context == null) return;
+    if (session.profile.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('当前配置不可读，请先重新导入')),
+      );
+      return;
+    }
+    try {
+      const typeGroup = XTypeGroup(
+        label: 'OpenVPN 配置',
+        extensions: <String>['ovpn', 'conf'],
+      );
+      final location = await getSaveLocation(
+        acceptedTypeGroups: const <XTypeGroup>[typeGroup],
+        suggestedName: '${_safeFileName(session.name)}.ovpn',
+      );
+      if (location == null) return;
+      await XFile.fromData(
+        utf8.encode(session.profile),
+        mimeType: 'application/x-openvpn-profile',
+        name: _safeFileName(session.name),
+      ).saveTo(location.path);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('配置已导出到：${location.path}')),
+        );
+      }
+    } on Object catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('导出配置失败：$error')),
+        );
+      }
+    }
+  }
+
+  String _safeFileName(String value) {
+    final normalized = value
+        .replaceAll(RegExp(r'[\\/:*?"<>|]'), '_')
+        .trim();
+    return normalized.isEmpty ? 'openvpn-profile' : normalized;
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -145,12 +209,12 @@ class _VpnAppState extends State<VpnApp> {
       themeMode: ThemeMode.system,
       home: SessionsScreen(
         viewModel: viewModel,
-        onOpenProfiles: _openProfiles,
         onImportProfile: _importProfile,
         onRefreshService: viewModel.loadSnapshot,
         onConnect: _connect,
         onDisconnect: _disconnect,
         onEditName: _editName,
+        onViewDetails: _viewDetails,
         onEditStrategy: (session) => showDialog<RouteStrategy>(
           context: _navigatorKey.currentState!.context,
           builder: (_) => RouteStrategyDialog(initial: session.routeStrategy),

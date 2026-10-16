@@ -78,6 +78,21 @@ class SessionViewModel extends ChangeNotifier {
     await _saveProfiles(throwOnError: true);
   }
 
+  Future<void> replaceImportedProfile(
+      String sessionId, ImportedProfile profile) async {
+    final existing = _sessions[sessionId];
+    if (existing == null) return;
+    _sessions[sessionId] = existing.copyWith(
+      name: _keepSessionName(existing.name) ? existing.name : profile.displayName,
+      profileId: existing.profileId.isEmpty ? profile.id : existing.profileId,
+      profile: profile.contents,
+      profilePath: profile.path,
+      username: profile.username,
+    );
+    notifyListeners();
+    await _saveProfiles(throwOnError: true);
+  }
+
   Future<void> loadProfiles() async {
     final profileStore = _profileStore;
     if (profileStore == null) return;
