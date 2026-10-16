@@ -30,6 +30,8 @@ class VpnSession {
     required this.id,
     required this.name,
     required this.status,
+    this.profileId = '',
+    this.profile = '',
     this.remoteHost = '',
     this.interfaceName = '',
     this.routes = const <String>[],
@@ -43,6 +45,10 @@ class VpnSession {
   final String id;
   final String name;
   final VpnStatus status;
+
+  /// 只保留在当前进程内，用于向 daemon 提交连接请求，不写入日志或快照。
+  final String profileId;
+  final String profile;
   final String remoteHost;
   final String interfaceName;
   final List<String> routes;
@@ -52,9 +58,24 @@ class VpnSession {
   final RouteStrategy routeStrategy;
   final List<String> warnings;
 
+  factory VpnSession.fromJson(Map<String, dynamic> value) {
+    final rawWarnings = value['warnings'];
+    return VpnSession(
+      id: value['sessionId'] as String? ?? '',
+      name: value['name'] as String? ?? value['sessionId'] as String? ?? '',
+      status: vpnStatusFromName(value['state'] as String?),
+      remoteHost: value['remoteHost'] as String? ?? '',
+      warnings: rawWarnings is List
+          ? rawWarnings.whereType<String>().toList(growable: false)
+          : const <String>[],
+    );
+  }
+
   VpnSession copyWith({
     String? name,
     VpnStatus? status,
+    String? profileId,
+    String? profile,
     String? remoteHost,
     String? interfaceName,
     List<String>? routes,
@@ -68,6 +89,8 @@ class VpnSession {
       id: id,
       name: name ?? this.name,
       status: status ?? this.status,
+      profileId: profileId ?? this.profileId,
+      profile: profile ?? this.profile,
       remoteHost: remoteHost ?? this.remoteHost,
       interfaceName: interfaceName ?? this.interfaceName,
       routes: routes ?? this.routes,
@@ -77,5 +100,20 @@ class VpnSession {
       routeStrategy: routeStrategy ?? this.routeStrategy,
       warnings: warnings ?? this.warnings,
     );
+  }
+}
+
+VpnStatus vpnStatusFromName(String? value) {
+  switch (value) {
+    case 'connected':
+      return VpnStatus.connected;
+    case 'connecting':
+      return VpnStatus.connecting;
+    case 'disconnecting':
+      return VpnStatus.disconnecting;
+    case 'failed':
+      return VpnStatus.failed;
+    default:
+      return VpnStatus.disconnected;
   }
 }

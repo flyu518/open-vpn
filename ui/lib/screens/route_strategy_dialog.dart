@@ -162,7 +162,8 @@ class _RouteStrategyDialogState extends State<RouteStrategyDialog> {
                     final index = entry.key;
                     final rule = entry.value;
                     return InputChip(
-                      label: Text('${_ruleTypeLabel(rule.type)}：${rule.pattern}'),
+                      label:
+                          Text('${_ruleTypeLabel(rule.type)}：${rule.pattern}'),
                       onDeleted: () => setState(() => _rules.removeAt(index)),
                     );
                   }).toList(),

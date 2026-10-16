@@ -20,7 +20,7 @@
 ```bash
 cmake -S vpn/core -B /tmp/vpn-core-build
 cmake --build /tmp/vpn-core-build
-ctest --test-dir /tmp/vpn-core-build --output-on-failure
+(cd /tmp/vpn-core-build && ctest --output-on-failure)
 ```
 
 基础测试不需要 VPN 配置，也不会发起网络连接。
@@ -32,6 +32,10 @@ ctest --test-dir /tmp/vpn-core-build --output-on-failure
 - macOS helper 已按“进程 PID + 独立会话标识”管理多个 utun，并在 helper 侧执行全隧道/重叠路由校验；`packaging/macos/` 已提供 launchd 配置和本地安装脚本。
 - Windows helper 已接入官方 Service/Wintun 构建边界；仍需要 Windows 主机完成驱动、Service、路由/DNS 和多会话运行验证。
 - Flutter 3.47.5 / Dart 3.13.4 已安装到 `.tools/flutter`；Flutter 测试、静态分析和 macOS 桌面构建已通过，Windows 构建仍需 Windows 主机。
+- macOS Flutter 界面已接入文件选择器、临时凭据输入、Unix socket daemon 响应和事件；profile
+  默认只保存在当前进程内，密码只在连接调用期间传递，勾选保存时由 daemon 写入钥匙串。
+- Windows Flutter 界面已经可以构建并复用同一模型/策略界面；Windows named pipe 服务端和
+  Wintun 真实运行验证仍需在 Windows 主机完成，macOS 开发机不会把它伪装成已连接。
 
 macOS 当前可以先做不联网的 profile 检查：
 
@@ -51,6 +55,13 @@ macOS 本地 UI daemon 可以这样启动：
 
 它使用用户权限 Unix socket 接受界面命令，并把每个 OpenVPN3 会话的状态事件广播给
 已连接的桌面界面。
+
+如果希望登录后自动启动 UI daemon，可以安装用户级 launchd 服务：
+
+```bash
+vpn/packaging/macos/install-daemon.sh \
+  /tmp/vpn-core-build-x86/vpn_daemon
+```
 
 如果 `third_party/openvpn3` 已经存在，CMake 会额外编译 OpenVPN3 Core
 离线测试。当前开发机的 `/usr/local` 依赖是 x86_64，使用 Rosetta 验证时执行：

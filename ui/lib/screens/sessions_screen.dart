@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/route_strategy.dart';
 import '../models/session.dart';
 import '../view_models/session_view_model.dart';
 
@@ -16,8 +17,8 @@ class SessionsScreen extends StatelessWidget {
 
   final SessionViewModel viewModel;
   final VoidCallback? onImportProfile;
-  final ValueChanged<VpnSession>? onConnect;
-  final ValueChanged<VpnSession>? onDisconnect;
+  final Future<void> Function(VpnSession)? onConnect;
+  final Future<void> Function(VpnSession)? onDisconnect;
   final ValueChanged<VpnSession>? onEditStrategy;
   final void Function(int oldIndex, int newIndex)? onReorder;
 
@@ -57,7 +58,8 @@ class SessionsScreen extends StatelessWidget {
                                     final session = viewModel.sessions[index];
                                     return Padding(
                                       key: ValueKey(session.id),
-                                      padding: const EdgeInsets.only(bottom: 14),
+                                      padding:
+                                          const EdgeInsets.only(bottom: 14),
                                       child: SessionCard(
                                         session: session,
                                         error: viewModel.errorFor(session.id),
@@ -116,7 +118,8 @@ class _Sidebar extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 34),
-          const _NavItem(icon: Icons.dashboard_rounded, label: '连接总览', selected: true),
+          const _NavItem(
+              icon: Icons.dashboard_rounded, label: '连接总览', selected: true),
           const _NavItem(icon: Icons.folder_rounded, label: '配置文件'),
           const _NavItem(icon: Icons.history_rounded, label: '连接记录'),
           const Spacer(),
@@ -140,7 +143,8 @@ class _Sidebar extends StatelessWidget {
 }
 
 class _NavItem extends StatelessWidget {
-  const _NavItem({required this.icon, required this.label, this.selected = false});
+  const _NavItem(
+      {required this.icon, required this.label, this.selected = false});
 
   final IconData icon;
   final String label;
@@ -152,15 +156,22 @@ class _NavItem extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       decoration: BoxDecoration(
-        color: selected ? colors.primary.withValues(alpha: .12) : Colors.transparent,
+        color: selected
+            ? colors.primary.withValues(alpha: .12)
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(10),
       ),
-      child: ListTile(
-        dense: true,
-        leading: Icon(icon, size: 20, color: selected ? colors.primary : null),
-        title: Text(label),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        onTap: () {},
+      child: Material(
+        type: MaterialType.transparency,
+        child: ListTile(
+          dense: true,
+          leading:
+              Icon(icon, size: 20, color: selected ? colors.primary : null),
+          title: Text(label),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          onTap: () {},
+        ),
       ),
     );
   }
@@ -176,20 +187,22 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('连接总览', style: Theme.of(context).textTheme.headlineSmall),
-            const SizedBox(height: 6),
-            Text(activeLabel, style: Theme.of(context).textTheme.bodyMedium),
-            const SizedBox(height: 4),
-            Text(
-              '拖动连接卡片右侧手柄可调整连接优先级',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('连接总览', style: Theme.of(context).textTheme.headlineSmall),
+              const SizedBox(height: 6),
+              Text(activeLabel, style: Theme.of(context).textTheme.bodyMedium),
+              const SizedBox(height: 4),
+              Text(
+                '拖动连接卡片右侧手柄可调整优先级；已连接会话需断开后重连才能重新分配冲突路由',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
         ),
-        const Spacer(),
+        const SizedBox(width: 16),
         FilledButton.icon(
           onPressed: onImportProfile,
           icon: const Icon(Icons.add_rounded),
@@ -264,6 +277,7 @@ class SessionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final connected = session.status == VpnStatus.connected;
+    final profileMissing = session.profile.trim().isEmpty;
     final accent = connected ? Colors.green : colors.primary;
     return Container(
       padding: const EdgeInsets.all(20),
@@ -271,7 +285,9 @@ class SessionCard extends StatelessWidget {
         color: colors.surfaceContainerHighest.withValues(alpha: .42),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: connected ? Colors.green.withValues(alpha: .35) : colors.outlineVariant,
+          color: connected
+              ? Colors.green.withValues(alpha: .35)
+              : colors.outlineVariant,
         ),
       ),
       child: Column(
@@ -282,7 +298,8 @@ class SessionCard extends StatelessWidget {
               Container(
                 width: 10,
                 height: 10,
-                decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
+                decoration:
+                    BoxDecoration(color: accent, shape: BoxShape.circle),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -303,8 +320,12 @@ class SessionCard extends StatelessWidget {
                 )
               else
                 FilledButton(
-                  onPressed: onConnect,
-                  child: const Text('连接'),
+                  onPressed: profileMissing ||
+                          session.status == VpnStatus.connecting ||
+                          onConnect == null
+                      ? null
+                      : onConnect,
+                  child: Text(profileMissing ? '需要重新导入' : '连接'),
                 ),
             ],
           ),
@@ -313,10 +334,26 @@ class SessionCard extends StatelessWidget {
             spacing: 22,
             runSpacing: 8,
             children: [
-              _InfoItem(icon: Icons.public_rounded, label: '服务器', value: session.remoteHost.isEmpty ? '未连接' : session.remoteHost),
-              _InfoItem(icon: Icons.lan_rounded, label: '接口', value: session.interfaceName.isEmpty ? '等待分配' : session.interfaceName),
-              _InfoItem(icon: Icons.timer_outlined, label: '时长', value: _formatDuration(session.duration)),
-              _InfoItem(icon: Icons.swap_vert_rounded, label: '流量', value: _formatBytes(session.downloadBytes + session.uploadBytes)),
+              _InfoItem(
+                  icon: Icons.public_rounded,
+                  label: '服务器',
+                  value:
+                      session.remoteHost.isEmpty ? '未连接' : session.remoteHost),
+              _InfoItem(
+                  icon: Icons.lan_rounded,
+                  label: '接口',
+                  value: session.interfaceName.isEmpty
+                      ? '等待分配'
+                      : session.interfaceName),
+              _InfoItem(
+                  icon: Icons.timer_outlined,
+                  label: '时长',
+                  value: _formatDuration(session.duration)),
+              _InfoItem(
+                  icon: Icons.swap_vert_rounded,
+                  label: '流量',
+                  value: _formatBytes(
+                      session.downloadBytes + session.uploadBytes)),
             ],
           ),
           if (session.routes.isNotEmpty) ...[
@@ -333,9 +370,70 @@ class SessionCard extends StatelessWidget {
                   .toList(),
             ),
           ],
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            children: [
+              Chip(
+                avatar: const Icon(Icons.alt_route_rounded, size: 16),
+                label: Text(_strategyLabel(session)),
+                visualDensity: VisualDensity.compact,
+                side: BorderSide.none,
+              ),
+              Chip(
+                avatar: const Icon(Icons.low_priority_rounded, size: 16),
+                label: Text('优先级 ${session.routeStrategy.priority}'),
+                visualDensity: VisualDensity.compact,
+                side: BorderSide.none,
+              ),
+            ],
+          ),
+          if (profileMissing) ...[
+            const SizedBox(height: 8),
+            Text(
+              '当前会话没有本地 profile，请重新导入配置后再连接。',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
           if (error != null) ...[
             const SizedBox(height: 12),
-            Text(error!, style: TextStyle(color: colors.error)),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: colors.errorContainer,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.error_outline_rounded,
+                          size: 18, color: colors.onErrorContainer),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          error!,
+                          style: TextStyle(color: colors.onErrorContainer),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_isRouteConflict(error!)) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      '处理建议：请先断开提示中的前一个会话，再重试；也可以改用兼容模式。',
+                      style: TextStyle(
+                        color: colors.onErrorContainer,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ],
           if (session.warnings.isNotEmpty) ...[
             const SizedBox(height: 12),
@@ -377,6 +475,20 @@ class SessionCard extends StatelessWidget {
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
+
+  String _strategyLabel(VpnSession value) {
+    switch (value.routeStrategy.conflictMode) {
+      case RouteConflictMode.compatible:
+        return '兼容模式';
+      case RouteConflictMode.strict:
+        return '严格模式';
+      case RouteConflictMode.ask:
+        return '询问模式';
+    }
+  }
+
+  bool _isRouteConflict(String value) =>
+      value.contains('冲突') || value.contains('重叠');
 }
 
 class _StatusBadge extends StatelessWidget {
@@ -403,7 +515,8 @@ class _StatusBadge extends StatelessWidget {
 }
 
 class _InfoItem extends StatelessWidget {
-  const _InfoItem({required this.icon, required this.label, required this.value});
+  const _InfoItem(
+      {required this.icon, required this.label, required this.value});
 
   final IconData icon;
   final String label;

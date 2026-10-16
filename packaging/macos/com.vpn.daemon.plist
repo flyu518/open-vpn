@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.vpn.daemon</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>__VPN_DAEMON_PATH__</string>
+		<string>--socket</string>
+		<string>/tmp/vpn-ui.sock</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>ProcessType</key>
+	<string>Interactive</string>
+	<key>StandardOutPath</key>
+	<string>__VPN_LOG_DIR__/daemon.log</string>
+	<key>StandardErrorPath</key>
+	<string>__VPN_LOG_DIR__/daemon-error.log</string>
+</dict>
+</plist>
