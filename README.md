@@ -29,7 +29,7 @@ ctest --test-dir /tmp/vpn-core-build --output-on-failure
 
 - 共享 C++ 核心、OpenVPN3 离线 profile 解析和多会话对象已可测试。
 - macOS/Windows 路由生命周期模型已可离线测试。
-- macOS helper 可构建，但尚未安装为高权限 launchd 服务。
+- macOS helper 可构建，`packaging/macos/` 已提供 launchd 配置和本地安装脚本；真实安装、签名和 IPC 鉴权仍需在目标机验证。
 - Windows Wintun/Service 需要 Windows 主机完成运行验证。
 - Flutter SDK 当前未安装，中文桌面界面源码已写入但尚未运行 Flutter 测试。
 

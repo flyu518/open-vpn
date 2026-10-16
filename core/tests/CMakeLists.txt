@@ -69,3 +69,9 @@ target_include_directories(vpn_windows_route_lifecycle_tests PRIVATE
 )
 target_link_libraries(vpn_windows_route_lifecycle_tests PRIVATE vpn_windows_adapter)
 add_test(NAME vpn_windows_route_lifecycle_tests COMMAND vpn_windows_route_lifecycle_tests)
+
+add_executable(vpn_security_recovery_tests
+    security_recovery_tests.cpp
+)
+target_link_libraries(vpn_security_recovery_tests PRIVATE vpn_core)
+add_test(NAME vpn_security_recovery_tests COMMAND vpn_security_recovery_tests)

@@ -10,5 +10,8 @@ OpenVPN3 Core 的 TUN、旁路路由和销毁请求。
 当前构建使用 OpenVPN3 官方 macOS agent 实现，但将 agent 名称固定为
 `vpn`，不连接或复用 OpenVPN Connect 的私有 `agent_ovpnconnect.sock`。
 
-helper 的安装、签名和 launchd 配置属于后续打包任务；离线测试只验证
-会话和路由状态机，不启动高权限进程。
+helper 的 launchd 配置位于 `packaging/macos/com.vpn.helper.plist`，本地安装脚本位于
+`packaging/macos/install-helper.sh`。离线测试只验证会话和路由状态机，不启动高权限进程。
+
+注意：上游 agent 当前把 Unix socket 设为宽松模式，且客户端放行逻辑还没有接入本项目的
+调用方校验。这个 helper 只能作为开发联调入口，完成 IPC 鉴权前不能当作生产安全边界。
