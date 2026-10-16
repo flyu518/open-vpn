@@ -11,6 +11,10 @@
 
 第一版桌面客户端默认使用分流模式；第二条全隧道连接必须被拒绝；默认情况下互相重叠的路由也必须被拒绝。
 
+平台适配层统一提供 `prepare`、`establish`、`applyRoutes`、`applyDns` 和
+`destroy` 阶段。Windows/macOS 当前返回桌面多连接能力；Android/iOS
+适配器目前只返回移动端单连接能力和“适配器预留中”诊断。
+
 ## 对外 C ABI
 
 `core/include/vpn_engine.h` 只暴露不透明句柄和固定宽度的 C 类型，不允许 C++ OpenVPN3 类型穿过这层边界。
