@@ -43,6 +43,29 @@ replace_required(
         Config::Ptr config;]=]
     "SetupClient 会话状态")
 
+replace_required(
+    [=[            if (!t.comm_status_success())
+            {
+                os << content;
+                throw ovpnagent("communication error");
+            }
+            if (!t.request_status_success())
+            {
+                os << content;
+                throw ovpnagent("request error");
+            }]=]
+    [=[            if (!t.comm_status_success())
+            {
+                os << content;
+                throw ovpnagent("communication error: " + string::remove_blanks(content));
+            }
+            if (!t.request_status_success())
+            {
+                os << content;
+                throw ovpnagent("request error: " + string::remove_blanks(content));
+            }]=]
+    "helper 错误响应透传")
+
 get_filename_component(OUTPUT_DIRECTORY "${OUTPUT_SOURCE}" DIRECTORY)
 file(MAKE_DIRECTORY "${OUTPUT_DIRECTORY}")
 file(WRITE "${OUTPUT_SOURCE}" "${SOURCE}")
