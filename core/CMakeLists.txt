@@ -353,6 +353,26 @@ if(WIN32)
         CXX_STANDARD 20
         CXX_STANDARD_REQUIRED ON
     )
+
+    add_executable(openvpn_windows_daemon
+        tools/windows_daemon_main.cpp
+    )
+    target_include_directories(openvpn_windows_daemon PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/..
+        ${JSONCPP_INCLUDE_DIR}
+    )
+    target_link_libraries(openvpn_windows_daemon PRIVATE
+        openvpn_core
+        openvpn_windows_secure_store
+        ws2_32
+        advapi32
+        iphlpapi
+    )
+    set_target_properties(openvpn_windows_daemon PROPERTIES
+        CXX_STANDARD 20
+        CXX_STANDARD_REQUIRED ON
+    )
 endif()
 
 target_include_directories(openvpn_core

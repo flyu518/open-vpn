@@ -234,6 +234,11 @@ class SessionViewModel extends ChangeNotifier {
         _sessions[id] = session.copyWith(status: VpnStatus.failed);
         _errors[id] = result.message;
         notifyListeners();
+      } else {
+        final current = _sessions[id] ?? session;
+        _sessions[id] = current.copyWith(status: VpnStatus.disconnected);
+        _errors.remove(id);
+        notifyListeners();
       }
     } on Object catch (error) {
       _serviceChecked = true;

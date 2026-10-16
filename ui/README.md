@@ -30,9 +30,9 @@ PUB_CACHE=/绝对路径/open-vpn/.tools/pub-cache \
 - daemon 事件与响应共用一条长连接，能在多会话事件交错时保持会话隔离
 
 真实引擎通过 `EngineClient` 接入；macOS 开发版提供 `UnixSocketEngineClient`，连接
-`openvpn_daemon` 的用户权限 Unix socket。Windows 将复用相同命令协议，底层替换为受保护
-的 named pipe；当前 macOS 已接入真实 daemon，Windows UI 会明确提示服务端尚未接入，
-不会把演示状态伪装成已连接。
+`openvpn_daemon` 的用户权限 Unix socket。Windows 使用 `WindowsNamedPipeEngineClient`，
+连接用户 daemon 的 `\\.\pipe\openvpn-ui`；Windows 主机仍需完成 Service/Wintun 的真实
+安装和运行验证，不会把演示状态伪装成已连接。
 
 界面测试仍可注入内存客户端，避免测试依赖真实 OpenVPN。应用只持久化 profile 路径、显示名称和
 路由策略，不把 profile 内容、内嵌证书/私钥或密码写入普通配置文件；启动时会按原路径重新读取

@@ -162,6 +162,24 @@ void main() {
     await engine.dispose();
   });
 
+  test('断开请求成功但没有事件时也会结束断开状态', () async {
+    final engine = _RejectingEngineClient('');
+    final viewModel = SessionViewModel(engineClient: engine);
+    viewModel.replaceSessions([
+      const VpnSession(
+        id: 'office-a',
+        name: '研发网络',
+        status: VpnStatus.connected,
+      ),
+    ]);
+
+    await viewModel.disconnectSession('office-a');
+
+    expect(viewModel.sessionById('office-a')!.status, VpnStatus.disconnected);
+    viewModel.dispose();
+    await engine.dispose();
+  });
+
   test('已连接事件不会被较晚的连接提交响应覆盖', () async {
     final engine = _RacingEngineClient();
     final viewModel = SessionViewModel(engineClient: engine);

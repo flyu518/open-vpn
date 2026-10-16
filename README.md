@@ -34,8 +34,9 @@ cmake --build /tmp/openvpn-core-build
 - Flutter 3.47.5 / Dart 3.13.4 已安装到 `.tools/flutter`；Flutter 测试、静态分析和 macOS 桌面构建已通过，Windows 构建仍需 Windows 主机。
 - macOS Flutter 界面已接入文件选择器、临时凭据输入、Unix socket daemon 响应和事件；本地只持久化
   profile 路径、显示名称和路由策略，不保存 profile 内容或密码，启动时会按路径重新读取配置。
-- Windows Flutter 界面已经可以构建并复用同一模型/策略界面；Windows named pipe 服务端和
-  Wintun 真实运行验证仍需在 Windows 主机完成，macOS 开发机不会把它伪装成已连接。
+- Windows Flutter 界面已经接入用户 daemon 的 named pipe 客户端，CMake 也提供
+  `openvpn_windows_daemon`；Wintun、Service、路由/DNS 的真实运行验证仍需在 Windows 主机完成，
+  macOS 开发机不会把它伪装成已连接。
 
 macOS 当前可以先做不联网的 profile 检查：
 

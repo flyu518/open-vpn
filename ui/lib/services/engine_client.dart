@@ -1,6 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ffi' as ffi;
+import 'dart:isolate';
+
+import 'package:ffi/ffi.dart';
 
 import '../models/session.dart';
 import '../models/route_strategy.dart';
@@ -250,6 +254,237 @@ class UnixSocketEngineClient implements EngineClient {
   Future<void> dispose() async {
     await _socket?.close();
     await _events.close();
+  }
+}
+
+/// Windows 用户 daemon 的 named pipe 客户端。
+/// 每个命令使用独立的短连接，连接请求完成后通过 snapshot 轮询拿到最终状态，
+/// 避免在 Flutter UI isolate 中阻塞 Win32 ReadFile。
+class WindowsNamedPipeEngineClient implements EngineClient {
+  WindowsNamedPipeEngineClient({this.pipePath = r'\\.\pipe\openvpn-ui'});
+
+  final String pipePath;
+  final StreamController<EngineEvent> _events =
+      StreamController<EngineEvent>.broadcast();
+
+  @override
+  Stream<EngineEvent> get events => _events.stream;
+
+  Future<EngineResponse> _send(Map<String, Object?> request) async {
+    try {
+      final value = await Isolate.run(
+          () => _sendWindowsNamedPipe(pipePath, jsonEncode(request)));
+      return EngineResponse.fromJson(value);
+    } on Object catch (error) {
+      throw EngineClientException('无法连接 OpenVPN Windows 服务：$error');
+    }
+  }
+
+  @override
+  Future<EngineResponse> connect(
+    String sessionId, {
+    String profile = '',
+    String username = '',
+    String password = '',
+    String response = '',
+    String dynamicChallengeCookie = '',
+    String profileId = '',
+    bool rememberCredentials = false,
+    RouteStrategy? routeStrategy,
+  }) async {
+    final result = await _send({
+      'command': 'connect',
+      'sessionId': sessionId,
+      'profileId': profileId.isEmpty ? sessionId : profileId,
+      'name': sessionId,
+      'profile': profile,
+      'credentials': {
+        'username': username,
+        'password': password,
+        'response': response,
+        'dynamicChallengeCookie': dynamicChallengeCookie,
+      },
+      'rememberCredentials': rememberCredentials,
+      'routeStrategy': (routeStrategy ?? const RouteStrategy()).toJson(),
+    });
+    if (!result.ok) return result;
+
+    // Windows daemon 的连接事件在独立 pipe 连接中不会持续推送，
+    // 这里短暂轮询快照，确保 UI 不会停留在“正在连接”。
+    for (var attempt = 0; attempt < 30; attempt++) {
+      await Future<void>.delayed(const Duration(seconds: 1));
+      final snapshot = await this.snapshot();
+      final session = snapshot.sessions.cast<VpnSession?>().firstWhere(
+            (item) => item?.id == sessionId,
+            orElse: () => null,
+          );
+      if (session == null) continue;
+      if (session.status == VpnStatus.connected ||
+          session.status == VpnStatus.failed ||
+          session.status == VpnStatus.disconnected) {
+        return EngineResponse(
+          ok: session.status == VpnStatus.connected,
+          message: snapshot.message,
+          session: session,
+        );
+      }
+    }
+    return result;
+  }
+
+  @override
+  Future<EngineResponse> disconnect(String sessionId) =>
+      _send({'command': 'disconnect', 'sessionId': sessionId});
+
+  @override
+  Future<EngineResponse> snapshot() => _send({'command': 'snapshot'});
+
+  @override
+  Future<EngineResponse> forgetCredentials(String profileId) =>
+      _send({'command': 'forgetCredentials', 'profileId': profileId});
+
+  @override
+  Future<void> importProfile() async {}
+
+  Future<void> dispose() => _events.close();
+}
+
+typedef _CreateFileNative = ffi.IntPtr Function(
+  ffi.Pointer<Utf16>,
+  ffi.Uint32,
+  ffi.Uint32,
+  ffi.Pointer<ffi.Void>,
+  ffi.Uint32,
+  ffi.Uint32,
+  ffi.IntPtr,
+);
+typedef _CreateFileDart = int Function(
+  ffi.Pointer<Utf16>,
+  int,
+  int,
+  ffi.Pointer<ffi.Void>,
+  int,
+  int,
+  int,
+);
+typedef _WaitNamedPipeNative = ffi.Int32 Function(
+  ffi.Pointer<Utf16>,
+  ffi.Uint32,
+);
+typedef _WaitNamedPipeDart = int Function(ffi.Pointer<Utf16>, int);
+typedef _ReadFileNative = ffi.Int32 Function(
+  ffi.IntPtr,
+  ffi.Pointer<ffi.Uint8>,
+  ffi.Uint32,
+  ffi.Pointer<ffi.Uint32>,
+  ffi.Pointer<ffi.Void>,
+);
+typedef _ReadFileDart = int Function(
+  int,
+  ffi.Pointer<ffi.Uint8>,
+  int,
+  ffi.Pointer<ffi.Uint32>,
+  ffi.Pointer<ffi.Void>,
+);
+typedef _WriteFileNative = ffi.Int32 Function(
+  ffi.IntPtr,
+  ffi.Pointer<ffi.Uint8>,
+  ffi.Uint32,
+  ffi.Pointer<ffi.Uint32>,
+  ffi.Pointer<ffi.Void>,
+);
+typedef _WriteFileDart = int Function(
+  int,
+  ffi.Pointer<ffi.Uint8>,
+  int,
+  ffi.Pointer<ffi.Uint32>,
+  ffi.Pointer<ffi.Void>,
+);
+typedef _CloseHandleNative = ffi.Int32 Function(ffi.IntPtr);
+typedef _CloseHandleDart = int Function(int);
+
+Map<String, dynamic> _sendWindowsNamedPipe(String pipePath, String request) {
+  if (!Platform.isWindows) {
+    throw StateError('Windows named pipe 只能在 Windows 上使用');
+  }
+  final kernel32 = ffi.DynamicLibrary.open('kernel32.dll');
+  final createFile = kernel32.lookupFunction<_CreateFileNative, _CreateFileDart>(
+      'CreateFileW');
+  final waitNamedPipe = kernel32.lookupFunction<_WaitNamedPipeNative,
+      _WaitNamedPipeDart>('WaitNamedPipeW');
+  final readFile =
+      kernel32.lookupFunction<_ReadFileNative, _ReadFileDart>('ReadFile');
+  final writeFile =
+      kernel32.lookupFunction<_WriteFileNative, _WriteFileDart>('WriteFile');
+  final closeHandle = kernel32
+      .lookupFunction<_CloseHandleNative, _CloseHandleDart>('CloseHandle');
+
+  final nativePath = pipePath.toNativeUtf16();
+  final nullPointer = ffi.Pointer<ffi.Void>.fromAddress(0);
+  try {
+    if (waitNamedPipe(nativePath, 5000) == 0) {
+      throw StateError('Windows 服务 pipe 尚未启动');
+    }
+    const invalidHandle = -1;
+    final handle = createFile(
+      nativePath,
+      0x80000000 | 0x40000000,
+      0,
+      nullPointer,
+      3,
+      0,
+      0,
+    );
+    if (handle == invalidHandle) throw StateError('打开 Windows 服务 pipe 失败');
+
+    try {
+      final requestBytes = utf8.encode('$request\n');
+      final nativeRequest = calloc<ffi.Uint8>(requestBytes.length);
+      final written = calloc<ffi.Uint32>();
+      try {
+        nativeRequest.asTypedList(requestBytes.length).setAll(0, requestBytes);
+        if (writeFile(handle, nativeRequest, requestBytes.length, written,
+                nullPointer) ==
+            0) {
+          throw StateError('写入 Windows 服务 pipe 失败');
+        }
+      } finally {
+        calloc.free(nativeRequest);
+        calloc.free(written);
+      }
+
+      final nativeBuffer = calloc<ffi.Uint8>(8192);
+      final readCount = calloc<ffi.Uint32>();
+      final bytes = <int>[];
+      try {
+        while (readFile(handle, nativeBuffer, 8192, readCount, nullPointer) != 0 &&
+            readCount.value > 0) {
+          bytes.addAll(nativeBuffer.asTypedList(readCount.value));
+          var newline = bytes.indexOf(10);
+          while (newline >= 0) {
+            final lineBytes = bytes.sublist(0, newline);
+            bytes.removeRange(0, newline + 1);
+            newline = bytes.indexOf(10);
+            if (lineBytes.isEmpty) continue;
+            final decoded = jsonDecode(utf8.decode(lineBytes));
+            if (decoded is Map && decoded['type'] == 'sessionEvent') {
+              continue;
+            }
+            if (decoded is Map) {
+              return Map<String, dynamic>.from(decoded);
+            }
+          }
+        }
+      } finally {
+        calloc.free(nativeBuffer);
+        calloc.free(readCount);
+      }
+      throw StateError('Windows 服务 pipe 未返回有效响应');
+    } finally {
+      closeHandle(handle);
+    }
+  } finally {
+    calloc.free(nativePath);
   }
 }
 

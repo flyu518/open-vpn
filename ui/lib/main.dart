@@ -37,7 +37,9 @@ class _VpnAppState extends State<VpnApp> {
     super.initState();
     engineClient = Platform.isMacOS
         ? UnixSocketEngineClient()
-        : UnavailableEngineClient('Windows named pipe 尚未接入，请先启动 Windows 服务端');
+        : Platform.isWindows
+            ? WindowsNamedPipeEngineClient()
+            : UnavailableEngineClient('当前平台暂未接入 OpenVPN 服务端');
     profileStore = JsonProfileStore();
     viewModel = SessionViewModel(
       engineClient: engineClient,
@@ -55,6 +57,8 @@ class _VpnAppState extends State<VpnApp> {
   void dispose() {
     viewModel.dispose();
     if (engineClient case final UnixSocketEngineClient client) {
+      client.dispose();
+    } else if (engineClient case final WindowsNamedPipeEngineClient client) {
       client.dispose();
     } else if (engineClient case final InMemoryEngineClient client) {
       client.dispose();
