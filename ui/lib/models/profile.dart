@@ -33,6 +33,15 @@ class ImportedProfile {
 }
 
 String _extractUsername(String contents) {
+  final accessServerUsername = RegExp(
+    r'^\s*#\s*OVPN_ACCESS_SERVER_USERNAME\s*=\s*([^\r\n#]+?)\s*$',
+    multiLine: true,
+    caseSensitive: false,
+  ).firstMatch(contents);
+  if (accessServerUsername != null) {
+    return accessServerUsername.group(1)!.trim();
+  }
+
   final match = RegExp(
     r'<auth-user-pass\s*>([\s\S]*?)</auth-user-pass\s*>',
     caseSensitive: false,

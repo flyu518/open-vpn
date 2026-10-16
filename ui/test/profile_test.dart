@@ -32,4 +32,15 @@ cuikai
     expect(profile.username, 'cuikai');
     expect(profile.username, isNot(contains('不要保存')));
   });
+
+  test('读取 OpenVPN Access Server profile 注释中的用户名', () {
+    final profile = ImportedProfile.fromFile(
+      path: '/Users/test/profile-a.ovpn',
+      contents: '''# OVPN_ACCESS_SERVER_USERNAME=cuikai
+auth-user-pass
+''',
+    );
+
+    expect(profile.username, 'cuikai');
+  });
 }
