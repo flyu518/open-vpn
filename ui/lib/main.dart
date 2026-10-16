@@ -92,7 +92,9 @@ class _VpnAppState extends State<VpnApp> {
         useMaterial3: true,
         colorSchemeSeed: const Color(0xFF8D83FF),
         brightness: Brightness.dark,
+        scaffoldBackgroundColor: const Color(0xFF090D18),
       ),
+      themeMode: ThemeMode.dark,
       home: SessionsScreen(
         viewModel: viewModel,
         onImportProfile: _importProfile,

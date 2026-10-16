@@ -20,6 +20,8 @@ void main() {
       home: SessionsScreen(viewModel: viewModel),
     ));
 
+    expect(find.text('安全网络控制台'), findsNWidgets(2));
+    expect(find.text('活动连接'), findsOneWidget);
     expect(find.textContaining('先断开提示中的前一个会话，再重试'), findsOneWidget);
   });
 
@@ -38,5 +40,39 @@ void main() {
     ));
 
     expect(find.text('需要重新导入'), findsOneWidget);
+  });
+
+  testWidgets('添加 OpenVPN 按钮可以触发导入回调', (tester) async {
+    var clicked = false;
+    final viewModel = SessionViewModel();
+
+    await tester.pumpWidget(MaterialApp(
+      home: SessionsScreen(
+        viewModel: viewModel,
+        onImportProfile: () => clicked = true,
+      ),
+    ));
+
+    await tester.tap(find.text('添加 OpenVPN'));
+    await tester.pump();
+
+    expect(clicked, isTrue);
+  });
+
+  testWidgets('配置文件导航可以触发导入回调', (tester) async {
+    var clicked = false;
+    final viewModel = SessionViewModel();
+
+    await tester.pumpWidget(MaterialApp(
+      home: SessionsScreen(
+        viewModel: viewModel,
+        onImportProfile: () => clicked = true,
+      ),
+    ));
+
+    await tester.tap(find.text('配置文件'));
+    await tester.pump();
+
+    expect(clicked, isTrue);
   });
 }
