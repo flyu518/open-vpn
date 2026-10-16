@@ -22,12 +22,18 @@
 
 基础实现只是确定性的引擎句柄。后续任务会在相同契约后面接入 OpenVPN3 客户端。
 
+## 会话状态
+
+会话状态按以下顺序流转：`idle` → `connecting` → `connected` →
+`disconnecting` → `disconnected`。连接失败时进入 `failed`。每个状态变化都带有会话标识，界面只能更新对应的会话卡片。
+
 ## 错误码
 
 - `VPN_ERR_CAPABILITY_SINGLE_ACTIVE_VPN`（`1001`）：移动端已有活动系统 VPN。
 - `VPN_ERR_ROUTE_CONFLICT`（`1002`）：候选路由与活动路由重叠。
 - `VPN_ERR_FULL_TUNNEL_EXCLUSIVE`（`1003`）：请求建立第二条默认路由连接。
 - `INVALID_ROUTE`（内部决策码）：路由不是合法的 IPv4/IPv6 CIDR。
+- `VPN_ERR_DUPLICATE_SESSION`（`1005`）：会话标识已经存在。
 
 ## 路由策略
 

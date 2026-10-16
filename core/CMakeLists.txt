@@ -7,7 +7,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(vpn_core STATIC
+    src/fake_engine.cpp
     src/vpn_engine.cpp
+    src/vpn_session_manager.cpp
     src/vpn_route_policy.cpp
 )
 

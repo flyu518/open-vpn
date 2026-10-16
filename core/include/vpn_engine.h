@@ -20,7 +20,9 @@ typedef enum vpn_error_code {
     VPN_ERR_OUT_OF_MEMORY = 2,
     VPN_ERR_CAPABILITY_SINGLE_ACTIVE_VPN = 1001,
     VPN_ERR_ROUTE_CONFLICT = 1002,
-    VPN_ERR_FULL_TUNNEL_EXCLUSIVE = 1003
+    VPN_ERR_FULL_TUNNEL_EXCLUSIVE = 1003,
+    VPN_ERR_INVALID_ROUTE = 1004,
+    VPN_ERR_DUPLICATE_SESSION = 1005
 } vpn_error_code_t;
 
 int vpn_engine_create(vpn_engine_t** out_engine, vpn_capability_t capability);
