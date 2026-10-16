@@ -70,7 +70,7 @@ packaging/macos/install-daemon.sh \
 PYTHONPATH=/private/tmp/vpn-cmake /private/tmp/vpn-cmake/bin/cmake \
   -S core -B /tmp/openvpn-core-build-x86 \
   -DCMAKE_OSX_ARCHITECTURES=x86_64 \
-  -DOPENVPN3_SOURCE_DIR=/Users/cuikai/www_python/OpenVPN/third_party/openvpn3 \
+  -DOPENVPN3_SOURCE_DIR=/Users/cuikai/www_python/open-vpn/third_party/openvpn3 \
   -DXXHASH_ROOT_DIR=/private/tmp/xxHash-0.8.4
 PYTHONPATH=/private/tmp/vpn-cmake /private/tmp/vpn-cmake/bin/cmake \
   --build /tmp/openvpn-core-build-x86

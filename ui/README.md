@@ -9,9 +9,9 @@
 
 ```bash
 FLUTTER_SUPPRESS_ANALYTICS=true \
-XDG_CONFIG_HOME=/绝对路径/OpenVPN/.tools/flutter-config \
-PUB_CACHE=/绝对路径/OpenVPN/.tools/pub-cache \
-/绝对路径/OpenVPN/.tools/flutter/bin/flutter test
+XDG_CONFIG_HOME=/绝对路径/open-vpn/.tools/flutter-config \
+PUB_CACHE=/绝对路径/open-vpn/.tools/pub-cache \
+/绝对路径/open-vpn/.tools/flutter/bin/flutter test
 ```
 
 当前界面包含：
