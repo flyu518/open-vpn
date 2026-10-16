@@ -35,6 +35,36 @@ void main() {
     await root.delete(recursive: true);
   });
 
+  test('持久化每个连接的活动摘要', () async {
+    final root = Directory.systemTemp.createTempSync('openvpn-profile-history-');
+    final profileFile = File('${root.path}/研发网络.ovpn')
+      ..writeAsStringSync('client\n');
+    final store = JsonProfileStore(file: File('${root.path}/profiles.json'));
+    final connectedAt = DateTime(2026, 10, 17, 9, 30);
+    final disconnectedAt = DateTime(2026, 10, 17, 10, 15);
+
+    await store.save([
+      VpnSession(
+        id: 'profile-a',
+        name: '研发专线',
+        status: VpnStatus.disconnected,
+        profileId: 'profile-a',
+        profilePath: profileFile.path,
+        profile: 'client\n',
+        connectionCount: 3,
+        lastConnectedAt: connectedAt,
+        lastDisconnectedAt: disconnectedAt,
+      ),
+    ]);
+
+    final restored = await store.load();
+    expect(restored.single.connectionCount, 3);
+    expect(restored.single.lastConnectedAt, connectedAt);
+    expect(restored.single.lastDisconnectedAt, disconnectedAt);
+
+    await root.delete(recursive: true);
+  });
+
   test('单个损坏的 profile 条目不会清空其他配置', () async {
     final root = Directory.systemTemp.createTempSync('openvpn-profile-load-');
     final profileFile = File('${root.path}/研发网络.ovpn')

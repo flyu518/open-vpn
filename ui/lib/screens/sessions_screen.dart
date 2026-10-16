@@ -60,65 +60,59 @@ class SessionsScreen extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(32, 28, 32, 24),
                   child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _Header(
-                              activeCount: activeCount,
-                              profileCount: sessions.length,
-                              warningCount: warningCount + errorCount,
-                              serviceError: viewModel.serviceError,
-                              storageError: viewModel.profileStoreError,
-                              onImportProfile: onImportProfile,
-                              onRefreshService: onRefreshService,
-                            ),
-                            const SizedBox(height: 22),
-                            _SectionHeader(
-                              activeCount: activeCount,
-                              sessionCount: sessions.length,
-                            ),
-                            const SizedBox(height: 10),
-                            Expanded(
-                              child: sessions.isEmpty
-                                  ? _EmptyState(
-                                      hasImportAction: onImportProfile != null,
-                                    )
-                                  : ReorderableListView.builder(
-                                      buildDefaultDragHandles: false,
-                                      itemCount: sessions.length,
-                                      onReorderItem: (oldIndex, newIndex) =>
-                                          onReorder?.call(oldIndex, newIndex),
-                                      padding:
-                                          const EdgeInsets.only(bottom: 24),
-                                      itemBuilder: (context, index) {
-                                        final session = sessions[index];
-                                        return Padding(
-                                          key: ValueKey(session.id),
-                                          padding:
-                                              const EdgeInsets.only(bottom: 10),
-                                          child: SessionCard(
-                                            session: session,
-                                            index: index,
-                                            serviceReady:
-                                                viewModel.serviceChecked &&
-                                                    viewModel.serviceError == null,
-                                            error:
-                                                viewModel.errorFor(session.id),
-                                            onConnect: () =>
-                                                onConnect?.call(session),
-                                            onDisconnect: () =>
-                                                onDisconnect?.call(session),
-                                            onEditName: () =>
-                                                onEditName?.call(session),
-                                            onViewDetails: () =>
-                                                onViewDetails?.call(session),
-                                            onEditStrategy: () =>
-                                                onEditStrategy?.call(session),
-                                          ),
-                                        );
-                                      },
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _Header(
+                        activeCount: activeCount,
+                        profileCount: sessions.length,
+                        warningCount: warningCount + errorCount,
+                        serviceError: viewModel.serviceError,
+                        storageError: viewModel.profileStoreError,
+                        onImportProfile: onImportProfile,
+                        onRefreshService: onRefreshService,
+                      ),
+                      const SizedBox(height: 22),
+                      _SectionHeader(
+                        activeCount: activeCount,
+                        sessionCount: sessions.length,
+                      ),
+                      const SizedBox(height: 10),
+                      Expanded(
+                        child: sessions.isEmpty
+                            ? const _EmptyState()
+                            : ReorderableListView.builder(
+                                buildDefaultDragHandles: false,
+                                itemCount: sessions.length,
+                                onReorderItem: (oldIndex, newIndex) =>
+                                    onReorder?.call(oldIndex, newIndex),
+                                padding: const EdgeInsets.only(bottom: 24),
+                                itemBuilder: (context, index) {
+                                  final session = sessions[index];
+                                  return Padding(
+                                    key: ValueKey(session.id),
+                                    padding: const EdgeInsets.only(bottom: 10),
+                                    child: SessionCard(
+                                      session: session,
+                                      index: index,
+                                      serviceReady:
+                                          viewModel.serviceChecked &&
+                                              viewModel.serviceError == null,
+                                      error: viewModel.errorFor(session.id),
+                                      onConnect: () => onConnect?.call(session),
+                                      onDisconnect: () =>
+                                          onDisconnect?.call(session),
+                                      onEditName: () =>
+                                          onEditName?.call(session),
+                                      onViewDetails: () =>
+                                          onViewDetails?.call(session),
+                                      onEditStrategy: () =>
+                                          onEditStrategy?.call(session),
                                     ),
-                            ),
-                          ],
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -162,12 +156,6 @@ class _Header extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('工作区 / 连接总览',
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            color: colors.primary,
-                            fontWeight: FontWeight.w700,
-                          )),
-                  const SizedBox(height: 8),
                   Text('连接总览',
                       style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                             fontWeight: FontWeight.w700,
@@ -209,31 +197,35 @@ class _Header extends StatelessWidget {
           const SizedBox(height: 10),
           _ServiceBanner(message: storageError!),
         ],
-        const SizedBox(height: 18),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: [
-            _MetricCard(
-              icon: Icons.bolt_rounded,
-              label: '活动连接',
-              value: '$activeCount',
-              accent: _successColor(context),
-            ),
-            _MetricCard(
-              icon: Icons.layers_outlined,
-              label: '已载入配置',
-              value: '$profileCount',
-              accent: colors.primary,
-            ),
-            _MetricCard(
-              icon: Icons.warning_amber_rounded,
-              label: '待处理',
-              value: '$warningCount',
-              accent: warningCount == 0 ? colors.onSurfaceVariant : colors.error,
-            ),
-          ],
-        ),
+        if (profileCount > 0) ...[
+          const SizedBox(height: 18),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _MetricCard(
+                icon: Icons.bolt_rounded,
+                label: '活动连接',
+                value: '$activeCount',
+                accent: _successColor(context),
+              ),
+              _MetricCard(
+                icon: Icons.layers_outlined,
+                label: '已载入配置',
+                value: '$profileCount',
+                accent: colors.primary,
+              ),
+              _MetricCard(
+                icon: Icons.warning_amber_rounded,
+                label: '待处理',
+                value: '$warningCount',
+                accent: warningCount == 0
+                    ? colors.onSurfaceVariant
+                    : colors.error,
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }
@@ -367,11 +359,7 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({
-    required this.hasImportAction,
-  });
-
-  final bool hasImportAction;
+  const _EmptyState();
 
   @override
   Widget build(BuildContext context) {
@@ -402,20 +390,12 @@ class _EmptyState extends StatelessWidget {
                   ),
             ),
             const SizedBox(height: 18),
-            if (hasImportAction)
-              Text(
-                '请点击右上角“导入配置”开始。',
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: colors.primary,
-                    ),
-              )
-            else
-              Text(
-                '请从右上角加号导入配置。',
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: colors.primary,
-                    ),
-              ),
+            Text(
+              '请点击右上角加号导入配置。',
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: colors.primary,
+                  ),
+            ),
           ],
         ),
       ),

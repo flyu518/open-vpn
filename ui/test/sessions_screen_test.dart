@@ -124,4 +124,14 @@ void main() {
     expect(find.text('工作区'), findsNothing);
     expect(find.text('连接总览'), findsOneWidget);
   });
+
+  testWidgets('空列表不渲染没有决策价值的零指标', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: SessionsScreen(viewModel: SessionViewModel()),
+    ));
+
+    expect(find.text('活动连接'), findsNothing);
+    expect(find.text('已载入配置'), findsNothing);
+    expect(find.text('待处理'), findsNothing);
+  });
 }

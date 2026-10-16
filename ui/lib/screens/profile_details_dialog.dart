@@ -36,6 +36,10 @@ class ProfileDetailsDialog extends StatelessWidget {
             children: [
               _InfoGrid(session: session),
               const SizedBox(height: 22),
+              Text('连接记录', style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 8),
+              _ActivityGrid(session: session),
+              const SizedBox(height: 22),
               Text('配置摘要', style: Theme.of(context).textTheme.titleSmall),
               const SizedBox(height: 8),
               if (lines.isEmpty)
@@ -119,6 +123,36 @@ class _InfoGrid extends StatelessWidget {
           label: '配置路径',
           value: session.profilePath.isEmpty ? '未记录' : session.profilePath,
           wide: true,
+        ),
+      ],
+    );
+  }
+}
+
+class _ActivityGrid extends StatelessWidget {
+  const _ActivityGrid({required this.session});
+
+  final VpnSession session;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: [
+        _InfoTile(
+          label: '连接次数',
+          value: session.connectionCount == 0
+              ? '暂无记录'
+              : '${session.connectionCount} 次',
+        ),
+        _InfoTile(
+          label: '最近连接',
+          value: formatSessionTime(session.lastConnectedAt),
+        ),
+        _InfoTile(
+          label: '最近断开',
+          value: formatSessionTime(session.lastDisconnectedAt),
         ),
       ],
     );
@@ -241,4 +275,12 @@ List<String> readableProfileLines(String contents) {
     }
   }
   return result;
+}
+
+String formatSessionTime(DateTime? value) {
+  if (value == null) return '暂无记录';
+  final local = value.toLocal();
+  String twoDigits(int number) => number.toString().padLeft(2, '0');
+  return '${local.year}-${twoDigits(local.month)}-${twoDigits(local.day)} '
+      '${twoDigits(local.hour)}:${twoDigits(local.minute)}';
 }

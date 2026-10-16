@@ -64,6 +64,9 @@ class JsonProfileStore implements ProfileStore {
           profilePath: path,
           username: username,
           routeStrategy: strategy,
+          connectionCount: _asNonNegativeInt(item['connectionCount']),
+          lastConnectedAt: _parseDateTime(item['lastConnectedAt']),
+          lastDisconnectedAt: _parseDateTime(item['lastDisconnectedAt']),
         ));
       } on Object {
         // 单个条目损坏时跳过它，保留其他仍可读取的配置。
@@ -83,6 +86,12 @@ class JsonProfileStore implements ProfileStore {
               'name': session.name,
               'path': session.profilePath,
               'routeStrategy': session.routeStrategy.toJson(),
+              'connectionCount': session.connectionCount,
+              if (session.lastConnectedAt != null)
+                'lastConnectedAt': session.lastConnectedAt!.toIso8601String(),
+              if (session.lastDisconnectedAt != null)
+                'lastDisconnectedAt':
+                    session.lastDisconnectedAt!.toIso8601String(),
             })
         .toList(growable: false);
     final payload =
@@ -105,6 +114,16 @@ class JsonProfileStore implements ProfileStore {
       if (await temporary.exists()) await temporary.delete();
     }
   }
+}
+
+int _asNonNegativeInt(Object? value) {
+  final number = value is num ? value.toInt() : 0;
+  return number < 0 ? 0 : number;
+}
+
+DateTime? _parseDateTime(Object? value) {
+  if (value is! String || value.trim().isEmpty) return null;
+  return DateTime.tryParse(value);
 }
 
 bool _isGeneratedName(String value) =>

@@ -79,6 +79,95 @@ void main() {
     await engine.dispose();
   });
 
+  test('连接事件会记录当前卡片的连接次数和时间', () async {
+    final engine = InMemoryEngineClient();
+    final viewModel = SessionViewModel(engineClient: engine);
+    viewModel.replaceSessions([
+      const VpnSession(
+        id: 'office-a',
+        name: '研发网络',
+        status: VpnStatus.disconnected,
+      ),
+    ]);
+
+    engine.pushEvent(const EngineEvent(
+      sessionId: 'office-a',
+      status: VpnStatus.connected,
+    ));
+    await Future<void>.delayed(Duration.zero);
+
+    final session = viewModel.sessionById('office-a')!;
+    expect(session.connectionCount, 1);
+    expect(session.lastConnectedAt, isNotNull);
+
+    // 同一个已连接状态重复到达时，只代表状态同步，不应重复计数。
+    engine.pushEvent(const EngineEvent(
+      sessionId: 'office-a',
+      status: VpnStatus.connected,
+    ));
+    await Future<void>.delayed(Duration.zero);
+    expect(viewModel.sessionById('office-a')!.connectionCount, 1);
+
+    viewModel.dispose();
+    await engine.dispose();
+  });
+
+  test('断开事件会记录当前卡片的最近断开时间', () async {
+    final engine = InMemoryEngineClient();
+    final viewModel = SessionViewModel(engineClient: engine);
+    viewModel.replaceSessions([
+      const VpnSession(
+        id: 'office-a',
+        name: '研发网络',
+        status: VpnStatus.connected,
+        connectionCount: 2,
+      ),
+    ]);
+
+    engine.pushEvent(const EngineEvent(
+      sessionId: 'office-a',
+      status: VpnStatus.disconnected,
+    ));
+    await Future<void>.delayed(Duration.zero);
+
+    final session = viewModel.sessionById('office-a')!;
+    expect(session.lastDisconnectedAt, isNotNull);
+    expect(session.connectionCount, 2);
+
+    viewModel.dispose();
+    await engine.dispose();
+  });
+
+  test('连接活动摘要会随状态变化保存到配置索引', () async {
+    final engine = InMemoryEngineClient();
+    final store = _RecordingProfileStore();
+    final viewModel = SessionViewModel(
+      engineClient: engine,
+      profileStore: store,
+    );
+    viewModel.replaceSessions([
+      const VpnSession(
+        id: 'office-a',
+        name: '研发网络',
+        status: VpnStatus.disconnected,
+        profileId: 'office-a',
+        profilePath: '/tmp/office-a.ovpn',
+      ),
+    ]);
+
+    engine.pushEvent(const EngineEvent(
+      sessionId: 'office-a',
+      status: VpnStatus.connected,
+    ));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(store.saved.single.connectionCount, 1);
+    expect(store.saved.single.lastConnectedAt, isNotNull);
+
+    viewModel.dispose();
+    await engine.dispose();
+  });
+
   test('连接请求失败时只在当前会话显示错误', () async {
     final engine = _RejectingEngineClient('路由与活动 VPN 重叠：office-a');
     final viewModel = SessionViewModel(engineClient: engine);
@@ -431,4 +520,16 @@ class _RacingEngineClient implements EngineClient {
   Future<void> importProfile() async {}
 
   Future<void> dispose() => _events.close();
+}
+
+class _RecordingProfileStore implements ProfileStore {
+  List<VpnSession> saved = const <VpnSession>[];
+
+  @override
+  Future<List<VpnSession>> load() async => saved;
+
+  @override
+  Future<void> save(Iterable<VpnSession> sessions) async {
+    saved = List<VpnSession>.from(sessions);
+  }
 }

@@ -123,7 +123,12 @@ class SessionViewModel extends ChangeNotifier {
     final session = _sessions[id];
     if (session == null) return;
 
-    _sessions[id] = session.copyWith(status: status);
+    final updated = _recordConnectionTransition(
+      session,
+      session.copyWith(status: status),
+    );
+    _sessions[id] = updated;
+    if (_activityChanged(session, updated)) unawaited(_saveProfiles());
     notifyListeners();
   }
 
@@ -166,13 +171,16 @@ class SessionViewModel extends ChangeNotifier {
 
     _serviceChecked = true;
     _serviceError = null;
-    _sessions[event.sessionId] = event.session == null
+    final next = event.session == null
         ? session.copyWith(status: event.status)
         : session.copyWith(
             status: event.session!.status,
             remoteHost: event.session!.remoteHost,
             warnings: event.session!.warnings,
           );
+    final updated = _recordConnectionTransition(session, next);
+    _sessions[event.sessionId] = updated;
+    if (_activityChanged(session, updated)) unawaited(_saveProfiles());
     if (event.status == VpnStatus.failed && event.message.isNotEmpty) {
       _errors[event.sessionId] = event.message;
     } else if (event.status == VpnStatus.connecting) {
@@ -223,7 +231,10 @@ class SessionViewModel extends ChangeNotifier {
         _serviceChecked = true;
         _serviceError = null;
         final current = _sessions[id] ?? session;
-        _sessions[id] = _mergeRemote(current, result.session!);
+        final merged = _mergeRemote(current, result.session!);
+        final updated = _recordConnectionTransition(current, merged);
+        _sessions[id] = updated;
+        if (_activityChanged(current, updated)) unawaited(_saveProfiles());
         notifyListeners();
       }
     } on Object catch (error) {
@@ -251,7 +262,12 @@ class SessionViewModel extends ChangeNotifier {
         notifyListeners();
       } else {
         final current = _sessions[id] ?? session;
-        _sessions[id] = current.copyWith(status: VpnStatus.disconnected);
+        final updated = _recordConnectionTransition(
+          current,
+          current.copyWith(status: VpnStatus.disconnected),
+        );
+        _sessions[id] = updated;
+        if (_activityChanged(current, updated)) unawaited(_saveProfiles());
         _errors.remove(id);
         notifyListeners();
       }
@@ -329,6 +345,30 @@ class SessionViewModel extends ChangeNotifier {
       warnings: remote.warnings,
     );
   }
+
+  VpnSession _recordConnectionTransition(
+    VpnSession previous,
+    VpnSession next,
+  ) {
+    final now = DateTime.now();
+    if (next.status == VpnStatus.connected &&
+        previous.status != VpnStatus.connected) {
+      return next.copyWith(
+        connectionCount: previous.connectionCount + 1,
+        lastConnectedAt: now,
+      );
+    }
+    if (next.status == VpnStatus.disconnected &&
+        previous.status != VpnStatus.disconnected) {
+      return next.copyWith(lastDisconnectedAt: now);
+    }
+    return next;
+  }
+
+  bool _activityChanged(VpnSession previous, VpnSession next) =>
+      previous.connectionCount != next.connectionCount ||
+      previous.lastConnectedAt != next.lastConnectedAt ||
+      previous.lastDisconnectedAt != next.lastDisconnectedAt;
 
   void updateStrategy(String id, RouteStrategy strategy) {
     final session = _sessions[id];

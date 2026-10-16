@@ -42,6 +42,9 @@ class VpnSession {
     this.duration = Duration.zero,
     this.routeStrategy = const RouteStrategy(),
     this.warnings = const <String>[],
+    this.connectionCount = 0,
+    this.lastConnectedAt,
+    this.lastDisconnectedAt,
   });
 
   final String id;
@@ -61,6 +64,11 @@ class VpnSession {
   final Duration duration;
   final RouteStrategy routeStrategy;
   final List<String> warnings;
+
+  /// 轻量的连接活动摘要，跟随配置保存；不保存密码、证书或完整日志。
+  final int connectionCount;
+  final DateTime? lastConnectedAt;
+  final DateTime? lastDisconnectedAt;
 
   factory VpnSession.fromJson(Map<String, dynamic> value) {
     final rawWarnings = value['warnings'];
@@ -90,6 +98,9 @@ class VpnSession {
     Duration? duration,
     RouteStrategy? routeStrategy,
     List<String>? warnings,
+    int? connectionCount,
+    DateTime? lastConnectedAt,
+    DateTime? lastDisconnectedAt,
   }) {
     return VpnSession(
       id: id,
@@ -107,6 +118,9 @@ class VpnSession {
       duration: duration ?? this.duration,
       routeStrategy: routeStrategy ?? this.routeStrategy,
       warnings: warnings ?? this.warnings,
+      connectionCount: connectionCount ?? this.connectionCount,
+      lastConnectedAt: lastConnectedAt ?? this.lastConnectedAt,
+      lastDisconnectedAt: lastDisconnectedAt ?? this.lastDisconnectedAt,
     );
   }
 }

@@ -33,7 +33,9 @@ cmake --build /tmp/openvpn-core-build
 - Windows helper 已接入官方 Service/Wintun 构建边界；仍需要 Windows 主机完成驱动、Service、路由/DNS 和多会话运行验证。
 - Flutter 3.47.5 / Dart 3.13.4 已安装到 `.tools/flutter`；Flutter 测试、静态分析和 macOS 桌面构建已通过，Windows 构建仍需 Windows 主机。
 - macOS Flutter 界面已接入文件选择器、临时凭据输入、Unix socket daemon 响应和事件；本地只持久化
-  profile 路径、显示名称和路由策略，不保存 profile 内容或密码，启动时会按路径重新读取配置。
+  profile 路径、显示名称、路由策略和不含敏感信息的活动摘要，不保存 profile 内容或密码，启动时会按路径重新读取配置。
+- 每个连接卡片的“查看详情”中会展示该配置自己的连接次数、最近连接和最近断开时间；这些是轻量活动摘要，
+  会随配置索引保存，不另设占空间的全局连接记录页，也不会保存密码、证书或完整日志。
 - Windows Flutter 界面已经接入用户 daemon 的 named pipe 客户端，CMake 也提供
   `openvpn_windows_daemon`；Wintun、Service、路由/DNS 的真实运行验证仍需在 Windows 主机完成，
   macOS 开发机不会把它伪装成已连接。
