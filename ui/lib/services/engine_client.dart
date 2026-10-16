@@ -66,6 +66,7 @@ class UnixSocketEngineClient implements EngineClient {
       );
       _socket = socket;
       socket
+          .cast<List<int>>()
           .transform(utf8.decoder)
           .transform(const LineSplitter())
           .listen(_handleLine, onDone: _handleClosed);

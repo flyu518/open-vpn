@@ -53,7 +53,6 @@ class SessionViewModel extends ChangeNotifier {
   void reorderSessions(int oldIndex, int newIndex) {
     final ordered = List<VpnSession>.from(_sessions.values);
     if (oldIndex < 0 || oldIndex >= ordered.length) return;
-    if (newIndex > oldIndex) newIndex -= 1;
     if (newIndex < 0 || newIndex >= ordered.length) return;
 
     final moved = ordered.removeAt(oldIndex);

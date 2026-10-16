@@ -8,8 +8,8 @@ void main() {
     final viewModel = SessionViewModel();
 
     viewModel.replaceSessions([
-      VpnSession(id: 'office-a', name: '研发网络', status: VpnStatus.connected),
-      VpnSession(id: 'office-b', name: '财务网络', status: VpnStatus.connecting),
+      const VpnSession(id: 'office-a', name: '研发网络', status: VpnStatus.connected),
+      const VpnSession(id: 'office-b', name: '财务网络', status: VpnStatus.connecting),
     ]);
 
     expect(viewModel.sessions.map((session) => session.id),
@@ -20,7 +20,7 @@ void main() {
   test('路由冲突只提示错误，不移除已有连接', () {
     final viewModel = SessionViewModel();
     viewModel.replaceSessions([
-      VpnSession(id: 'office-a', name: '研发网络', status: VpnStatus.connected),
+      const VpnSession(id: 'office-a', name: '研发网络', status: VpnStatus.connected),
     ]);
 
     viewModel.applyError('office-b', '路由与活动 VPN 重叠');
@@ -32,8 +32,8 @@ void main() {
   test('事件只更新对应会话', () {
     final viewModel = SessionViewModel();
     viewModel.replaceSessions([
-      VpnSession(id: 'office-a', name: '研发网络', status: VpnStatus.connected),
-      VpnSession(id: 'office-b', name: '财务网络', status: VpnStatus.connecting),
+      const VpnSession(id: 'office-a', name: '研发网络', status: VpnStatus.connected),
+      const VpnSession(id: 'office-b', name: '财务网络', status: VpnStatus.connecting),
     ]);
 
     viewModel.updateStatus('office-b', VpnStatus.failed);
@@ -45,8 +45,8 @@ void main() {
   test('每个会话可以独立保存路由冲突策略', () {
     final viewModel = SessionViewModel();
     viewModel.replaceSessions([
-      VpnSession(id: 'office-a', name: '研发网络', status: VpnStatus.connected),
-      VpnSession(id: 'office-b', name: '财务网络', status: VpnStatus.disconnected),
+      const VpnSession(id: 'office-a', name: '研发网络', status: VpnStatus.connected),
+      const VpnSession(id: 'office-b', name: '财务网络', status: VpnStatus.disconnected),
     ]);
 
     viewModel.updateStrategy(
@@ -68,8 +68,8 @@ void main() {
   test('拖动连接顺序会更新优先级', () {
     final viewModel = SessionViewModel();
     viewModel.replaceSessions([
-      VpnSession(id: 'office-a', name: '研发网络', status: VpnStatus.connected),
-      VpnSession(id: 'office-b', name: '财务网络', status: VpnStatus.connected),
+      const VpnSession(id: 'office-a', name: '研发网络', status: VpnStatus.connected),
+      const VpnSession(id: 'office-b', name: '财务网络', status: VpnStatus.connected),
     ]);
 
     viewModel.reorderSessions(1, 0);

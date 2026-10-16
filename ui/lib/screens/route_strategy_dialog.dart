@@ -85,7 +85,7 @@ class _RouteStrategyDialogState extends State<RouteStrategyDialog> {
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<RouteConflictMode>(
-                value: _mode,
+                initialValue: _mode,
                 decoration: const InputDecoration(labelText: '冲突处理'),
                 items: RouteConflictMode.values
                     .map((mode) => DropdownMenuItem(
@@ -121,7 +121,7 @@ class _RouteStrategyDialogState extends State<RouteStrategyDialog> {
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<RouteRuleType>(
-                      value: _ruleType,
+                      initialValue: _ruleType,
                       decoration: const InputDecoration(labelText: '类型'),
                       items: RouteRuleType.values
                           .map((type) => DropdownMenuItem(

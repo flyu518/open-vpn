@@ -50,7 +50,7 @@ class SessionsScreen extends StatelessWidget {
                               : ReorderableListView.builder(
                                   buildDefaultDragHandles: true,
                                   itemCount: viewModel.sessions.length,
-                                  onReorder: (oldIndex, newIndex) =>
+                                  onReorderItem: (oldIndex, newIndex) =>
                                       onReorder?.call(oldIndex, newIndex),
                                   padding: const EdgeInsets.only(bottom: 24),
                                   itemBuilder: (context, index) {
@@ -96,7 +96,7 @@ class _Sidebar extends StatelessWidget {
     return Container(
       width: 230,
       padding: const EdgeInsets.fromLTRB(20, 24, 16, 20),
-      color: colors.surfaceContainerHighest.withOpacity(.45),
+      color: colors.surfaceContainerHighest.withValues(alpha: .45),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -116,9 +116,9 @@ class _Sidebar extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 34),
-          _NavItem(icon: Icons.dashboard_rounded, label: '连接总览', selected: true),
-          _NavItem(icon: Icons.folder_rounded, label: '配置文件'),
-          _NavItem(icon: Icons.history_rounded, label: '连接记录'),
+          const _NavItem(icon: Icons.dashboard_rounded, label: '连接总览', selected: true),
+          const _NavItem(icon: Icons.folder_rounded, label: '配置文件'),
+          const _NavItem(icon: Icons.history_rounded, label: '连接记录'),
           const Spacer(),
           OutlinedButton.icon(
             onPressed: onImportProfile,
@@ -152,7 +152,7 @@ class _NavItem extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       decoration: BoxDecoration(
-        color: selected ? colors.primary.withOpacity(.12) : Colors.transparent,
+        color: selected ? colors.primary.withValues(alpha: .12) : Colors.transparent,
         borderRadius: BorderRadius.circular(10),
       ),
       child: ListTile(
@@ -219,7 +219,7 @@ class _EmptyState extends StatelessWidget {
         constraints: const BoxConstraints(maxWidth: 520),
         padding: const EdgeInsets.all(44),
         decoration: BoxDecoration(
-          color: colors.surfaceContainerHighest.withOpacity(.45),
+          color: colors.surfaceContainerHighest.withValues(alpha: .45),
           borderRadius: BorderRadius.circular(24),
           border: Border.all(color: colors.outlineVariant),
         ),
@@ -268,10 +268,10 @@ class SessionCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: colors.surfaceContainerHighest.withOpacity(.42),
+        color: colors.surfaceContainerHighest.withValues(alpha: .42),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: connected ? Colors.green.withOpacity(.35) : colors.outlineVariant,
+          color: connected ? Colors.green.withValues(alpha: .35) : colors.outlineVariant,
         ),
       ),
       child: Column(
@@ -394,7 +394,7 @@ class _StatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(.12),
+        color: color.withValues(alpha: .12),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(status.label, style: TextStyle(color: color, fontSize: 12)),
