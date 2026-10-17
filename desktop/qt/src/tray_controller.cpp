@@ -62,6 +62,23 @@ void TrayController::hide() {
     if (tray_) tray_->hide();
 }
 
+bool TrayController::recoverTrayIcon() {
+    if (hidden_ || controller_->quitting()) return false;
+    if (menuOpen_ || menu_->isVisible()) {
+        QTimer::singleShot(120, this, [this] { recoverTrayIcon(); });
+        return false;
+    }
+    if (tray_) {
+        tray_->setContextMenu(nullptr);
+        tray_->hide();
+        delete tray_;
+        tray_ = nullptr;
+    }
+    controller_->setTrayAvailable(false);
+    ensureTrayIcon();
+    return tray_ != nullptr;
+}
+
 void TrayController::ensureTrayIcon() {
     if (hidden_ || controller_->quitting()) return;
     if (tray_) {
@@ -72,7 +89,8 @@ void TrayController::ensureTrayIcon() {
     if (!QSystemTrayIcon::isSystemTrayAvailable()) return;
 
     tray_ = new QSystemTrayIcon(this);
-    QIcon icon(QStringLiteral(":/openvpn/app-icon.png"));
+    QIcon icon(QStringLiteral(":/openvpn/tray.svg"));
+    if (icon.isNull()) icon = QIcon(QStringLiteral(":/openvpn/app-icon.png"));
     if (icon.isNull()) icon = QIcon::fromTheme(QStringLiteral("network-vpn"));
     if (icon.isNull()) {
         // 资源未随测试目标或极简安装包复制时，仍提供一个可见的备用图标。

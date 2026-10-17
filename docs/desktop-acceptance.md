@@ -4,7 +4,7 @@
 
 ## 当前版本
 
-版本：`0.0.1`。
+版本：`0.0.2`。
 
 本机环境：Apple Silicon、macOS 26.5.1；本轮本机使用 x86_64 包在 Rosetta 下验收，arm64 包由原生 Apple Silicon runner 构建。
 
@@ -25,7 +25,7 @@
 
 ## 当前发布包
 
-本机当前安装版本仍为 `0.2.11`；`0.0.1` 的 x86_64 和 arm64 安装包由 GitHub Actions 的原生 runner 负责构建。
+本机当前安装版本仍为 `0.2.11`；`0.0.2` 的 x86_64 和 arm64 安装包由 GitHub Actions 的原生 runner 负责构建。
 
 发布流程由 `.github/workflows/release-macos.yml` 管理；推送 `v<版本号>` tag 后，GitHub Actions 会按 `third_party/openvpn3.lock` 拉取 OpenVPN3，分别构建 x86_64/arm64 安装包，生成 SHA-256 并上传 Release。
 

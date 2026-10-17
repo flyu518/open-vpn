@@ -139,6 +139,21 @@ void TrayControllerTest::secondSessionAndWindowActionsWork() {
     window.hide();
 }
 
+void TrayControllerTest::recreatesTrayItemAfterMenuBarRefresh() {
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    AppController controller(false,
+                             directory.filePath(QStringLiteral("profiles.json")),
+                             directory.filePath(QStringLiteral("missing.sock")));
+    TrayController tray(&controller, nullptr, &controller);
+    if (!QSystemTrayIcon::isSystemTrayAvailable())
+        QSKIP("当前测试环境没有可用的系统状态栏");
+
+    QVERIFY(tray.recoverTrayIcon());
+    QVERIFY(controller.trayAvailable());
+    QVERIFY(!tray.menu()->actions().isEmpty());
+}
+
 int main(int argc, char** argv) {
     QApplication application(argc, argv);
     TrayControllerTest test;

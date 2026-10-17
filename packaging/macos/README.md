@@ -90,15 +90,15 @@ helper/daemon 变化时才重新执行完整安装包。
 ```bash
 OPENVPN_CMAKE=/绝对路径/cmake packaging/macos/build-release.sh \
   /绝对路径/Qt/6.12.0/macos \
-  /tmp/openvpn-0.0.1-release \
-  0.0.1 \
+  /tmp/openvpn-0.0.2-release \
+  0.0.2 \
   /绝对路径/xxHash \
   x86_64 \
   /usr/local
 ```
 
 完整流程会从同一源码构建 Qt、helper 和 daemon，运行测试，部署 Qt 插件及服务动态库，再生成
-`/tmp/openvpn-0.0.1-release/OpenVPN-0.0.1-macos-x86_64.pkg`。Apple Silicon 本地构建时使用 `arm64 /opt/homebrew`，输出文件名会相应变为 `OpenVPN-0.0.1-macos-arm64.pkg`。发布前检查的范围包括 socket 名称、版本、动态库加载路径和架构；不要把历史 helper 产物混入当前安装包。
+`/tmp/openvpn-0.0.2-release/OpenVPN-0.0.2-macos-x86_64.pkg`。Apple Silicon 本地构建时使用 `arm64 /opt/homebrew`，输出文件名会相应变为 `OpenVPN-0.0.2-macos-arm64.pkg`。发布前检查的范围包括 socket 名称、版本、动态库加载路径和架构；不要把历史 helper 产物混入当前安装包。
 
 当前随包动态库最低要求 macOS 26，发布流程分别构建 x86_64 和 arm64；开发版本采用临时签名，未完成 Developer ID 签名公证。
 

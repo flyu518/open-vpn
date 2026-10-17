@@ -88,16 +88,21 @@ int main(int argc, char* argv[]) {
 
     auto* window = qobject_cast<QQuickWindow*>(engine.rootObjects().constFirst());
     TrayController tray(&controller, window, &application);
+    QObject::connect(&application, &QGuiApplication::applicationStateChanged,
+                     &tray, [&tray](Qt::ApplicationState state) {
+                         if (state == Qt::ApplicationActive) tray.recoverTrayIcon();
+                     });
     QLocalServer activationServer;
     QLocalServer::removeServer(activationName);
     if (activationServer.listen(activationName)) {
         QObject::connect(&activationServer, &QLocalServer::newConnection,
-                         &application, [&activationServer, window] {
+                         &application, [&activationServer, &tray, window] {
                              while (activationServer.hasPendingConnections()) {
                                  QLocalSocket* socket =
                                      activationServer.nextPendingConnection();
                                  socket->readAll();
                                  socket->deleteLater();
+                                 tray.recoverTrayIcon();
                                  if (window) {
                                      window->show();
                                      window->raise();
