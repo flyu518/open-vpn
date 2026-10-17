@@ -53,7 +53,7 @@ cmake --build build/core-windows --config Release --parallel
 ```powershell
 cmake -S desktop/qt -B build/qt-windows `
   -DCMAKE_PREFIX_PATH="C:/Qt/6.12.0/msvc2022_64" `
-  -DOPENVPN_APP_VERSION=0.2.13
+  -DOPENVPN_APP_VERSION=0.0.1
 cmake --build build/qt-windows --config Release --parallel
 C:/Qt/6.12.0/msvc2022_64/bin/windeployqt.exe `
   --qmldir desktop/qt/qml build/qt-windows/Release/openvpn_qt.exe

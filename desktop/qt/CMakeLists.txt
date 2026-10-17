@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(OpenVPNQt VERSION 0.2.13 LANGUAGES CXX)
+project(OpenVPNQt VERSION 0.0.1 LANGUAGES CXX)
 
 set(OPENVPN_APP_VERSION "${PROJECT_VERSION}" CACHE STRING "OpenVPN 应用版本")
 

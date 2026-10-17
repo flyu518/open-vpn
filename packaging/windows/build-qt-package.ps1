@@ -4,7 +4,7 @@ param(
     [string]$WindowsDaemon = "",
     [string]$WindowsService = "",
     [string]$WintunDll = "",
-    [string]$Version = "0.2.13",
+    [string]$Version = "0.0.1",
     [string]$Output = "",
     [switch]$BuildInstaller
 )
