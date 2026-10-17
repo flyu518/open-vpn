@@ -548,6 +548,9 @@ class _RacingEngineClient implements EngineClient {
 }
 
 class _RecordingProfileStore implements ProfileStore {
+  @override
+  String get location => '测试配置索引';
+
   List<VpnSession> saved = const <VpnSession>[];
 
   @override

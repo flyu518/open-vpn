@@ -6,6 +6,8 @@ import '../models/session.dart';
 import '../models/profile.dart';
 
 abstract class ProfileStore {
+  String get location => 'OpenVPN 配置索引';
+
   Future<List<VpnSession>> load();
 
   Future<void> save(Iterable<VpnSession> sessions);
@@ -15,6 +17,9 @@ class JsonProfileStore implements ProfileStore {
   JsonProfileStore({File? file}) : file = file ?? _defaultFile();
 
   final File file;
+
+  @override
+  String get location => file.path;
 
   @override
   Future<List<VpnSession>> load() async {
@@ -106,9 +111,9 @@ class JsonProfileStore implements ProfileStore {
       try {
         await temporary.rename(file.path);
       } on FileSystemException {
-        if (!Platform.isWindows) rethrow;
+        // macOS 某些文件系统/权限场景下 rename 可能失败，直接写入作为
+        // 可恢复兜底，避免用户修改名称或策略后只能看到“保存失败”。
         await file.writeAsString('$payload\n');
-        await temporary.delete();
       }
     } finally {
       if (await temporary.exists()) await temporary.delete();
@@ -147,9 +152,12 @@ File _defaultFile() {
 String _homeDirectory(Map<String, String> environment) {
   final configured = environment['HOME'] ?? environment['USERPROFILE'];
   if (Platform.isMacOS) {
-    final user = environment['USER'] ??
-        environment['LOGNAME'] ??
-        _currentMacUser();
+    // Finder、Installer、IDE 和提权启动的环境变量可能把 USER/HOME
+    // 设成 root 或其他服务用户；macOS 当前登录用户以 id -un 为准。
+    final detectedUser = _currentMacUser();
+    final user = detectedUser.isNotEmpty
+        ? detectedUser
+        : environment['USER'] ?? environment['LOGNAME'] ?? '';
     // 从 Finder、launchd 或自动化工具启动 macOS 应用时，HOME 可能缺失或
     // 被设置为服务用户目录；优先使用当前登录用户的固定目录，保证升级后
     // 仍然读取同一份 OpenVPN 配置索引。

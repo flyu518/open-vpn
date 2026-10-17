@@ -887,10 +887,14 @@ class _DiagnosticBox extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(message,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: color,
-                        )),
+                Text(
+                  message,
+                  maxLines: 5,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: color,
+                      ),
+                ),
                 if (hint != null) ...[
                   const SizedBox(height: 4),
                   Text(hint!,

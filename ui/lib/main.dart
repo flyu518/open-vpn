@@ -52,7 +52,15 @@ class _VpnAppState extends State<VpnApp> {
 
   Future<void> _loadInitialState() async {
     await viewModel.loadProfiles();
-    await viewModel.loadSnapshot();
+    // 安装器/launchd 刚启动时 socket 可能还在创建，启动阶段自动重试，
+    // 避免用户打开应用就看到“服务未启动”而必须手动点击检查。
+    for (var attempt = 0; attempt < 10; attempt++) {
+      await viewModel.loadSnapshot();
+      if (viewModel.serviceError == null) return;
+      if (attempt < 9) {
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+      }
+    }
   }
 
   @override

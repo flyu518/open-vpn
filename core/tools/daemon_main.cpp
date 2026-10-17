@@ -90,6 +90,21 @@ std::string state_label(vpn::SessionState state) {
     return "未知状态";
 }
 
+std::string user_warning_for_log(const std::string& info) {
+    if (info.find("SetupClient:") != std::string::npos ||
+        info.find("transmitting tun setup list") != std::string::npos) {
+        return {};
+    }
+    if (info.find("兼容模式") != std::string::npos) {
+        return "兼容模式：与活动 VPN 重叠的路由已跳过";
+    }
+    if (info.find("冲突") != std::string::npos ||
+        info.find("重叠") != std::string::npos) {
+        return "检测到 VPN 路由重叠，请查看路由策略";
+    }
+    return {};
+}
+
 vpn::RouteConflictMode route_mode_from_request(const Json::Value& request) {
     const std::string mode =
         request["routeStrategy"].get("conflictMode", "compatible").asString();
@@ -377,11 +392,12 @@ void SessionController::onEngineEvent(const std::string& session_id,
         if (event.error || event.fatal) {
             it->second.error = event.info;
         }
-        if (event.name == "LOG" &&
-            (event.info.find("兼容模式") != std::string::npos ||
-             event.info.find("冲突") != std::string::npos ||
-             event.info.find("重叠") != std::string::npos)) {
-            it->second.warnings.push_back(event.info);
+        const std::string warning =
+            event.name == "LOG" ? user_warning_for_log(event.info) : "";
+        if (!warning.empty() &&
+            std::find(it->second.warnings.begin(), it->second.warnings.end(),
+                      warning) == it->second.warnings.end()) {
+            it->second.warnings.push_back(warning);
         }
         notification["session"] = record_json(session_id, it->second);
     }

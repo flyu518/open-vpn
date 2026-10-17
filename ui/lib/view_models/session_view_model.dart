@@ -117,7 +117,8 @@ class SessionViewModel extends ChangeNotifier {
         notifyListeners();
       }
     } on Object {
-      _profileStoreError = '配置保存失败，请检查配置目录权限后重试';
+      _profileStoreError =
+          '配置保存失败：无法写入 ${profileStore.location}，请检查权限后重试';
       notifyListeners();
       if (throwOnError) rethrow;
     }

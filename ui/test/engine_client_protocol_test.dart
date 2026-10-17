@@ -64,4 +64,18 @@ void main() {
     final socketFile = File(socketPath);
     if (await socketFile.exists()) await socketFile.delete();
   });
+
+  test('不会把 OpenVPN3 内部 tun 调试日志展示为卡片警告', () {
+    final session = VpnSession.fromJson(<String, dynamic>{
+      'sessionId': 'office-a',
+      'name': '研发网络',
+      'state': 'connected',
+      'warnings': <String>[
+        'SetupClient: transmitting tun setup list to /var/run/openvpn.sock {"config":{}}',
+        '兼容模式：跳过 1 条冲突路由',
+      ],
+    });
+
+    expect(session.warnings, <String>['兼容模式：跳过 1 条冲突路由']);
+  });
 }

@@ -77,9 +77,7 @@ class VpnSession {
       name: value['name'] as String? ?? value['sessionId'] as String? ?? '',
       status: vpnStatusFromName(value['state'] as String?),
       remoteHost: value['remoteHost'] as String? ?? '',
-      warnings: rawWarnings is List
-          ? rawWarnings.whereType<String>().toList(growable: false)
-          : const <String>[],
+      warnings: _readableWarnings(rawWarnings),
     );
   }
 
@@ -123,6 +121,22 @@ class VpnSession {
       lastDisconnectedAt: lastDisconnectedAt ?? this.lastDisconnectedAt,
     );
   }
+}
+
+List<String> _readableWarnings(Object? rawWarnings) {
+  if (rawWarnings is! List) return const <String>[];
+  return rawWarnings
+      .whereType<String>()
+      .map((warning) => warning.trim())
+      .where((warning) =>
+          warning.isNotEmpty &&
+          !warning.contains('SetupClient:') &&
+          !warning.contains('transmitting tun setup list'))
+      .map((warning) => warning.length > 320
+          ? '检测到 VPN 路由提示，请查看路由策略。'
+          : warning)
+      .toSet()
+      .toList(growable: false);
 }
 
 VpnStatus vpnStatusFromName(String? value) {
