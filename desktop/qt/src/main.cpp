@@ -90,7 +90,10 @@ int main(int argc, char* argv[]) {
     TrayController tray(&controller, window, &application);
     QObject::connect(&application, &QGuiApplication::applicationStateChanged,
                      &tray, [&tray](Qt::ApplicationState state) {
-                         if (state == Qt::ApplicationActive) tray.recoverTrayIcon();
+                         if (state == Qt::ApplicationActive ||
+                             state == Qt::ApplicationInactive) {
+                             tray.scheduleTrayRecovery();
+                         }
                      });
     QLocalServer activationServer;
     QLocalServer::removeServer(activationName);
@@ -102,7 +105,7 @@ int main(int argc, char* argv[]) {
                                      activationServer.nextPendingConnection();
                                  socket->readAll();
                                  socket->deleteLater();
-                                 tray.recoverTrayIcon();
+                                 tray.scheduleTrayRecovery();
                                  if (window) {
                                      window->show();
                                      window->raise();

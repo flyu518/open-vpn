@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(OpenVPNQt VERSION 0.0.2 LANGUAGES CXX)
+project(OpenVPNQt VERSION 0.0.3 LANGUAGES CXX)
 
 set(OPENVPN_APP_VERSION "${PROJECT_VERSION}" CACHE STRING "OpenVPN 应用版本")
 
@@ -65,7 +65,7 @@ qt_add_resources(openvpn_qt "openvpn_assets"
 qt_add_resources(openvpn_qt "openvpn_tray_asset"
     PREFIX "/openvpn"
     BASE "assets"
-    FILES assets/tray.svg assets/tray-mask.svg assets/app-icon.png
+    FILES assets/app-icon.png
 )
 if(WIN32)
     target_sources(openvpn_qt PRIVATE assets/OpenVPN.rc)
