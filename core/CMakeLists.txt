@@ -10,6 +10,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+find_package(Threads REQUIRED)
+
 add_library(openvpn_windows_adapter STATIC
     ../platform/windows/adapter/adapter.cpp
 )
@@ -146,7 +148,6 @@ if(EXISTS "${OPENVPN3_SOURCE_DIR}/client/ovpncli.cpp")
     target_include_directories(openvpn_core PRIVATE ${XXHASH_INCLUDE_DIR})
 
     find_package(OpenSSL REQUIRED)
-    find_package(Threads REQUIRED)
     find_library(LZ4_LIBRARY NAMES lz4 HINTS "${OPENVPN_BREW_OPT}/lz4/lib")
     find_library(FMT_LIBRARY NAMES fmt HINTS "${OPENVPN_BREW_OPT}/fmt/lib")
     find_library(JSONCPP_LIBRARY NAMES jsoncpp HINTS "${OPENVPN_BREW_OPT}/jsoncpp/lib")
