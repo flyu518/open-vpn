@@ -19,16 +19,17 @@ load_service() {
 	service="$domain/$label"
 
 	/bin/launchctl bootout "$service" >/dev/null 2>&1 || true
+	/bin/sleep 1
 	attempt=0
 	while [ "$attempt" -lt 15 ]; do
+		# launchd 在替换系统服务或 Installer 沙箱退出时可能暂时返回错误 5；
+		# 每轮都重新 bootstrap，避免在旧服务删除过渡期误判为已注册。
+		/bin/launchctl bootstrap "$domain" "$plist" >/dev/null 2>&1 || true
+		/bin/launchctl enable "$service" >/dev/null 2>&1 || true
+		/bin/launchctl kickstart -k "$service" >/dev/null 2>&1 || true
 		if /bin/launchctl print "$service" >/dev/null 2>&1; then
-			/bin/launchctl enable "$service" >/dev/null 2>&1 || true
-			/bin/launchctl kickstart -k "$service" >/dev/null 2>&1 || true
 			return 0
 		fi
-		# launchd 在替换系统服务或 Installer 沙箱退出时可能暂时返回错误 5；
-		# 继续重试，最终以服务状态和 socket 健康检查作为安装结果。
-		/bin/launchctl bootstrap "$domain" "$plist" >/dev/null 2>&1 || true
 		/bin/sleep 1
 		attempt=$((attempt + 1))
 	done

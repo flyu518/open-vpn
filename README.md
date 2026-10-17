@@ -75,7 +75,7 @@ packaging/macos/build-pkg.sh \
   /tmp/openvpn-core-build-x86/openvpn_daemon
 ```
 
-用户双击 `packaging/macos/dist/OpenVPN-0.1.0.pkg` 安装并输入一次管理员密码即可；安装程序会注册
+用户双击 `packaging/macos/dist/OpenVPN-0.1.1.pkg` 安装并输入一次管理员密码即可；安装程序会注册
 helper 和 daemon，之后直接打开 `/Applications/OpenVPN.app`。开发包使用临时签名，正式对外分发还需要
 Developer ID 签名和 notarization。
 
