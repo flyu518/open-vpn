@@ -135,6 +135,7 @@ private:
         std::string display_name;
         std::string remote_host;
         vpn::SessionState state = vpn::SessionState::Idle;
+        std::chrono::system_clock::time_point connected_at{};
         std::string error;
         std::vector<std::string> warnings;
     };
@@ -220,6 +221,19 @@ Json::Value SessionController::record_json(const std::string& session_id,
     value["remoteHost"] = record.remote_host;
     value["state"] = state_name(record.state);
     value["stateLabel"] = state_label(record.state);
+    const auto traffic = record.session->trafficStats();
+    value["downloadBytes"] = static_cast<Json::Int64>(traffic.bytes_in);
+    value["uploadBytes"] = static_cast<Json::Int64>(traffic.bytes_out);
+    if (record.connected_at.time_since_epoch().count() != 0) {
+        const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(
+                                 std::chrono::system_clock::now() -
+                                 record.connected_at)
+                                 .count();
+        value["durationSeconds"] = static_cast<Json::Int64>(
+            seconds < 0 ? 0 : seconds);
+    } else {
+        value["durationSeconds"] = static_cast<Json::Int64>(0);
+    }
     if (!record.error.empty()) {
         value["error"] = vpn::redactSecrets(record.error);
     }
@@ -388,7 +402,13 @@ void SessionController::onEngineEvent(const std::string& session_id,
         if (it == records_.end()) {
             return;
         }
-        it->second.state = state_from_event(event, it->second.state);
+        const vpn::SessionState next_state =
+            state_from_event(event, it->second.state);
+        if (next_state == vpn::SessionState::Connected &&
+            it->second.state != vpn::SessionState::Connected) {
+            it->second.connected_at = std::chrono::system_clock::now();
+        }
+        it->second.state = next_state;
         if (event.error || event.fatal) {
             it->second.error = event.info;
         }

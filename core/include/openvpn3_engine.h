@@ -2,6 +2,7 @@
 #define VPN_OPENVPN3_ENGINE_H
 
 #include <functional>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -32,6 +33,11 @@ struct EngineEvent {
     bool fatal = false;
 };
 
+struct SessionTrafficStats {
+    std::int64_t bytes_in = 0;
+    std::int64_t bytes_out = 0;
+};
+
 using EngineEventSink = std::function<void(const EngineEvent&)>;
 
 class OpenVPN3Session {
@@ -43,6 +49,7 @@ public:
 
     const std::string& sessionId() const;
     bool isActive() const;
+    SessionTrafficStats trafficStats() const;
     ProfileEvaluation setProfile(std::string_view profile_content);
     void setRouteConflictMode(RouteConflictMode mode);
     bool setCredentials(const EngineCredentials& credentials);

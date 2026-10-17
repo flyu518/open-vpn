@@ -47,6 +47,7 @@ class _VpnAppState extends State<VpnApp> {
       engineClient: engineClient,
       profileStore: profileStore,
     );
+    viewModel.startAutoRefresh();
     _loadInitialState();
   }
 

@@ -77,6 +77,11 @@ class VpnSession {
       name: value['name'] as String? ?? value['sessionId'] as String? ?? '',
       status: vpnStatusFromName(value['state'] as String?),
       remoteHost: value['remoteHost'] as String? ?? '',
+      downloadBytes: (value['downloadBytes'] as num?)?.toInt() ?? 0,
+      uploadBytes: (value['uploadBytes'] as num?)?.toInt() ?? 0,
+      duration: Duration(
+        seconds: (value['durationSeconds'] as num?)?.toInt() ?? 0,
+      ),
       warnings: _readableWarnings(rawWarnings),
     );
   }

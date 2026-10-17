@@ -121,6 +121,15 @@ bool OpenVPN3Session::isActive() const {
     return impl_ != nullptr && impl_->active;
 }
 
+SessionTrafficStats OpenVPN3Session::trafficStats() const {
+    if (impl_ == nullptr || impl_->client == nullptr) {
+        return {};
+    }
+    const openvpn::ClientAPI::TransportStats stats =
+        impl_->client->transport_stats();
+    return {stats.bytesIn, stats.bytesOut};
+}
+
 ProfileEvaluation OpenVPN3Session::setProfile(std::string_view profile_content) {
     impl_->config = openvpn::ClientAPI::Config{};
     impl_->config.content.assign(profile_content.data(), profile_content.size());

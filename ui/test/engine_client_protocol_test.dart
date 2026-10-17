@@ -78,4 +78,19 @@ void main() {
 
     expect(session.warnings, <String>['兼容模式：跳过 1 条冲突路由']);
   });
+
+  test('能解析 daemon 返回的连接时长和流量统计', () {
+    final session = VpnSession.fromJson(<String, dynamic>{
+      'sessionId': 'office-a',
+      'name': '研发网络',
+      'state': 'connected',
+      'downloadBytes': 1024,
+      'uploadBytes': 2048,
+      'durationSeconds': 42,
+    });
+
+    expect(session.downloadBytes, 1024);
+    expect(session.uploadBytes, 2048);
+    expect(session.duration, const Duration(seconds: 42));
+  });
 }

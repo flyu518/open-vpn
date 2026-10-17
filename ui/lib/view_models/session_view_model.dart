@@ -17,11 +17,23 @@ class SessionViewModel extends ChangeNotifier {
     _engineSubscription = engineClient?.events.listen(_applyEngineEvent);
   }
 
+  void startAutoRefresh() {
+    if (_refreshTimer != null) return;
+    _refreshTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      final hasActiveSession = _sessions.values.any((session) =>
+          session.status == VpnStatus.connected ||
+          session.status == VpnStatus.connecting);
+      if (hasActiveSession) unawaited(loadSnapshot(showLoading: false));
+    });
+  }
+
   final Map<String, VpnSession> _sessions = <String, VpnSession>{};
   final Map<String, String> _errors = <String, String>{};
   final EngineClient? _engineClient;
   final ProfileStore? _profileStore;
   StreamSubscription<EngineEvent>? _engineSubscription;
+  Timer? _refreshTimer;
+  bool _snapshotInFlight = false;
   bool _serviceChecked = false;
   String? _serviceError;
   String? _profileStoreError;
@@ -181,6 +193,9 @@ class SessionViewModel extends ChangeNotifier {
         : session.copyWith(
             status: event.session!.status,
             remoteHost: event.session!.remoteHost,
+            downloadBytes: event.session!.downloadBytes,
+            uploadBytes: event.session!.uploadBytes,
+            duration: event.session!.duration,
             warnings: event.session!.warnings,
           );
     final updated = _recordConnectionTransition(session, next);
@@ -286,7 +301,7 @@ class SessionViewModel extends ChangeNotifier {
     }
   }
 
-  Future<void> loadSnapshot() async {
+  Future<void> loadSnapshot({bool showLoading = true}) async {
     final engineClient = _engineClient;
     if (engineClient == null) {
       _serviceChecked = true;
@@ -294,9 +309,13 @@ class SessionViewModel extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    _serviceChecked = false;
-    _serviceError = null;
-    notifyListeners();
+    if (_snapshotInFlight) return;
+    _snapshotInFlight = true;
+    if (showLoading) {
+      _serviceChecked = false;
+      _serviceError = null;
+      notifyListeners();
+    }
     try {
       final result = await engineClient.snapshot();
       if (!result.ok) {
@@ -318,6 +337,8 @@ class SessionViewModel extends ChangeNotifier {
       _serviceChecked = true;
       _serviceError = _errorMessage(error);
       notifyListeners();
+    } finally {
+      _snapshotInFlight = false;
     }
   }
 
@@ -433,6 +454,7 @@ class SessionViewModel extends ChangeNotifier {
   @override
   void dispose() {
     _engineSubscription?.cancel();
+    _refreshTimer?.cancel();
     super.dispose();
   }
 }
