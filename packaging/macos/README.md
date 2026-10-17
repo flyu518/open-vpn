@@ -8,6 +8,7 @@
 - `install-daemon.sh`：把 daemon 安装到当前用户目录并加载 `gui/<uid>` 服务，不需要 sudo。
 - `install-openvpn.sh`：一次安装 OpenVPN.app、macOS helper 和用户 daemon；普通用户执行，只有 helper 安装步骤请求 sudo。
 - `build-pkg.sh`：把 OpenVPN.app、daemon、helper 和 launchd 配置打成一个 `.pkg`，用户安装一次后以后直接打开应用即可。
+- `com.openvpn.component.plist`：固定 OpenVPN.app 安装到 `/Applications`，禁止 Installer 把它重定位回构建目录。
 
 构建出 `openvpn_macos_agent` 后，可以使用下面的命令安装本地开发版本：
 

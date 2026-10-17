@@ -57,6 +57,7 @@ echo "正在整理 OpenVPN.app、daemon 和 helper……"
 echo "正在生成安装包：$output_path"
 /usr/bin/pkgbuild \
 	--root "$stage_directory" \
+	--component-plist "$script_dir/com.openvpn.component.plist" \
 	--scripts "$script_dir/pkg-scripts" \
 	--identifier com.openvpn.desktop \
 	--version "$version" \

@@ -12,6 +12,30 @@ helper_log_directory="/var/log/openvpn"
 ui_socket="/tmp/openvpn-ui.sock"
 helper_socket="/var/run/openvpn.sock"
 
+load_service() {
+	domain="$1"
+	plist="$2"
+	label="$3"
+	service="$domain/$label"
+
+	/bin/launchctl bootout "$service" >/dev/null 2>&1 || true
+	attempt=0
+	while [ "$attempt" -lt 15 ]; do
+		if /bin/launchctl print "$service" >/dev/null 2>&1; then
+			/bin/launchctl enable "$service" >/dev/null 2>&1 || true
+			/bin/launchctl kickstart -k "$service" >/dev/null 2>&1 || true
+			return 0
+		fi
+		# launchd 在替换系统服务或 Installer 沙箱退出时可能暂时返回错误 5；
+		# 继续重试，最终以服务状态和 socket 健康检查作为安装结果。
+		/bin/launchctl bootstrap "$domain" "$plist" >/dev/null 2>&1 || true
+		/bin/sleep 1
+		attempt=$((attempt + 1))
+	done
+	echo "错误：launchd 服务加载失败：$service" >&2
+	return 1
+}
+
 echo "正在准备 OpenVPN 系统服务……"
 /bin/mkdir -p "$log_directory"
 /usr/sbin/chown root:staff "$log_directory"
@@ -22,10 +46,8 @@ echo "正在准备 OpenVPN 系统服务……"
 
 echo "正在加载 OpenVPN 高权限 helper……"
 /bin/launchctl bootout system/"$legacy_helper_label" >/dev/null 2>&1 || true
-/bin/launchctl bootout system/"$helper_label" >/dev/null 2>&1 || true
-/bin/launchctl bootstrap system "$helper_plist"
-/bin/launchctl enable system/"$helper_label"
-/bin/launchctl kickstart -k system/"$helper_label"
+/bin/rm -f "$helper_socket"
+load_service system "$helper_plist" "$helper_label"
 
 console_user=$(/usr/bin/stat -f '%Su' /dev/console)
 if [ -n "$console_user" ] && [ "$console_user" != "root" ] &&
@@ -47,9 +69,7 @@ if [ -n "$console_user" ] && [ "$console_user" != "root" ] &&
 	fi
 
 	/bin/rm -f "$ui_socket"
-	/bin/launchctl bootstrap "gui/$console_uid" "$daemon_plist"
-	/bin/launchctl enable "gui/$console_uid/$daemon_label"
-	/bin/launchctl kickstart -k "gui/$console_uid/$daemon_label"
+	load_service "gui/$console_uid" "$daemon_plist" "$daemon_label"
 else
 	echo "当前没有登录的桌面用户，OpenVPN daemon 将在下次登录时自动启动。"
 fi
