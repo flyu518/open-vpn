@@ -6,12 +6,10 @@ class DesktopSettingsDialog extends StatefulWidget {
   const DesktopSettingsDialog({
     super.key,
     required this.startupService,
-    this.onCheckForUpdates,
     this.onStartupChanged,
   });
 
   final StartupService startupService;
-  final Future<void> Function()? onCheckForUpdates;
   final ValueChanged<bool>? onStartupChanged;
 
   @override
@@ -101,14 +99,6 @@ class _DesktopSettingsDialogState extends State<DesktopSettingsDialog> {
               ),
             ),
             const Divider(height: 24),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.system_update_alt_rounded),
-              title: const Text('检查更新'),
-              subtitle: const Text('从 GitLab Release 检查新的桌面安装包'),
-              trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: widget.onCheckForUpdates,
-            ),
             if (_error != null) ...[
               const SizedBox(height: 8),
               Align(

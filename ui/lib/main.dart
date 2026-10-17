@@ -100,14 +100,11 @@ class _VpnAppState extends State<VpnApp> with WindowListener {
       onOpen: _openWindow,
       onConnect: (session) async {
         await _openWindow();
+        await Future<void>.delayed(Duration.zero);
         await _connect(session);
       },
-      onDisconnect: (session) async {
-        await _openWindow();
-        await _disconnect(session);
-      },
+      onDisconnect: _disconnect,
       onSettings: _showSettings,
-      onCheckUpdates: _showAbout,
       onAbout: _showAbout,
       onQuit: _quitApplication,
       onDiagnostic: _showDesktopDiagnostic,
@@ -184,22 +181,43 @@ class _VpnAppState extends State<VpnApp> with WindowListener {
   }
 
   Future<void> _connect(VpnSession session) async {
-    final navigatorContext = _navigatorKey.currentState?.context;
-    if (navigatorContext == null) return;
-    final credentials = await showDialog<VpnCredentials>(
-      context: navigatorContext,
-      builder: (_) => CredentialsDialog(
-        profileName: session.name,
-        initialUsername: session.username,
-      ),
-    );
-    if (credentials == null) return;
-    await viewModel.connectSession(
+    // 先让 daemon 用 Keychain/Credential Manager 中的凭据尝试连接。
+    // credentials 四个字段必须保持为空，daemon 才会读取安全存储。
+    final automatic = await viewModel.connectSession(
       session.id,
-      username: credentials.username,
-      password: credentials.password,
-      rememberCredentials: credentials.remember,
+      waitForFinalState: true,
     );
+    if (automatic?.ok == true) return;
+    final automaticMessage =
+        automatic?.message ?? viewModel.errorFor(session.id) ?? '';
+    if (!isCredentialFailureMessage(automaticMessage)) return;
+
+    for (var attempt = 0; attempt < 2; attempt++) {
+      if (viewModel.sessionById(session.id)?.status == VpnStatus.failed) {
+        await viewModel.disconnectSession(session.id);
+      }
+      if (!mounted) return;
+      final dialogContext = _navigatorKey.currentState?.context;
+      if (dialogContext == null || !dialogContext.mounted) return;
+      final credentials = await showDialog<VpnCredentials>(
+        context: dialogContext,
+        builder: (_) => CredentialsDialog(
+          profileName: session.name,
+          initialUsername: session.username,
+        ),
+      );
+      if (credentials == null) return;
+      final result = await viewModel.connectSession(
+        session.id,
+        username: credentials.username,
+        password: credentials.password,
+        rememberCredentials: credentials.remember,
+        waitForFinalState: true,
+      );
+      if (result?.ok == true) return;
+      final message = result?.message ?? viewModel.errorFor(session.id) ?? '';
+      if (!isCredentialFailureMessage(message)) return;
+    }
   }
 
   Future<void> _editName(VpnSession session) async {
@@ -236,11 +254,6 @@ class _VpnAppState extends State<VpnApp> with WindowListener {
       builder: (dialogContext) => DesktopSettingsDialog(
         startupService: startupService,
         onStartupChanged: trayController.setStartupEnabled,
-        onCheckForUpdates: () async {
-          Navigator.of(dialogContext).pop();
-          await Future<void>.delayed(Duration.zero);
-          await _showAbout();
-        },
       ),
     );
   }

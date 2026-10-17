@@ -11,3 +11,16 @@ class VpnCredentials {
   final bool remember;
   final bool useSaved;
 }
+
+bool isCredentialFailureMessage(String message) {
+  final lower = message.toLowerCase();
+  return message.contains('凭据') ||
+      message.contains('认证') ||
+      message.contains('密码') ||
+      message.contains('用户名') ||
+      lower.contains('auth_failed') ||
+      lower.contains('authentication') ||
+      lower.contains('credential') ||
+      lower.contains('keychain') ||
+      lower.contains('credential manager');
+}

@@ -18,7 +18,6 @@ enum TrayMenuAction {
   disconnect,
   startup,
   settings,
-  checkUpdates,
   about,
   quit,
   separator,
@@ -81,7 +80,6 @@ class TrayMenuProjection {
         checked: startupEnabled,
       ),
       const TrayMenuEntry(label: '设置', action: TrayMenuAction.settings),
-      const TrayMenuEntry(label: '检查更新', action: TrayMenuAction.checkUpdates),
       const TrayMenuEntry(label: '关于 OpenVPN', action: TrayMenuAction.about),
       const TrayMenuEntry(label: '', action: TrayMenuAction.separator),
       const TrayMenuEntry(label: '退出 OpenVPN', action: TrayMenuAction.quit),
@@ -158,7 +156,6 @@ class TrayController with TrayListener {
     required Future<void> Function(VpnSession session) onConnect,
     required Future<void> Function(VpnSession session) onDisconnect,
     required Future<void> Function() onSettings,
-    required Future<void> Function() onCheckUpdates,
     required Future<void> Function() onAbout,
     required Future<void> Function() onQuit,
     StartupService? startupService,
@@ -170,7 +167,6 @@ class TrayController with TrayListener {
         _onConnect = onConnect,
         _onDisconnect = onDisconnect,
         _onSettings = onSettings,
-        _onCheckUpdates = onCheckUpdates,
         _onAbout = onAbout,
         _onQuit = onQuit,
         _startupService = startupService ?? StartupService(),
@@ -183,7 +179,6 @@ class TrayController with TrayListener {
   final Future<void> Function(VpnSession session) _onConnect;
   final Future<void> Function(VpnSession session) _onDisconnect;
   final Future<void> Function() _onSettings;
-  final Future<void> Function() _onCheckUpdates;
   final Future<void> Function() _onAbout;
   final Future<void> Function() _onQuit;
   final StartupService _startupService;
@@ -289,18 +284,31 @@ class TrayController with TrayListener {
         label: entry.label,
         checked: entry.checked ?? false,
         disabled: !entry.enabled,
-        onClick: (_) => unawaited(_toggleStartup()),
+        onClick: (_) => _scheduleMenuAction(entry),
       );
     }
     return MenuItem(
       key: _menuKey(entry),
       label: entry.label,
       disabled: !entry.enabled,
-      onClick: (_) => unawaited(_handleEntry(entry)),
+      onClick: (_) => _scheduleMenuAction(entry),
     );
   }
 
-  Future<void> _handleEntry(TrayMenuEntry entry) async {
+  void _scheduleMenuAction(TrayMenuEntry entry) {
+    // 兼容 API 的 native 回调返回类型是 void。把真正动作排到当前 native
+    // 菜单事件返回之后，避免动作触发状态刷新时销毁正在处理的菜单绑定。
+    Timer.run(() {
+      if (_disposed) return;
+      unawaited(dispatchMenuAction(entry));
+    });
+  }
+
+  Future<void> dispatchMenuAction(TrayMenuEntry entry) async {
+    if (entry.action == TrayMenuAction.startup) {
+      await _toggleStartup();
+      return;
+    }
     switch (entry.action) {
       case TrayMenuAction.open:
         await _onOpen();
@@ -312,8 +320,6 @@ class TrayController with TrayListener {
         if (session != null) await _onDisconnect(session);
       case TrayMenuAction.settings:
         await _onSettings();
-      case TrayMenuAction.checkUpdates:
-        await _onCheckUpdates();
       case TrayMenuAction.about:
         await _onAbout();
       case TrayMenuAction.quit:

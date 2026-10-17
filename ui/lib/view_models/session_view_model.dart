@@ -209,17 +209,18 @@ class SessionViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> connectSession(
+  Future<EngineResponse?> connectSession(
     String id, {
     String username = '',
     String password = '',
     String response = '',
     String dynamicChallengeCookie = '',
     bool rememberCredentials = false,
+    bool waitForFinalState = false,
   }) async {
     final session = _sessions[id];
     final engineClient = _engineClient;
-    if (session == null || engineClient == null) return;
+    if (session == null || engineClient == null) return null;
 
     _sessions[id] = session.copyWith(status: VpnStatus.connecting);
     _errors.remove(id);
@@ -245,7 +246,7 @@ class SessionViewModel extends ChangeNotifier {
           _serviceError = result.message;
         }
         notifyListeners();
-        return;
+        return result;
       }
       if (result.session != null) {
         _serviceChecked = true;
@@ -257,6 +258,21 @@ class SessionViewModel extends ChangeNotifier {
         if (_activityChanged(current, updated)) unawaited(_saveProfiles());
         notifyListeners();
       }
+      if (!waitForFinalState) return result;
+      final finalSession = await _waitForFinalState(id);
+      if (finalSession == null) return result;
+      if (finalSession.status == VpnStatus.connected) {
+        return EngineResponse(
+          ok: true,
+          message: result.message,
+          session: finalSession,
+        );
+      }
+      return EngineResponse(
+        ok: false,
+        message: errorFor(id) ?? 'OpenVPN 连接失败',
+        session: finalSession,
+      );
     } on Object catch (error) {
       _serviceChecked = true;
       _sessions[id] = session.copyWith(status: VpnStatus.failed);
@@ -264,7 +280,41 @@ class SessionViewModel extends ChangeNotifier {
       _errors[id] = message;
       if (_looksLikeServiceError(message)) _serviceError = message;
       notifyListeners();
+      return EngineResponse(ok: false, message: message);
     }
+  }
+
+  Future<VpnSession?> _waitForFinalState(String id) async {
+    final existing = _sessions[id];
+    if (existing == null ||
+        existing.status == VpnStatus.connected ||
+        existing.status == VpnStatus.failed ||
+        existing.status == VpnStatus.disconnected) {
+      return existing;
+    }
+
+    final completer = Completer<VpnSession?>();
+    Timer? timeout;
+    void finishIfReady() {
+      final current = _sessions[id];
+      if (current == null ||
+          (current.status != VpnStatus.connected &&
+              current.status != VpnStatus.failed &&
+              current.status != VpnStatus.disconnected)) {
+        return;
+      }
+      removeListener(finishIfReady);
+      timeout?.cancel();
+      if (!completer.isCompleted) completer.complete(current);
+    }
+
+    addListener(finishIfReady);
+    timeout = Timer(const Duration(seconds: 30), () {
+      removeListener(finishIfReady);
+      if (!completer.isCompleted) completer.complete(_sessions[id]);
+    });
+    finishIfReady();
+    return completer.future;
   }
 
   Future<void> disconnectSession(String id) async {

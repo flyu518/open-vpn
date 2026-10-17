@@ -32,7 +32,7 @@ cmake --build /tmp/openvpn-core-build
 - macOS helper 已按“进程 PID + 独立会话标识”管理多个 utun，并在 helper 侧执行全隧道/重叠路由校验；`packaging/macos/` 已提供 launchd 配置和本地安装脚本。
 - Windows helper 已接入官方 Service/Wintun 构建边界；仍需要 Windows 主机完成驱动、Service、路由/DNS 和多会话运行验证。
 - Flutter 3.47.5 / Dart 3.13.4 已安装到 `.tools/flutter`；Flutter 测试、静态分析和 macOS 桌面构建已通过，Windows 构建仍需 Windows 主机。
-- macOS 状态栏和 Windows 通知区域已接入 OpenVPN 托盘控制：窗口关闭后仍常驻，菜单显示服务、连接、持续时间和流量，并提供连接/断开、开机自启、设置、关于和检查更新。
+- macOS 状态栏和 Windows 通知区域已接入 OpenVPN 托盘控制：窗口关闭后仍常驻，菜单显示服务、连接、持续时间和流量，并提供连接/断开、开机自启、设置、关于；版本检查统一放在“关于 OpenVPN”中。
 - GitLab 更新检查读取公开 Release 的 latest 元数据；构建时通过 `--dart-define` 配置项目地址，用户确认后才下载并打开当前平台安装包，不会静默替换程序。
 - macOS Flutter 界面已接入文件选择器、临时凭据输入、Unix socket daemon 响应和事件；本地只持久化
   profile 路径、显示名称、路由策略和不含敏感信息的活动摘要，不保存 profile 内容或密码，启动时会按路径重新读取配置。

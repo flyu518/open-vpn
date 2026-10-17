@@ -96,6 +96,9 @@ private:
         std::unique_ptr<vpn::OpenVPN3Session> session;
         std::string display_name;
         std::string remote_host;
+        std::string profile_id;
+        vpn::Credentials credentials;
+        bool remember_credentials = false;
         vpn::SessionState state = vpn::SessionState::Idle;
         std::chrono::system_clock::time_point connected_at{};
         std::string error;
@@ -219,6 +222,15 @@ Json::Value SessionController::connect(const Json::Value& request) {
 
     auto record = std::make_unique<Record>();
     record->display_name = request.get("name", session_id).asString();
+    record->profile_id = profile_id;
+    record->remember_credentials =
+        request.get("rememberCredentials", false).asBool();
+    record->credentials = vpn::Credentials{
+        credentials.username,
+        credentials.password,
+        credentials.response,
+        "",
+    };
     record->state = vpn::SessionState::Connecting;
     record->session = engine_.createSession(
         session_id,
@@ -233,13 +245,6 @@ Json::Value SessionController::connect(const Json::Value& request) {
     if (!record->session->setCredentials(credentials)) {
         return response(false, "VPN 凭据设置失败");
     }
-    if (request.get("rememberCredentials", false).asBool()) {
-        const vpn::Credentials saved{credentials.username, credentials.password,
-                                     credentials.response, ""};
-        const auto result = credential_store_->save(profile_id, saved);
-        if (!result.ok()) return response(false, result.diagnostic);
-    }
-
     {
         std::lock_guard<std::mutex> lock(mutex_);
         if (records_.find(session_id) != records_.end()) {
@@ -311,20 +316,39 @@ void SessionController::onEngineEvent(const std::string& session_id,
     notification["sessionId"] = session_id;
     notification["event"] = event.name;
     notification["message"] = vpn::redactSecrets(event.info);
+    bool save_credentials = false;
+    vpn::Credentials credentials_to_save;
+    std::string profile_id_to_save;
     {
         std::lock_guard<std::mutex> lock(mutex_);
         const auto it = records_.find(session_id);
         if (it == records_.end()) return;
         const vpn::SessionState next_state =
             state_from_event(event, it->second.state);
+        const bool became_connected =
+            next_state == vpn::SessionState::Connected &&
+            it->second.state != vpn::SessionState::Connected;
         if (next_state == vpn::SessionState::Connected &&
             it->second.state != vpn::SessionState::Connected) {
             it->second.connected_at = std::chrono::system_clock::now();
+        }
+        if (became_connected && it->second.remember_credentials) {
+            save_credentials = true;
+            credentials_to_save = it->second.credentials;
+            profile_id_to_save = it->second.profile_id;
         }
         it->second.state = next_state;
         if (event.error || event.fatal) it->second.error = event.info;
         notification["state"] = state_name(it->second.state);
         notification["session"] = record_json(session_id, it->second);
+    }
+    if (save_credentials && credential_store_ != nullptr) {
+        const auto saved =
+            credential_store_->save(profile_id_to_save, credentials_to_save);
+        if (!saved.ok()) {
+            notification["message"] =
+                "连接已建立，但保存凭据失败：" + saved.diagnostic;
+        }
     }
     daemon_->broadcast(notification);
 }

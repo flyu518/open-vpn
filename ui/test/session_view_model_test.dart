@@ -178,9 +178,11 @@ void main() {
           id: 'office-b', name: '财务网络', status: VpnStatus.disconnected),
     ]);
 
-    await viewModel.connectSession('office-b',
+    final result = await viewModel.connectSession('office-b',
         username: 'user', password: 'secret');
 
+    expect(result?.ok, isFalse);
+    expect(result?.message, '路由与活动 VPN 重叠：office-a');
     expect(viewModel.sessionById('office-a')!.status, VpnStatus.connected);
     expect(viewModel.sessionById('office-b')!.status, VpnStatus.failed);
     expect(viewModel.errorFor('office-b'), '路由与活动 VPN 重叠：office-a');
@@ -277,9 +279,14 @@ void main() {
           id: 'office-a', name: '研发网络', status: VpnStatus.disconnected),
     ]);
 
-    await viewModel.connectSession('office-a',
-        username: 'user', password: 'secret');
+    final result = await viewModel.connectSession(
+      'office-a',
+      username: 'user',
+      password: 'secret',
+      waitForFinalState: true,
+    );
 
+    expect(result?.ok, isTrue);
     expect(viewModel.sessionById('office-a')!.status, VpnStatus.connected);
 
     viewModel.dispose();

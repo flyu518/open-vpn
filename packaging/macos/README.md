@@ -79,7 +79,7 @@ Developer ID、Hardened Runtime，并继续限制 helper IPC 和 Keychain 凭据
 ## 托盘、自启和 GitLab 发布
 
 安装完成后，直接打开 `/Applications/OpenVPN.app` 即可显示 macOS 状态栏图标。关闭窗口只会隐藏主窗口，
-托盘菜单仍可打开 OpenVPN、查看连接、连接/断开配置、打开设置、检查更新或退出程序。
+托盘菜单仍可打开 OpenVPN、查看连接、连接/断开配置、打开设置、关于或退出程序；版本检查统一放在“关于 OpenVPN”中。
 
 “开机自启”由应用写入当前用户的 `~/Library/LaunchAgents/com.openvpn.ui.plist`，不需要 sudo；它只负责启动
 桌面 UI，不替代 `com.openvpn.daemon` 或高权限 helper。更新 UI 本身不需要重新安装 helper，只有发布包里的

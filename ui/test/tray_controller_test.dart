@@ -50,6 +50,7 @@ void main() {
       entries.firstWhere((entry) => entry.action == TrayMenuAction.startup).checked,
       isTrue,
     );
+    expect(entries.any((entry) => entry.label == '检查更新'), isFalse);
   });
 
   test('非 macOS/Windows 平台不启用托盘', () {
@@ -71,7 +72,6 @@ void main() {
       onConnect: (_) async {},
       onDisconnect: (_) async {},
       onSettings: () async {},
-      onCheckUpdates: () async {},
       onAbout: () async {},
       onQuit: () async {},
       contextMenuOpener: () async {
@@ -83,6 +83,56 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     expect(opened, isTrue);
+    await controller.dispose();
+  });
+
+  test('托盘连接和断开动作会调用对应会话回调', () async {
+    final viewModel = SessionViewModel();
+    const disconnected = VpnSession(
+      id: 'office',
+      name: '办公网络',
+      status: VpnStatus.disconnected,
+    );
+    const connected = VpnSession(
+      id: 'lab',
+      name: '测试网络',
+      status: VpnStatus.connected,
+    );
+    viewModel.replaceSessions(const <VpnSession>[disconnected, connected]);
+    var connectedId = '';
+    var disconnectedId = '';
+    final controller = TrayController(
+      viewModel: viewModel,
+      startupService: StartupService(
+        platform: DesktopPlatform.unsupported,
+        executablePath: '/tmp/openvpn',
+      ),
+      platform: DesktopPlatform.unsupported,
+      onOpen: () async {},
+      onConnect: (session) async => connectedId = session.id,
+      onDisconnect: (session) async => disconnectedId = session.id,
+      onSettings: () async {},
+      onAbout: () async {},
+      onQuit: () async {},
+    );
+
+    await controller.dispatchMenuAction(
+      const TrayMenuEntry(
+        label: '连接：办公网络',
+        action: TrayMenuAction.connect,
+        sessionId: 'office',
+      ),
+    );
+    await controller.dispatchMenuAction(
+      const TrayMenuEntry(
+        label: '断开：测试网络',
+        action: TrayMenuAction.disconnect,
+        sessionId: 'lab',
+      ),
+    );
+
+    expect(connectedId, 'office');
+    expect(disconnectedId, 'lab');
     await controller.dispose();
   });
 

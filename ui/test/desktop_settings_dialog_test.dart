@@ -24,7 +24,7 @@ void main() {
 
     expect(find.text('桌面设置'), findsOneWidget);
     expect(find.text('开机自启'), findsOneWidget);
-    expect(find.text('检查更新'), findsOneWidget);
+    expect(find.text('检查更新'), findsNothing);
     expect(find.text('安全模式'), findsNothing);
   });
 
