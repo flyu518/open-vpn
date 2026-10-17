@@ -403,8 +403,33 @@ void main() {
     viewModel.reorderSessions(1, 0);
 
     expect(viewModel.sessions.first.id, 'office-b');
-    expect(viewModel.sessionById('office-b')!.routeStrategy.priority, 2);
+    expect(viewModel.sessionById('office-b')!.routeStrategy.priority, 1);
+    expect(viewModel.sessionById('office-a')!.routeStrategy.priority, 2);
+  });
+
+  test('载入旧版倒序优先级会迁移为列表顺序', () async {
+    final store = _RecordingProfileStore()
+      ..saved = [
+        const VpnSession(
+          id: 'office-a',
+          name: '研发网络',
+          status: VpnStatus.disconnected,
+          routeStrategy: RouteStrategy(priority: 2),
+        ),
+        const VpnSession(
+          id: 'office-b',
+          name: '财务网络',
+          status: VpnStatus.disconnected,
+          routeStrategy: RouteStrategy(priority: 1),
+        ),
+      ];
+    final viewModel = SessionViewModel(profileStore: store);
+
+    await viewModel.loadProfiles();
+
     expect(viewModel.sessionById('office-a')!.routeStrategy.priority, 1);
+    expect(viewModel.sessionById('office-b')!.routeStrategy.priority, 2);
+    viewModel.dispose();
   });
 
   test('导入配置完成前会持久化 profile 元数据', () async {

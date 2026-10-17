@@ -36,6 +36,7 @@ cmake --build /tmp/openvpn-core-build
   profile 路径、显示名称、路由策略和不含敏感信息的活动摘要，不保存 profile 内容或密码，启动时会按路径重新读取配置。
 - 每个连接卡片的“查看详情”中会展示该配置自己的连接次数、最近连接和最近断开时间；这些是轻量活动摘要，
   会随配置索引保存，不另设占空间的全局连接记录页，也不会保存密码、证书或完整日志。
+- 连接列表从上到下对应优先级 1、2、3……，数字越小越优先；拖动卡片会同步更新优先级。
 - Windows Flutter 界面已经接入用户 daemon 的 named pipe 客户端，CMake 也提供
   `openvpn_windows_daemon`；Wintun、Service、路由/DNS 的真实运行验证仍需在 Windows 主机完成，
   macOS 开发机不会把它伪装成已连接。

@@ -97,10 +97,14 @@ class SessionViewModel extends ChangeNotifier {
     final profileStore = _profileStore;
     if (profileStore == null) return;
     final restored = await profileStore.load();
-    for (final session in restored) {
+    final normalized = _normalizeLegacyPriorities(restored);
+    for (final session in normalized) {
       _sessions[session.id] = session;
     }
-    if (restored.isNotEmpty) notifyListeners();
+    if (normalized.isNotEmpty) notifyListeners();
+    if (!_samePriorityOrder(restored, normalized)) {
+      unawaited(_saveProfiles());
+    }
   }
 
   Future<void> _saveProfiles({bool throwOnError = false}) async {
@@ -331,6 +335,33 @@ class SessionViewModel extends ChangeNotifier {
       !RegExp(r'^profile-[0-9a-f]{8,}(?:\(\d+\))?$', caseSensitive: false)
           .hasMatch(value.trim());
 
+  List<VpnSession> _normalizeLegacyPriorities(List<VpnSession> sessions) {
+    if (sessions.length < 2) return sessions;
+    final isLegacyDescending = sessions.asMap().entries.every(
+          (entry) => entry.value.routeStrategy.priority ==
+              sessions.length - entry.key,
+        );
+    if (!isLegacyDescending) return sessions;
+    return sessions.asMap().entries
+        .map((entry) => entry.value.copyWith(
+              routeStrategy:
+                  entry.value.routeStrategy.copyWith(priority: entry.key + 1),
+            ))
+        .toList(growable: false);
+  }
+
+  bool _samePriorityOrder(
+      List<VpnSession> first, List<VpnSession> second) {
+    if (first.length != second.length) return false;
+    for (var index = 0; index < first.length; index++) {
+      if (first[index].routeStrategy.priority !=
+          second[index].routeStrategy.priority) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   VpnSession _mergeRemote(VpnSession local, VpnSession remote) {
     final keepConnected = local.status == VpnStatus.connected &&
         remote.status == VpnStatus.connecting;
@@ -389,7 +420,7 @@ class SessionViewModel extends ChangeNotifier {
     _sessions.clear();
     for (var index = 0; index < ordered.length; index++) {
       final session = ordered[index];
-      final priority = ordered.length - index;
+      final priority = index + 1;
       _sessions[session.id] = session.copyWith(
         routeStrategy: session.routeStrategy.copyWith(priority: priority),
       );

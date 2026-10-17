@@ -102,7 +102,7 @@ class _RouteStrategyDialogState extends State<RouteStrategyDialog> {
                 initialValue: _priority.toString(),
                 decoration: const InputDecoration(
                   labelText: '连接优先级',
-                  helperText: '数值越大，发生冲突时越优先保留该连接。',
+                  helperText: '数值越小越优先；列表第一项默认为 1。',
                 ),
                 keyboardType: TextInputType.number,
                 onChanged: (value) {
