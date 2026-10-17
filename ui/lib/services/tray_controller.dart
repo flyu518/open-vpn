@@ -94,7 +94,7 @@ class TrayMenuProjection {
     return switch (session.status) {
       VpnStatus.connected => TrayMenuEntry(
           label:
-              '断开：$name · ${formatDuration(session.duration)} · ↓${formatBytes(session.downloadBytes)} ↑${formatBytes(session.uploadBytes)}',
+              '断开：$name${_remoteHostSuffix(session)} · ${formatDuration(session.duration)} · ↓${formatBytes(session.downloadBytes)} ↑${formatBytes(session.uploadBytes)}',
           action: TrayMenuAction.disconnect,
           sessionId: session.id,
         ),
@@ -121,6 +121,11 @@ class TrayMenuProjection {
           sessionId: session.id,
         ),
     };
+  }
+
+  static String _remoteHostSuffix(VpnSession session) {
+    final host = session.remoteHost.trim();
+    return host.isEmpty ? '' : ' · $host';
   }
 }
 
@@ -159,6 +164,7 @@ class TrayController with TrayListener {
     StartupService? startupService,
     DesktopPlatform? platform,
     void Function(String message)? onDiagnostic,
+    Future<void> Function()? contextMenuOpener,
   })  : _viewModel = viewModel,
         _onOpen = onOpen,
         _onConnect = onConnect,
@@ -169,7 +175,8 @@ class TrayController with TrayListener {
         _onQuit = onQuit,
         _startupService = startupService ?? StartupService(),
         _platform = platform ?? _detectPlatform(),
-        _onDiagnostic = onDiagnostic;
+        _onDiagnostic = onDiagnostic,
+        _contextMenuOpener = contextMenuOpener;
 
   final SessionViewModel _viewModel;
   final Future<void> Function() _onOpen;
@@ -182,6 +189,7 @@ class TrayController with TrayListener {
   final StartupService _startupService;
   final DesktopPlatform _platform;
   final void Function(String message)? _onDiagnostic;
+  final Future<void> Function()? _contextMenuOpener;
   bool _initialized = false;
   bool _disposed = false;
   bool _startupEnabled = false;
@@ -190,20 +198,39 @@ class TrayController with TrayListener {
 
   bool get isInitialized => _initialized;
 
-  Future<void> initialize() async {
-    if (_disposed || !TrayMenuProjection.isSupported(_platform)) return;
+  Future<void> setStartupEnabled(bool enabled) async {
+    _startupEnabled = enabled;
+    await refresh();
+  }
+
+  Future<bool> initialize() async {
+    if (_disposed || !TrayMenuProjection.isSupported(_platform)) return false;
+    var listenerAdded = false;
+    var viewModelListenerAdded = false;
     try {
-      if (!trayManager.isSupported) return;
+      if (!trayManager.isSupported) return false;
       trayManager.addListener(this);
+      listenerAdded = true;
       await trayManager.setIcon('assets/openvpn_tray.png');
       await trayManager.setToolTip('OpenVPN');
       if (Platform.isMacOS) await trayManager.setTitle('');
       _startupEnabled = await _startupService.isEnabled();
       _initialized = true;
       _viewModel.addListener(_onViewModelChanged);
+      viewModelListenerAdded = true;
       await refresh();
+      return true;
     } on Object catch (error) {
       _onDiagnostic?.call('状态栏/托盘初始化失败：$error');
+      _initialized = false;
+      if (viewModelListenerAdded) _viewModel.removeListener(_onViewModelChanged);
+      if (listenerAdded) trayManager.removeListener(this);
+      try {
+        await trayManager.destroy();
+      } on Object {
+        // 清理失败不应阻止主窗口继续使用。
+      }
+      return false;
     }
   }
 
@@ -251,7 +278,7 @@ class TrayController with TrayListener {
 
   @override
   void onTrayIconRightMouseUp() {
-    // 原生托盘会自动弹出上下文菜单，这里不重复打开。
+    unawaited((_contextMenuOpener ?? trayManager.popUpContextMenu)());
   }
 
   MenuItem _nativeMenuItem(TrayMenuEntry entry) {

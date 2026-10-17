@@ -44,22 +44,22 @@ class _OpenVpnAboutDialogState extends State<OpenVpnAboutDialog> {
   Future<void> _installUpdate() async {
     final release = _result?.release;
     if (release == null) return;
-    final asset = release.installerFor(widget.platform);
-    if (asset == null) {
-      final opener = widget.onOpenReleasePage;
-      if (opener == null) {
-        setState(() => _error = '没有找到当前平台的安装包');
-      } else {
-        await opener(release.releaseUrl);
-      }
-      return;
-    }
-
-    setState(() {
-      _installing = true;
-      _error = null;
-    });
     try {
+      final asset = release.installerFor(widget.platform);
+      if (asset == null) {
+        final opener = widget.onOpenReleasePage;
+        if (opener == null) {
+          setState(() => _error = '没有找到当前平台的安装包');
+        } else {
+          await opener(release.releaseUrl);
+        }
+        return;
+      }
+
+      setState(() {
+        _installing = true;
+        _error = null;
+      });
       await widget.updateService.downloadAndLaunch(asset);
       if (!mounted) return;
       setState(() => _installing = false);

@@ -102,4 +102,31 @@ void main() {
     expect(result.status, UpdateCheckStatus.error);
     expect(result.message, contains('503'));
   });
+
+  test('Windows MSI 更新使用 msiexec 并保留含空格路径', () {
+    expect(
+      UpdateService.installerCommandFor(
+        r'C:\Users\测试用户\Downloads\Open VPN.msi',
+        UpdatePlatform.windows,
+      ),
+      <String>[
+        'msiexec.exe',
+        '/i',
+        r'C:\Users\测试用户\Downloads\Open VPN.msi',
+      ],
+    );
+  });
+
+  test('非法 GitLab API 地址也返回中文错误结果', () async {
+    final service = UpdateService(
+      apiBaseUrl: 'https://[broken',
+      projectPath: 'group/open-vpn',
+      currentVersion: '0.1.1',
+    );
+
+    final result = await service.checkForUpdates();
+
+    expect(result.status, UpdateCheckStatus.error);
+    expect(result.message, contains('检查更新失败'));
+  });
 }

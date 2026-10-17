@@ -7,10 +7,12 @@ class DesktopSettingsDialog extends StatefulWidget {
     super.key,
     required this.startupService,
     this.onCheckForUpdates,
+    this.onStartupChanged,
   });
 
   final StartupService startupService;
   final Future<void> Function()? onCheckForUpdates;
+  final ValueChanged<bool>? onStartupChanged;
 
   @override
   State<DesktopSettingsDialog> createState() => _DesktopSettingsDialogState();
@@ -60,6 +62,7 @@ class _DesktopSettingsDialogState extends State<DesktopSettingsDialog> {
         await widget.startupService.disable();
       }
       if (!mounted) return;
+      widget.onStartupChanged?.call(value);
       setState(() => _saving = false);
     } on Object catch (error) {
       if (!mounted) return;

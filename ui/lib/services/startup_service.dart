@@ -17,6 +17,59 @@ class StartupException implements Exception {
   String toString() => message;
 }
 
+class SingleInstanceGuard {
+  SingleInstanceGuard({String? lockPath})
+      : lockPath = lockPath ?? _defaultLockPath();
+
+  final String lockPath;
+  RandomAccessFile? _lockFile;
+  static final Set<String> _heldPaths = <String>{};
+
+  bool acquire() {
+    if (_lockFile != null) return true;
+    if (_heldPaths.contains(lockPath)) return false;
+    try {
+      final file = File(lockPath);
+      file.parent.createSync(recursive: true);
+      final handle = file.openSync(mode: FileMode.write);
+      try {
+        handle.lockSync(FileLock.exclusive);
+      } on Object {
+        handle.closeSync();
+        return false;
+      }
+      _lockFile = handle;
+      _heldPaths.add(lockPath);
+      return true;
+    } on Object {
+      return false;
+    }
+  }
+
+  void release() {
+    final handle = _lockFile;
+    _lockFile = null;
+    if (handle == null) return;
+    _heldPaths.remove(lockPath);
+    try {
+      handle.unlockSync();
+    } finally {
+      handle.closeSync();
+    }
+  }
+
+  static String _defaultLockPath() {
+    if (Platform.isWindows) {
+      final localAppData = Platform.environment['LOCALAPPDATA'] ??
+          Platform.environment['USERPROFILE'] ??
+          Directory.systemTemp.path;
+      return '$localAppData/OpenVPN/openvpn-ui.lock';
+    }
+    final home = Platform.environment['HOME'] ?? Directory.systemTemp.path;
+    return '$home/Library/Application Support/OpenVPN/openvpn-ui.lock';
+  }
+}
+
 class StartupService {
   StartupService({
     DesktopPlatform? platform,
@@ -131,12 +184,12 @@ class StartupService {
     switch (platform) {
       case DesktopPlatform.macos:
         final userId = await _userId();
+        final file = File(launchAgentPath);
+        if (await file.exists()) await file.delete();
         await _runIgnoringFailure(
           'launchctl',
           <String>['bootout', 'gui/$userId/$launchAgentLabel'],
         );
-        final file = File(launchAgentPath);
-        if (await file.exists()) await file.delete();
       case DesktopPlatform.windows:
         await _runIgnoringFailure('reg.exe', windowsDisableArguments);
       case DesktopPlatform.unsupported:
@@ -165,11 +218,16 @@ class StartupService {
     String executable,
     List<String> arguments,
   ) async {
-    try {
-      await _run(executable, arguments);
-    } on Object {
-      // 停止一个尚未加载的服务或删除不存在的注册表项都属于幂等操作。
+    final result = await _run(executable, arguments);
+    if (result.exitCode == 0) return;
+    final output = '${result.stdout}\n${result.stderr}'.toLowerCase();
+    if (output.contains('not found') ||
+        output.contains('no such process') ||
+        output.contains('could not find service') ||
+        output.contains('unable to find the specified registry key or value')) {
+      return;
     }
+    throw StartupException('系统自启命令执行失败：${_resultMessage(result)}');
   }
 
   Future<String> _userId() async {

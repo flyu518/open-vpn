@@ -231,8 +231,8 @@ class UpdateService {
       );
     }
 
-    final uri = _latestReleaseUri();
     try {
+      final uri = _latestReleaseUri();
       final response = await (_responseLoader ?? _loadResponse)(uri);
       if (response.statusCode < 200 || response.statusCode >= 300) {
         return UpdateCheckResult(
@@ -343,14 +343,28 @@ class UpdateService {
 
   Future<void> _launchInstaller(File file) async {
     if (Platform.isMacOS) {
-      await Process.start('open', <String>[file.path]);
+      final command = installerCommandFor(file.path, UpdatePlatform.macos);
+      await Process.start(command.first, command.skip(1).toList(growable: false));
       return;
     }
     if (Platform.isWindows) {
-      await Process.start(file.path, const <String>[]);
+      final command = installerCommandFor(file.path, UpdatePlatform.windows);
+      await Process.start(command.first, command.skip(1).toList(growable: false));
       return;
     }
     throw UnsupportedError('当前平台不支持启动 OpenVPN 更新安装包');
+  }
+
+  static List<String> installerCommandFor(
+    String path,
+    UpdatePlatform platform,
+  ) {
+    return switch (platform) {
+      UpdatePlatform.macos => <String>['open', path],
+      UpdatePlatform.windows => path.toLowerCase().endsWith('.msi')
+          ? <String>['msiexec.exe', '/i', path]
+          : <String>[path],
+    };
   }
 
   String _safeFileName(String value) {

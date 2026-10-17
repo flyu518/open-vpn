@@ -26,6 +26,11 @@ import 'view_models/session_view_model.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  SingleInstanceGuard? instanceGuard;
+  if (Platform.isMacOS || Platform.isWindows) {
+    instanceGuard = SingleInstanceGuard();
+    if (!instanceGuard.acquire()) return;
+  }
   if (Platform.isMacOS || Platform.isWindows) {
     await windowManager.ensureInitialized();
     const windowOptions = WindowOptions(
@@ -39,11 +44,18 @@ Future<void> main() async {
       unawaited(windowManager.focus());
     });
   }
-  runApp(const VpnApp());
+  runApp(VpnApp(instanceGuard: instanceGuard, enableDesktopChrome: true));
 }
 
 class VpnApp extends StatefulWidget {
-  const VpnApp({super.key});
+  const VpnApp({
+    super.key,
+    this.instanceGuard,
+    this.enableDesktopChrome = false,
+  });
+
+  final SingleInstanceGuard? instanceGuard;
+  final bool enableDesktopChrome;
 
   @override
   State<VpnApp> createState() => _VpnAppState();
@@ -58,6 +70,7 @@ class _VpnAppState extends State<VpnApp> with WindowListener {
   late final UpdateService updateService;
   late final TrayController trayController;
   bool _quitting = false;
+  bool _closeToTrayEnabled = false;
 
   @override
   void initState() {
@@ -92,7 +105,7 @@ class _VpnAppState extends State<VpnApp> with WindowListener {
       onQuit: _quitApplication,
       onDiagnostic: _showDesktopDiagnostic,
     );
-    if (Platform.isMacOS || Platform.isWindows) {
+    if (widget.enableDesktopChrome && (Platform.isMacOS || Platform.isWindows)) {
       windowManager.addListener(this);
       unawaited(_initializeDesktopChrome());
     }
@@ -101,12 +114,14 @@ class _VpnAppState extends State<VpnApp> with WindowListener {
   }
 
   Future<void> _initializeDesktopChrome() async {
+    final trayReady = await trayController.initialize();
+    if (!trayReady || !mounted) return;
     try {
       await windowManager.setPreventClose(true);
+      _closeToTrayEnabled = true;
     } on Object catch (error) {
       _showDesktopDiagnostic('窗口常驻初始化失败：$error');
     }
-    await trayController.initialize();
   }
 
   Future<void> _loadInitialState() async {
@@ -136,6 +151,7 @@ class _VpnAppState extends State<VpnApp> with WindowListener {
     } else if (engineClient case final UnavailableEngineClient client) {
       client.dispose();
     }
+    widget.instanceGuard?.release();
     super.dispose();
   }
 
@@ -212,6 +228,7 @@ class _VpnAppState extends State<VpnApp> with WindowListener {
       context: context,
       builder: (dialogContext) => DesktopSettingsDialog(
         startupService: startupService,
+        onStartupChanged: trayController.setStartupEnabled,
         onCheckForUpdates: () async {
           Navigator.of(dialogContext).pop();
           await Future<void>.delayed(Duration.zero);
@@ -245,7 +262,10 @@ class _VpnAppState extends State<VpnApp> with WindowListener {
     await trayController.dispose();
     if (Platform.isMacOS || Platform.isWindows) {
       try {
-        await windowManager.setPreventClose(false);
+        if (_closeToTrayEnabled) {
+          _closeToTrayEnabled = false;
+          await windowManager.setPreventClose(false);
+        }
         await windowManager.destroy();
       } on Object catch (error) {
         _showDesktopDiagnostic('退出 OpenVPN 失败：$error');
@@ -266,7 +286,7 @@ class _VpnAppState extends State<VpnApp> with WindowListener {
 
   @override
   void onWindowClose() {
-    if (_quitting) return;
+    if (_quitting || !_closeToTrayEnabled) return;
     unawaited(windowManager.hide());
   }
 
