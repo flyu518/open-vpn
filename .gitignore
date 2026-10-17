@@ -12,6 +12,7 @@
 *.suo
 
 # 构建输出和 CMake/Ninja 中间文件
+.worktrees/
 build/
 build-*/
 cmake-build-*/
