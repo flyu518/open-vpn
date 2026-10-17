@@ -7,6 +7,7 @@
 - `com.openvpn.daemon.plist`：用户权限 daemon 的 launchd 配置，负责给 Flutter 界面提供 `/tmp/openvpn-ui.sock`。
 - `install-daemon.sh`：把 daemon 安装到当前用户目录并加载 `gui/<uid>` 服务，不需要 sudo。
 - `install-openvpn.sh`：一次安装 OpenVPN.app、macOS helper 和用户 daemon；普通用户执行，只有 helper 安装步骤请求 sudo。
+- `build-pkg.sh`：把 OpenVPN.app、daemon、helper 和 launchd 配置打成一个 `.pkg`，用户安装一次后以后直接打开应用即可。
 
 构建出 `openvpn_macos_agent` 后，可以使用下面的命令安装本地开发版本：
 
@@ -50,7 +51,7 @@ rm "$HOME/Library/LaunchAgents/com.openvpn.daemon.plist"
 rm -rf "$HOME/Library/Application Support/OpenVPN"
 ```
 
-开发版推荐使用一次性安装脚本：
+开发阶段仍可使用一次性安装脚本：
 
 ```bash
 ./packaging/macos/install-openvpn.sh \
@@ -58,3 +59,16 @@ rm -rf "$HOME/Library/Application Support/OpenVPN"
   /tmp/openvpn-core-build-x86/openvpn_macos_agent \
   /tmp/openvpn-core-build-x86/openvpn_daemon
 ```
+
+交付给其他 macOS 用户时，推荐生成安装包：
+
+```bash
+./packaging/macos/build-pkg.sh \
+  /绝对路径/open-vpn/ui/build/macos/Build/Products/Release/OpenVPN.app \
+  /tmp/openvpn-core-build-x86/openvpn_macos_agent \
+  /tmp/openvpn-core-build-x86/openvpn_daemon
+```
+
+默认输出到 `packaging/macos/dist/OpenVPN-0.1.0.pkg`。用户双击安装包，输入一次管理员密码，
+安装程序会注册高权限 helper 和用户 daemon；以后不需要再执行脚本。当前开发包使用临时签名，
+正式分发前还需要使用 Developer ID 对 `.app` 和 `.pkg` 签名并完成 notarization。

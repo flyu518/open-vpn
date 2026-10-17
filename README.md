@@ -66,6 +66,19 @@ packaging/macos/install-daemon.sh \
   /tmp/openvpn-core-build-x86/openvpn_daemon
 ```
 
+给最终用户交付时不需要让他们执行上面的脚本，可以生成一次性 macOS 安装包：
+
+```bash
+packaging/macos/build-pkg.sh \
+  ui/build/macos/Build/Products/Release/OpenVPN.app \
+  /tmp/openvpn-core-build-x86/openvpn_macos_agent \
+  /tmp/openvpn-core-build-x86/openvpn_daemon
+```
+
+用户双击 `packaging/macos/dist/OpenVPN-0.1.0.pkg` 安装并输入一次管理员密码即可；安装程序会注册
+helper 和 daemon，之后直接打开 `/Applications/OpenVPN.app`。开发包使用临时签名，正式对外分发还需要
+Developer ID 签名和 notarization。
+
 如果 `third_party/openvpn3` 已经存在，CMake 会额外编译 OpenVPN3 Core
 离线测试。当前开发机的 `/usr/local` 依赖是 x86_64，使用 Rosetta 验证时执行：
 

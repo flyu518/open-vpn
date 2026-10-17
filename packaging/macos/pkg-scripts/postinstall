@@ -1,0 +1,88 @@
+#!/bin/sh
+
+set -eu
+
+helper_label="com.openvpn.helper"
+legacy_helper_label="com.vpn.helper"
+daemon_label="com.openvpn.daemon"
+helper_plist="/Library/LaunchDaemons/$helper_label.plist"
+daemon_plist="/Library/LaunchAgents/$daemon_label.plist"
+log_directory="/Library/Logs/OpenVPN"
+helper_log_directory="/var/log/openvpn"
+ui_socket="/tmp/openvpn-ui.sock"
+helper_socket="/var/run/openvpn.sock"
+
+echo "正在准备 OpenVPN 系统服务……"
+/bin/mkdir -p "$log_directory"
+/usr/sbin/chown root:staff "$log_directory"
+/bin/chmod 0775 "$log_directory"
+/bin/mkdir -p "$helper_log_directory"
+/usr/sbin/chown root:wheel "$helper_log_directory"
+/bin/chmod 0750 "$helper_log_directory"
+
+echo "正在加载 OpenVPN 高权限 helper……"
+/bin/launchctl bootout system/"$legacy_helper_label" >/dev/null 2>&1 || true
+/bin/launchctl bootout system/"$helper_label" >/dev/null 2>&1 || true
+/bin/launchctl bootstrap system "$helper_plist"
+/bin/launchctl enable system/"$helper_label"
+/bin/launchctl kickstart -k system/"$helper_label"
+
+console_user=$(/usr/bin/stat -f '%Su' /dev/console)
+if [ -n "$console_user" ] && [ "$console_user" != "root" ] &&
+	[ "$console_user" != "loginwindow" ]; then
+	console_uid=$(/usr/bin/id -u "$console_user")
+	console_home=$(/usr/bin/dscl . -read "/Users/$console_user" NFSHomeDirectory |
+		/usr/bin/awk '{print $2}')
+	old_user_plist="$console_home/Library/LaunchAgents/$daemon_label.plist"
+
+	# 开发版曾把 daemon 放在用户目录。升级为 pkg 后先停止并保留旧 plist，
+	# 避免同名服务与系统 LaunchAgent 同时启动。
+	/bin/launchctl bootout "gui/$console_uid/$daemon_label" >/dev/null 2>&1 || true
+	if [ -f "$old_user_plist" ] && [ "$old_user_plist" != "$daemon_plist" ]; then
+		legacy_backup="$old_user_plist.pkg-migrated"
+		if [ -e "$legacy_backup" ]; then
+			legacy_backup="$old_user_plist.pkg-migrated.$(/bin/date +%s)"
+		fi
+		/bin/mv "$old_user_plist" "$legacy_backup"
+	fi
+
+	/bin/rm -f "$ui_socket"
+	/bin/launchctl bootstrap "gui/$console_uid" "$daemon_plist"
+	/bin/launchctl enable "gui/$console_uid/$daemon_label"
+	/bin/launchctl kickstart -k "gui/$console_uid/$daemon_label"
+else
+	echo "当前没有登录的桌面用户，OpenVPN daemon 将在下次登录时自动启动。"
+fi
+
+attempt=0
+while [ "$attempt" -lt 15 ] && [ ! -S "$helper_socket" ]; do
+	/bin/sleep 1
+	attempt=$((attempt + 1))
+done
+if [ ! -S "$helper_socket" ]; then
+	echo "错误：OpenVPN helper 未创建 socket：$helper_socket" >&2
+	exit 1
+fi
+
+if [ -n "$console_user" ] && [ "$console_user" != "root" ] &&
+	[ "$console_user" != "loginwindow" ]; then
+	attempt=0
+	while [ "$attempt" -lt 15 ] && [ ! -S "$ui_socket" ]; do
+		/bin/sleep 1
+		attempt=$((attempt + 1))
+	done
+	if [ ! -S "$ui_socket" ]; then
+		echo "错误：OpenVPN daemon 未创建 socket：$ui_socket" >&2
+		echo "请检查日志：$log_directory/daemon-error.log" >&2
+		exit 1
+	fi
+	if ! /usr/bin/printf '%s\n' '{"command":"ping"}' |
+		/usr/bin/nc -U "$ui_socket" 2>/dev/null |
+		/usr/bin/grep -q '"ok"[[:space:]]*:[[:space:]]*true'; then
+		echo "错误：OpenVPN daemon socket 无法响应 ping：$ui_socket" >&2
+		exit 1
+	fi
+fi
+
+echo "OpenVPN 一次安装已完成。"
+echo "以后直接打开 /Applications/OpenVPN.app 即可使用。"

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.openvpn.daemon</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Library/Application Support/OpenVPN/openvpn_daemon</string>
+		<string>--socket</string>
+		<string>/tmp/openvpn-ui.sock</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>ThrottleInterval</key>
+	<integer>5</integer>
+	<key>ProcessType</key>
+	<string>Interactive</string>
+	<key>LimitLoadToSessionType</key>
+	<string>Aqua</string>
+	<key>StandardOutPath</key>
+	<string>/Library/Logs/OpenVPN/daemon.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Library/Logs/OpenVPN/daemon-error.log</string>
+</dict>
+</plist>
