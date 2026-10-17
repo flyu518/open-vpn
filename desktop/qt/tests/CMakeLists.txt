@@ -1,0 +1,130 @@
+add_executable(openvpn_qt_model_tests
+    test_session_list_model.cpp
+    ../src/session_list_model.cpp
+    ../src/session_list_model.h
+    ../src/profile_store.cpp
+    ../src/profile_store.h
+)
+
+target_include_directories(openvpn_qt_model_tests PRIVATE ../src)
+target_link_libraries(openvpn_qt_model_tests PRIVATE
+    Qt6::Core
+    Qt6::Network
+    Qt6::Test
+)
+
+add_test(NAME openvpn_qt_model_tests COMMAND openvpn_qt_model_tests)
+
+add_executable(openvpn_qt_engine_tests
+    test_engine_client.cpp
+    ../src/engine_client.cpp
+    ../src/engine_client.h
+)
+
+target_include_directories(openvpn_qt_engine_tests PRIVATE ../src)
+target_link_libraries(openvpn_qt_engine_tests PRIVATE
+    Qt6::Core
+    Qt6::Network
+    Qt6::Test
+)
+
+add_test(NAME openvpn_qt_engine_tests COMMAND openvpn_qt_engine_tests)
+
+add_executable(openvpn_qt_controller_tests
+    test_app_controller.cpp
+    ../src/app_controller.cpp
+    ../src/app_controller.h
+    ../src/engine_client.cpp
+    ../src/engine_client.h
+    ../src/profile_store.cpp
+    ../src/profile_store.h
+    ../src/session_list_model.cpp
+    ../src/session_list_model.h
+)
+
+target_include_directories(openvpn_qt_controller_tests PRIVATE ../src)
+target_link_libraries(openvpn_qt_controller_tests PRIVATE
+    Qt6::Core
+    Qt6::Network
+    Qt6::Test
+    Qt6::Widgets
+)
+
+add_test(NAME openvpn_qt_controller_tests COMMAND openvpn_qt_controller_tests)
+
+add_executable(openvpn_qt_qml_tests
+    test_qml_interactions.cpp
+    ../src/app_controller.cpp
+    ../src/app_controller.h
+    ../src/engine_client.cpp
+    ../src/engine_client.h
+    ../src/profile_store.cpp
+    ../src/profile_store.h
+    ../src/session_list_model.cpp
+    ../src/session_list_model.h
+)
+qt_add_resources(openvpn_qt_qml_tests "openvpn_qml_test_assets"
+    PREFIX "/"
+    FILES
+        ../assets/app-icon.png
+)
+target_compile_definitions(openvpn_qt_qml_tests PRIVATE
+    OPENVPN_QT_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/.."
+)
+target_include_directories(openvpn_qt_qml_tests PRIVATE ../src)
+target_link_libraries(openvpn_qt_qml_tests PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Network
+    Qt6::Qml
+    Qt6::Quick
+    Qt6::QuickControls2
+    Qt6::Test
+    Qt6::Widgets
+)
+add_test(NAME openvpn_qt_qml_tests COMMAND openvpn_qt_qml_tests)
+set_tests_properties(openvpn_qt_qml_tests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+)
+
+add_executable(openvpn_qt_tray_tests
+    test_tray_controller.cpp
+    test_tray_controller.h
+    ../src/tray_controller.cpp
+    ../src/tray_controller.h
+    ../src/app_controller.cpp
+    ../src/app_controller.h
+    ../src/engine_client.cpp
+    ../src/engine_client.h
+    ../src/profile_store.cpp
+    ../src/profile_store.h
+    ../src/session_list_model.cpp
+    ../src/session_list_model.h
+)
+target_include_directories(openvpn_qt_tray_tests PRIVATE ../src)
+qt_add_resources(openvpn_qt_tray_tests "openvpn_tray_test_assets"
+    PREFIX "/openvpn"
+    BASE "../assets"
+    FILES ../assets/tray.svg ../assets/tray-mask.svg
+)
+target_link_libraries(openvpn_qt_tray_tests PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Network
+    Qt6::Test
+    Qt6::Widgets
+)
+add_test(NAME openvpn_qt_tray_tests COMMAND openvpn_qt_tray_tests)
+set_tests_properties(openvpn_qt_tray_tests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+)
+add_executable(openvpn_qt_traffic_tests test_traffic_history.cpp)
+target_include_directories(openvpn_qt_traffic_tests PRIVATE ../src)
+target_link_libraries(openvpn_qt_traffic_tests PRIVATE Qt6::Core Qt6::Test)
+add_test(NAME openvpn_qt_traffic_tests COMMAND openvpn_qt_traffic_tests)
+
+qt_add_resources(openvpn_qt_qml_tests "openvpn_blue_icon"
+    PREFIX "/openvpn" BASE "../assets" FILES ../assets/app-icon.png)
+qt_add_resources(openvpn_qt_tray_tests "openvpn_blue_tray_icon"
+    PREFIX "/openvpn" BASE "../assets" FILES ../assets/app-icon.png)

@@ -9,7 +9,7 @@
 | `DESKTOP_MULTI` | 大于 1 | Windows、macOS |
 | `MOBILE_SINGLE` | 1 | 预留给 Android、iOS |
 
-第一版桌面客户端默认使用分流模式；第二条全隧道连接必须被拒绝；默认情况下互相重叠的路由也必须被拒绝。
+桌面客户端默认使用分流模式；第二条全隧道连接必须被拒绝；默认情况下互相重叠的路由也必须被拒绝。
 
 平台适配层统一提供 `prepare`、`establish`、`applyRoutes`、`applyDns` 和
 `destroy` 阶段。Windows/macOS 当前返回桌面多连接能力；Android/iOS
@@ -24,7 +24,7 @@
 - `vpn_engine_capability`：读取当前能力
 - `vpn_engine_max_active_sessions`：读取能力允许的最大活动会话数
 
-基础实现只是确定性的引擎句柄。后续任务会在相同契约后面接入 OpenVPN3 客户端。
+该 C ABI 用于共享能力探测和平台边界；桌面实际连接由 OpenVPN3 会话引擎和平台适配层负责。
 
 ## 会话状态
 
@@ -74,7 +74,8 @@ macOS 桌面界面通过用户权限 Unix socket 与 `openvpn_daemon` 通信，�
   "conflictMode": "compatible",
   "priority": 10,
   "rules": [
-    {"type": "cidr", "pattern": "10.20.0.0/16", "enabled": true},
+    {"type": "cidr", "pattern": "10.20.0.0/16", "action": "prefer", "enabled": true},
+    {"type": "ip", "pattern": "192.168.10.4", "action": "exclude", "enabled": true},
     {"type": "domainSuffix", "pattern": "*.corp.example.com", "enabled": true}
   ]
 }
@@ -82,7 +83,10 @@ macOS 桌面界面通过用户权限 Unix socket 与 `openvpn_daemon` 通信，�
 
 `compatible` 默认保留先连接会话的路由所有权，并跳过后连接会话的冲突路由；
 `strict` 遇到冲突直接拒绝；`ask` 由界面提示用户断开或重试。当前 helper 已执行
-冲突模式，域名规则先作为策略元数据保存，实际系统路由仍以服务器下发的 IP/CIDR 为准。
+冲突模式；`ip`/`cidr` 的 `exclude` 会在当前会话安装路由前过滤匹配网段，`prefer`
+会要求用户断开冲突连接后重新连接当前会话。域名和域名后缀规则会加入当前 VPN 的 macOS
+分流 DNS 范围；当前 VPN 未提供 DNS 服务器时，域名规则不会生效，实际 IP 路由仍以服务器
+下发的 IP/CIDR 为准。
 
 daemon 只在内存中接收凭据，响应和事件经过脱敏；socket 默认权限为当前用户可读写。
 真正的 profile 密码应优先由 Keychain/Credential Manager 读取，不能由界面长期保存。

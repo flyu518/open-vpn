@@ -11,6 +11,31 @@ log_directory="/Library/Logs/OpenVPN"
 helper_log_directory="/var/log/openvpn"
 ui_socket="/tmp/openvpn-ui.sock"
 helper_socket="/var/run/openvpn.sock"
+legacy_helper_socket="/var/run/vpn.sock"
+
+remove_stale_socket() {
+	socket_path="$1"
+	if [ ! -e "$socket_path" ] && [ ! -L "$socket_path" ]; then return; fi
+	if [ ! -S "$socket_path" ] || [ -L "$socket_path" ]; then
+		echo "错误：预期 socket 路径被其他文件占用，已保留：$socket_path" >&2
+		exit 1
+	fi
+	# Unix socket 的绑定名字可能使用 /tmp 或 /private/tmp。先按内核
+	# 实际连接探测，再同时检查原路径与物理路径；lsof 的退出码不能代表
+	# 多路径查询完全没有命中，必须检查输出的进程标识。
+	socket_dir=$(CDPATH= cd -P -- "$(dirname -- "$socket_path")" && pwd)
+	physical_socket="$socket_dir/$(basename -- "$socket_path")"
+	if /usr/bin/nc -z -w 1 -U "$socket_path" >/dev/null 2>&1; then
+		echo "错误：$socket_path 仍在监听，已保留 socket 并停止升级。" >&2
+		exit 1
+	fi
+	socket_holders=$(/usr/sbin/lsof -t "$socket_path" "$physical_socket" 2>/dev/null || true)
+	if [ -n "$socket_holders" ]; then
+		echo "错误：仍有进程占用 $socket_path，已保留 socket 并停止升级。" >&2
+		exit 1
+	fi
+	/bin/rm -f "$socket_path"
+}
 
 load_service() {
 	domain="$1"
@@ -18,16 +43,15 @@ load_service() {
 	label="$3"
 	service="$domain/$label"
 
-	/bin/launchctl bootout "$service" >/dev/null 2>&1 || true
-	/bin/sleep 1
 	attempt=0
 	while [ "$attempt" -lt 15 ]; do
-		# launchd 在替换系统服务或 Installer 沙箱退出时可能暂时返回错误 5；
-		# 每轮都重新 bootstrap，避免在旧服务删除过渡期误判为已注册。
-		/bin/launchctl bootstrap "$domain" "$plist" >/dev/null 2>&1 || true
-		/bin/launchctl enable "$service" >/dev/null 2>&1 || true
-		/bin/launchctl kickstart -k "$service" >/dev/null 2>&1 || true
+		# preinstall 已停止旧进程。只补注册，避免每轮 kickstart -k 杀掉刚启动的服务。
+		/bin/launchctl enable "$service"
+		if ! /bin/launchctl print "$service" >/dev/null 2>&1; then
+			/bin/launchctl bootstrap "$domain" "$plist" || true
+		fi
 		if /bin/launchctl print "$service" >/dev/null 2>&1; then
+			/bin/launchctl kickstart "$service" || true
 			return 0
 		fi
 		/bin/sleep 1
@@ -47,7 +71,9 @@ echo "正在准备 OpenVPN 系统服务……"
 
 echo "正在加载 OpenVPN 高权限 helper……"
 /bin/launchctl bootout system/"$legacy_helper_label" >/dev/null 2>&1 || true
-/bin/rm -f "$helper_socket"
+# 清理旧版 helper（com.vpn.helper）留下的旧 socket，避免升级后误判服务状态。
+remove_stale_socket "$helper_socket"
+remove_stale_socket "$legacy_helper_socket"
 load_service system "$helper_plist" "$helper_label"
 
 console_user=$(/usr/bin/stat -f '%Su' /dev/console)
@@ -57,10 +83,18 @@ if [ -n "$console_user" ] && [ "$console_user" != "root" ] &&
 	console_home=$(/usr/bin/dscl . -read "/Users/$console_user" NFSHomeDirectory |
 		/usr/bin/awk '{print $2}')
 	old_user_plist="$console_home/Library/LaunchAgents/$daemon_label.plist"
+	legacy_ui_label="com.openvpn.ui"
+	legacy_ui_plist="$console_home/Library/LaunchAgents/$legacy_ui_label.plist"
+	# 清理旧版桌面 UI 自启项，避免升级后同时启动两个界面。
+	/bin/launchctl bootout "gui/$console_uid/$legacy_ui_label" >/dev/null 2>&1 || true
+	/bin/rm -f "$legacy_ui_plist"
 
 	# 开发版曾把 daemon 放在用户目录。升级为 pkg 后先停止并保留旧 plist，
 	# 避免同名服务与系统 LaunchAgent 同时启动。
-	/bin/launchctl bootout "gui/$console_uid/$daemon_label" >/dev/null 2>&1 || true
+	if /bin/launchctl print "gui/$console_uid/$daemon_label" >/dev/null 2>&1; then
+		echo "错误：旧 daemon 在升级过程中重新启动，请退出 OpenVPN 后重试。" >&2
+		exit 1
+	fi
 	if [ -f "$old_user_plist" ] && [ "$old_user_plist" != "$daemon_plist" ]; then
 		legacy_backup="$old_user_plist.pkg-migrated"
 		if [ -e "$legacy_backup" ]; then
@@ -69,7 +103,7 @@ if [ -n "$console_user" ] && [ "$console_user" != "root" ] &&
 		/bin/mv "$old_user_plist" "$legacy_backup"
 	fi
 
-	/bin/rm -f "$ui_socket"
+	remove_stale_socket "$ui_socket"
 	load_service "gui/$console_uid" "$daemon_plist" "$daemon_label"
 else
 	echo "当前没有登录的桌面用户，OpenVPN daemon 将在下次登录时自动启动。"
@@ -82,6 +116,8 @@ while [ "$attempt" -lt 15 ] && [ ! -S "$helper_socket" ]; do
 done
 if [ ! -S "$helper_socket" ]; then
 	echo "错误：OpenVPN helper 未创建 socket：$helper_socket" >&2
+	/bin/launchctl print system/"$helper_label" >&2 || true
+	/bin/cat "$helper_log_directory/helper-error.log" >&2 2>/dev/null || true
 	exit 1
 fi
 
@@ -98,7 +134,7 @@ if [ -n "$console_user" ] && [ "$console_user" != "root" ] &&
 		exit 1
 	fi
 	if ! /usr/bin/printf '%s\n' '{"command":"ping"}' |
-		/usr/bin/nc -U "$ui_socket" 2>/dev/null |
+		/usr/bin/nc -w 3 -U "$ui_socket" 2>/dev/null |
 		/usr/bin/grep -q '"ok"[[:space:]]*:[[:space:]]*true'; then
 		echo "错误：OpenVPN daemon socket 无法响应 ping：$ui_socket" >&2
 		exit 1

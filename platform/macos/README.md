@@ -8,5 +8,5 @@
 为 command agent 增加会话标识，为客户端 transport 配置读取桌面会话标识；不会修改
 `third_party/openvpn3` 原始目录。
 
-仍需在目标 macOS 主机完成：真实 helper 安装、签名/notarization、调用方鉴权、真实
-utun/DNS 双连接冒烟测试，以及 arm64/universal 依赖验证。
+仍需在目标 macOS 主机完成：正式签名和公证、调用方鉴权、真实 utun/DNS 双连接冒烟测试，
+以及 arm64 依赖和安装包验证。

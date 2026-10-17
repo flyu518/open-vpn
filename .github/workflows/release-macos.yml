@@ -1,0 +1,156 @@
+name: 发布 macOS 安装包
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "版本号，例如 0.2.13"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: 构建 macOS ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: macos-15-intel
+            brew_prefix: /usr/local
+          - arch: arm64
+            runner: macos-14
+            brew_prefix: /opt/homebrew
+    runs-on: ${{ matrix.runner }}
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 计算版本号
+        shell: bash
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="${{ inputs.version }}"
+          fi
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "版本号必须是三段数字：$version" >&2
+            exit 1
+          fi
+          echo "OPENVPN_RELEASE_VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: 安装 macOS 构建依赖
+        run: brew install asio fmt jsoncpp lz4 openssl xxhash
+
+      - name: 校验 runner 架构
+        shell: bash
+        run: |
+          actual=$(uname -m)
+          expected="${{ matrix.arch }}"
+          if [ "$actual" != "$expected" ]; then
+            echo "runner 架构不匹配：期望 $expected，实际 $actual" >&2
+            exit 1
+          fi
+
+      - name: 拉取锁定的 OpenVPN3 源码
+        shell: bash
+        run: |
+          repository=$(python3 -c 'import json; print(json.load(open("third_party/openvpn3.lock"))["repository"])')
+          commit=$(python3 -c 'import json; print(json.load(open("third_party/openvpn3.lock"))["commit"])')
+          git clone --filter=blob:none "$repository" third_party/openvpn3
+          git -C third_party/openvpn3 checkout --detach "$commit"
+          test "$(git -C third_party/openvpn3 rev-parse HEAD)" = "$commit"
+
+      - name: 安装 Qt 6
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.12.0"
+          host: mac
+          target: desktop
+          arch: clang_64
+          modules: qtsvg qtshadertools
+          cache: true
+
+      - name: 构建并验证安装包
+        shell: bash
+        run: |
+          export OPENVPN_CMAKE="$(command -v cmake)"
+          release_dir="$RUNNER_TEMP/openvpn-release-${{ matrix.arch }}"
+          packaging/macos/build-release.sh \
+            "$QT_ROOT_DIR" \
+            "$release_dir" \
+            "$OPENVPN_RELEASE_VERSION" \
+            "$(brew --prefix xxhash)" \
+            "${{ matrix.arch }}" \
+            "${{ matrix.brew_prefix }}"
+          package="$release_dir/OpenVPN-$OPENVPN_RELEASE_VERSION-macos-${{ matrix.arch }}.pkg"
+          cp "$package" "OpenVPN-$OPENVPN_RELEASE_VERSION-macos-${{ matrix.arch }}.pkg"
+          shasum -a 256 "OpenVPN-$OPENVPN_RELEASE_VERSION-macos-${{ matrix.arch }}.pkg" \
+            | tee "OpenVPN-$OPENVPN_RELEASE_VERSION-macos-${{ matrix.arch }}.pkg.sha256"
+
+      - name: 上传构建资产
+        uses: actions/upload-artifact@v4
+        with:
+          name: openvpn-macos-${{ matrix.arch }}
+          path: |
+            OpenVPN-${{ env.OPENVPN_RELEASE_VERSION }}-macos-${{ matrix.arch }}.pkg
+            OpenVPN-${{ env.OPENVPN_RELEASE_VERSION }}-macos-${{ matrix.arch }}.pkg.sha256
+
+  release:
+    name: 创建 GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: 计算版本号
+        shell: bash
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="${{ inputs.version }}"
+          fi
+          echo "OPENVPN_RELEASE_VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: 下载两个架构的安装包
+        uses: actions/download-artifact@v4
+        with:
+          pattern: openvpn-macos-*
+          merge-multiple: true
+
+      - name: 生成发布说明
+        shell: bash
+        run: |
+          cat > release-notes.md <<EOF
+          # OpenVPN $OPENVPN_RELEASE_VERSION
+
+          提供两个 macOS 安装包：
+
+          - x86_64：Intel Mac
+          - arm64：Apple Silicon Mac
+
+          当前构建尚未完成 Developer ID 签名和公证。
+          EOF
+
+      - name: 发布 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.OPENVPN_RELEASE_VERSION }}
+          name: OpenVPN ${{ env.OPENVPN_RELEASE_VERSION }}
+          body_path: release-notes.md
+          generate_release_notes: true
+          files: |
+            OpenVPN-${{ env.OPENVPN_RELEASE_VERSION }}-macos-x86_64.pkg
+            OpenVPN-${{ env.OPENVPN_RELEASE_VERSION }}-macos-x86_64.pkg.sha256
+            OpenVPN-${{ env.OPENVPN_RELEASE_VERSION }}-macos-arm64.pkg
+            OpenVPN-${{ env.OPENVPN_RELEASE_VERSION }}-macos-arm64.pkg.sha256

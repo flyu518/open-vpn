@@ -2,6 +2,7 @@
 
 #include "engine_worker.h"
 
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include <utility>
@@ -32,10 +33,40 @@ const char* route_mode_name(RouteConflictMode mode) {
     return "compatible";
 }
 
+const char* route_rule_action_name(RouteRuleAction action) {
+    return action == RouteRuleAction::Exclude ? "exclude" : "prefer";
+}
+
+const char* route_rule_type_name(RouteRuleType type) {
+    switch (type) {
+    case RouteRuleType::Domain:
+        return "domain";
+    case RouteRuleType::DomainSuffix:
+        return "domainSuffix";
+    case RouteRuleType::Ip:
+        return "ip";
+    }
+    return "ip";
+}
+
+std::string encode_route_rules(const std::vector<RouteRule>& rules) {
+    std::string result;
+    for (const auto& rule : rules) {
+        if (rule.pattern.empty() || rule.pattern.find_first_of("|,@ \\t\\r\\n") != std::string::npos)
+            continue;
+        const std::string item = std::string(route_rule_action_name(rule.action)) + "@" +
+                                 route_rule_type_name(rule.type) + ":" + rule.pattern;
+        if (!result.empty()) result += ',';
+        if (result.size() + item.size() > 900) break;
+        result += item;
+    }
+    return result;
+}
+
 class ClientImpl final : public openvpn::ClientAPI::OpenVPNClient {
 public:
-    ClientImpl(std::string session_id, EngineEventSink event_sink)
-        : session_id_(std::move(session_id)), event_sink_(std::move(event_sink)) {}
+    ClientImpl(std::string session_id, EngineEventSink event_sink, openvpn::Stop* stop)
+        : session_id_(std::move(session_id)), event_sink_(std::move(event_sink)), stop_(stop) {}
 
     bool pause_on_connection_timeout() override {
         return false;
@@ -82,9 +113,21 @@ public:
         return session_id_;
     }
 
+    void reportFailure(const std::string& message) noexcept {
+        try {
+            if (event_sink_) event_sink_(EngineEvent{"FATAL_ERROR", message, true, true});
+        } catch (...) {
+            // An observer failure must not escape the worker's thread entry.
+        }
+    }
+
+protected:
+    openvpn::Stop* get_async_stop() override { return stop_; }
+
 private:
     std::string session_id_;
     EngineEventSink event_sink_;
+    openvpn::Stop* stop_;
 };
 
 }  // namespace
@@ -93,16 +136,21 @@ class OpenVPN3Session::Impl {
 public:
     Impl(std::string session_id, EngineEventSink event_sink)
         : client(std::make_unique<ClientImpl>(std::move(session_id),
-                                               std::move(event_sink))),
+                                               std::move(event_sink), &stop)),
           active(true) {}
 
+    // Must outlive client: native Stop::Scope objects unregister in the base
+    // client's destructor. A persistent stop also covers native startup, when
+    // OpenVPNClient::stop() intentionally ignores foreign-thread calls.
+    openvpn::Stop stop;
     std::unique_ptr<ClientImpl> client;
     EngineWorker worker;
     openvpn::ClientAPI::Config config;
     bool profile_set = false;
     bool credentials_set = false;
     RouteConflictMode route_conflict_mode = RouteConflictMode::Compatible;
-    bool active = false;
+    std::vector<RouteRule> route_rules;
+    std::atomic<bool> active{false};
 };
 
 OpenVPN3Session::OpenVPN3Session(std::string session_id,
@@ -110,7 +158,7 @@ OpenVPN3Session::OpenVPN3Session(std::string session_id,
     : impl_(std::make_unique<Impl>(std::move(session_id), std::move(event_sink))) {}
 
 OpenVPN3Session::~OpenVPN3Session() {
-    stop();
+    try { stop(); } catch (...) {}
 }
 
 const std::string& OpenVPN3Session::sessionId() const {
@@ -137,6 +185,9 @@ ProfileEvaluation OpenVPN3Session::setProfile(std::string_view profile_content) 
                              session_id_for_profile(sessionId()) + "\n";
     impl_->config.content += "setenv VPN_DESKTOP_ROUTE_MODE " +
                              std::string(route_mode_name(impl_->route_conflict_mode)) + "\n";
+    const std::string encoded_rules = encode_route_rules(impl_->route_rules);
+    if (!encoded_rules.empty())
+        impl_->config.content += "setenv VPN_DESKTOP_ROUTE_RULES " + encoded_rules + "\n";
     const openvpn::ClientAPI::EvalConfig evaluation =
         impl_->client->eval_config(impl_->config);
 
@@ -154,6 +205,10 @@ void OpenVPN3Session::setRouteConflictMode(RouteConflictMode mode) {
     if (impl_ != nullptr) {
         impl_->route_conflict_mode = mode;
     }
+}
+
+void OpenVPN3Session::setRouteRules(const std::vector<RouteRule>& rules) {
+    if (impl_ != nullptr) impl_->route_rules = rules;
 }
 
 bool OpenVPN3Session::setCredentials(const EngineCredentials& credentials) {
@@ -175,19 +230,30 @@ bool OpenVPN3Session::connect() {
     }
 
     impl_->active = true;
-    return impl_->worker.start([this]() {
-        const openvpn::ClientAPI::Status status = impl_->client->connect();
-        if (status.error) {
-            impl_->active = false;
-        }
-    });
+    try {
+        const bool started = impl_->worker.start([this]() {
+            try {
+                const auto status = impl_->client->connect();
+                impl_->active = false;
+                if (status.error) impl_->client->reportFailure(status.message);
+            } catch (...) {
+                impl_->active = false;
+                impl_->client->reportFailure("VPN 引擎异常退出");
+            }
+        });
+        if (!started) impl_->active = false;
+        return started;
+    } catch (...) {
+        impl_->active = false;
+        throw;
+    }
 }
 
 void OpenVPN3Session::stop() {
     if (impl_ == nullptr) {
         return;
     }
-    impl_->worker.requestStop([this]() { impl_->client->stop(); });
+    impl_->worker.requestStop([this]() { impl_->stop.stop(); });
     impl_->active = false;
 }
 

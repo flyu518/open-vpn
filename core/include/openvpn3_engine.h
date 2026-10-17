@@ -52,6 +52,7 @@ public:
     SessionTrafficStats trafficStats() const;
     ProfileEvaluation setProfile(std::string_view profile_content);
     void setRouteConflictMode(RouteConflictMode mode);
+    void setRouteRules(const std::vector<RouteRule>& rules);
     bool setCredentials(const EngineCredentials& credentials);
     bool connect();
     void stop();

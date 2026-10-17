@@ -1,5 +1,6 @@
 #include "engine_worker.h"
 
+#include <exception>
 #include <utility>
 
 namespace vpn {
@@ -14,21 +15,28 @@ bool EngineWorker::start(std::function<void()> task) {
     }
 
     running_.store(true);
-    thread_ = std::thread([this, task = std::move(task)]() mutable {
-        task();
+    try {
+        thread_ = std::thread([this, task = std::move(task)]() mutable {
+            task();
+            running_.store(false);
+        });
+    } catch (...) {
         running_.store(false);
-    });
+        throw;
+    }
     return true;
 }
 
 void EngineWorker::requestStop(std::function<void()> stop_task) {
-    if (stop_task && running_.load()) {
-        stop_task();
+    std::exception_ptr failure;
+    if (stop_task) {
+        try { stop_task(); } catch (...) { failure = std::current_exception(); }
     }
     if (thread_.joinable()) {
         thread_.join();
     }
     running_.store(false);
+    if (failure) std::rethrow_exception(failure);
 }
 
 bool EngineWorker::running() const {

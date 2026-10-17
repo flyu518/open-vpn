@@ -125,8 +125,13 @@ replace_required(
     }]=]
     [=[    static std::string session_name_without_mode(const std::string &name)
     {
-        const std::string marker = "|route-mode=";
-        const std::size_t separator = name.find(marker);
+        const std::string mode_marker = "|route-mode=";
+        const std::string rules_marker = "|route-rules=";
+        std::size_t separator = name.find(mode_marker);
+        const std::size_t rules_separator = name.find(rules_marker);
+        if (separator == std::string::npos ||
+            (rules_separator != std::string::npos && rules_separator < separator))
+            separator = rules_separator;
         return separator == std::string::npos ? name : name.substr(0, separator);
     }
 
@@ -136,9 +141,63 @@ replace_required(
         const std::size_t separator = name.find(marker);
         if (separator == std::string::npos)
             return vpn::RouteConflictMode::Compatible;
-        const std::string mode = name.substr(separator + marker.size());
+        const std::size_t end = name.find('|', separator + marker.size());
+        const std::string mode = name.substr(separator + marker.size(),
+            end == std::string::npos ? std::string::npos : end - separator - marker.size());
         return mode == "compatible" ? vpn::RouteConflictMode::Compatible
                                       : vpn::RouteConflictMode::Strict;
+    }
+
+    static std::vector<vpn::RouteRule> route_rules_for_name(const std::string &name)
+    {
+        const std::string marker = "|route-rules=";
+        const std::size_t start = name.find(marker);
+        if (start == std::string::npos)
+            return {};
+        const std::size_t end = name.find('|', start + marker.size());
+        const std::string encoded = name.substr(start + marker.size(),
+            end == std::string::npos ? std::string::npos : end - start - marker.size());
+        std::vector<vpn::RouteRule> rules;
+        std::size_t offset = 0;
+        while (offset < encoded.size() && rules.size() < 32)
+        {
+            const std::size_t comma = encoded.find(',', offset);
+            const std::string item = encoded.substr(offset,
+                comma == std::string::npos ? std::string::npos : comma - offset);
+            const std::size_t at = item.find('@');
+            if (at != std::string::npos)
+            {
+                const auto action = item.substr(0, at) == "exclude"
+                    ? vpn::RouteRuleAction::Exclude : vpn::RouteRuleAction::Prefer;
+                vpn::RouteRuleType type = vpn::RouteRuleType::Ip;
+                std::size_t pattern_start = at + 1;
+                const std::size_t type_separator = item.find(':', pattern_start);
+                if (type_separator != std::string::npos)
+                {
+                    const std::string type_name = item.substr(
+                        pattern_start, type_separator - pattern_start);
+                    if (type_name == "domain")
+                    {
+                        type = vpn::RouteRuleType::Domain;
+                        pattern_start = type_separator + 1;
+                    }
+                    else if (type_name == "domainSuffix")
+                    {
+                        type = vpn::RouteRuleType::DomainSuffix;
+                        pattern_start = type_separator + 1;
+                    }
+                    else if (type_name == "ip")
+                    {
+                        pattern_start = type_separator + 1;
+                    }
+                }
+                const std::string pattern = item.substr(pattern_start);
+                if (!pattern.empty()) rules.push_back({action, pattern, type});
+            }
+            if (comma == std::string::npos) break;
+            offset = comma + 1;
+        }
+        return rules;
     }
 
     static std::string session_key(const pid_t pid, const std::string &name)
@@ -179,6 +238,7 @@ replace_required(
     }
 
     static vpn::RoutePolicy route_policy(const std::string &key,
+                                         const std::string &name,
                                          const TunBuilderCapture &tbc)
     {
         vpn::RoutePolicy policy;
@@ -186,12 +246,59 @@ replace_required(
         policy.mode = (tbc.reroute_gw.ipv4 || tbc.reroute_gw.ipv6)
                           ? vpn::RouteMode::Full
                           : vpn::RouteMode::Split;
+        policy.rules = route_rules_for_name(name);
         for (const auto &route : tbc.add_routes)
         {
             policy.routes.push_back(
                 route.address + "/" + std::to_string(static_cast<unsigned int>(route.prefix_length)));
         }
         return policy;
+    }
+
+    static std::size_t apply_domain_rules(TunBuilderCapture &capture,
+                                          const std::vector<vpn::RouteRule> &rules,
+                                          std::ostream &os)
+    {
+        std::size_t changed = 0;
+        for (const auto &rule : rules)
+        {
+            if (rule.type == vpn::RouteRuleType::Ip)
+                continue;
+            if (rule.action == vpn::RouteRuleAction::Exclude)
+            {
+                const auto before = capture.dns_options.search_domains.size();
+                capture.dns_options.search_domains.erase(
+                    std::remove_if(capture.dns_options.search_domains.begin(),
+                                   capture.dns_options.search_domains.end(),
+                                   [&](const openvpn::DnsDomain &domain) {
+                                       return vpn::domain_pattern_matches(
+                                           domain.domain, rule.pattern, rule.type);
+                                   }),
+                    capture.dns_options.search_domains.end());
+                changed += before - capture.dns_options.search_domains.size();
+            }
+            else
+            {
+                const auto found = std::find_if(
+                    capture.dns_options.search_domains.begin(),
+                    capture.dns_options.search_domains.end(),
+                    [&](const openvpn::DnsDomain &domain) {
+                        return domain.domain == rule.pattern;
+                    });
+                if (found == capture.dns_options.search_domains.end())
+                {
+                    capture.dns_options.search_domains.emplace_back(rule.pattern);
+                    ++changed;
+                }
+            }
+        }
+        if (changed > 0)
+        {
+            os << "域名后缀规则：已更新 " << changed << " 条 macOS 分流 DNS 域名\n";
+            if (capture.dns_options.servers.empty())
+                os << "域名后缀规则未完全生效：当前 VPN 未提供 DNS 服务器\n";
+        }
+        return changed;
     }
 
     vpn::RouteDecision validate_route_policy(const std::string &key,
@@ -216,16 +323,33 @@ replace_required(
     {
         const std::string base_name = session_name_without_mode(name);
         const std::string key = session_key(pid, name);
-        const vpn::RoutePolicy requested = route_policy(key, tbc);
+        TunBuilderCapture::Ptr effective = TunBuilderCapture::from_json(tbc.to_json());
+        effective->session_name = base_name;
+        const vpn::RoutePolicy requested = route_policy(key, name, *effective);
+        apply_domain_rules(*effective, requested.rules, os);
+        std::size_t excluded_routes = 0;
+        effective->add_routes.erase(
+            std::remove_if(effective->add_routes.begin(), effective->add_routes.end(),
+                           [&](const TunBuilderCapture::Route &route) {
+                               const std::string value = route.address + "/" +
+                                   std::to_string(static_cast<unsigned int>(route.prefix_length));
+                               for (const auto& rule : requested.rules)
+                                   if (rule.action == vpn::RouteRuleAction::Exclude &&
+                                       vpn::route_pattern_matches(value, rule.pattern)) {
+                                       ++excluded_routes;
+                                       return true;
+                                   }
+                               return false;
+                           }),
+            effective->add_routes.end());
+        const vpn::RoutePolicy filtered_requested = route_policy(key, name, *effective);
         const vpn::RouteDecision decision =
-            validate_route_policy(key, requested, route_mode_for_name(name));
+            validate_route_policy(key, filtered_requested, route_mode_for_name(name));
         if (decision.code != vpn::RouteDecisionCode::Allowed)
             throw Exception(decision.diagnostic);
         if (decision.conflicts.size() > 32)
             throw Exception("冲突路由数量过多，需用户断开一个会话后重试");
 
-        TunBuilderCapture::Ptr effective = TunBuilderCapture::from_json(tbc.to_json());
-        effective->session_name = base_name;
         std::set<std::string> skipped_routes;
         for (const vpn::RouteConflict &conflict : decision.conflicts)
             skipped_routes.insert(conflict.candidate_route);
@@ -248,8 +372,10 @@ replace_required(
                    << conflict.active_session_id << " 使用 " << conflict.active_route << "\n";
             }
         }
+        if (excluded_routes > 0)
+            os << "路由规则：当前连接排除 " << excluded_routes << " 条服务器路由\n";
 
-        const vpn::RoutePolicy installed = route_policy(key, *effective);
+        const vpn::RoutePolicy installed = route_policy(key, name, *effective);
         TunMac::Setup::Ptr &tun = tuns[key];
         if (!tun)
             tun.reset(new TunMac::Setup);

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleExecutable</key><string>openvpn_qt</string>
+  <key>CFBundleIdentifier</key><string>com.openvpn.desktop</string>
+  <key>CFBundleName</key><string>OpenVPN</string>
+  <key>CFBundleIconFile</key><string>OpenVPN.icns</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+  <key>CFBundleShortVersionString</key><string>${MACOSX_BUNDLE_SHORT_VERSION_STRING}</string>
+  <key>CFBundleVersion</key><string>${MACOSX_BUNDLE_BUNDLE_VERSION}</string>
+  <key>CFBundleDevelopmentRegion</key><string>zh-Hans</string>
+  <key>CFBundleLocalizations</key><array><string>zh-Hans</string><string>en</string></array>
+  <key>LSMinimumSystemVersion</key><string>26.0</string>
+  <key>NSPrincipalClass</key><string>NSApplication</string>
+  <key>NSSupportsAutomaticGraphicsSwitching</key><true/>
+</dict></plist>

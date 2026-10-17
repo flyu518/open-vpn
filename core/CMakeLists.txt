@@ -45,6 +45,8 @@ set(OPENVPN3_SOURCE_DIR
     "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/openvpn3"
     CACHE PATH "OpenVPN3 source directory")
 set(XXHASH_ROOT_DIR "" CACHE PATH "xxHash source or install root")
+set(OPENVPN_BREW_PREFIX "/usr/local" CACHE PATH "Homebrew prefix for native dependencies")
+set(OPENVPN_BREW_OPT "${OPENVPN_BREW_PREFIX}/opt")
 
 if(EXISTS "${OPENVPN3_SOURCE_DIR}/client/ovpncli.cpp")
     set(VPN_OPENVPN3_PATCHED_INCLUDE
@@ -105,15 +107,15 @@ if(EXISTS "${OPENVPN3_SOURCE_DIR}/client/ovpncli.cpp")
     )
 
     find_path(ASIO_INCLUDE_DIR NAMES asio.hpp
-        HINTS /usr/local/opt/asio/include)
+        HINTS "${OPENVPN_BREW_OPT}/asio/include")
     find_path(FMT_INCLUDE_DIR NAMES fmt/format.h
-        HINTS /usr/local/opt/fmt/include)
+        HINTS "${OPENVPN_BREW_OPT}/fmt/include")
     find_path(JSONCPP_INCLUDE_DIR NAMES json/json.h
-        HINTS /usr/local/opt/jsoncpp/include)
+        HINTS "${OPENVPN_BREW_OPT}/jsoncpp/include")
     find_path(LZ4_INCLUDE_DIR NAMES lz4.h
-        HINTS /usr/local/opt/lz4/include)
+        HINTS "${OPENVPN_BREW_OPT}/lz4/include")
     find_path(OPENSSL_INCLUDE_DIR NAMES openssl/ssl.h
-        HINTS /usr/local/opt/openssl/include)
+        HINTS "${OPENVPN_BREW_OPT}/openssl/include")
     foreach(REQUIRED_INCLUDE ASIO_INCLUDE_DIR FMT_INCLUDE_DIR JSONCPP_INCLUDE_DIR LZ4_INCLUDE_DIR OPENSSL_INCLUDE_DIR)
         if(NOT ${REQUIRED_INCLUDE})
             message(FATAL_ERROR "找不到 OpenVPN3 依赖头文件：${REQUIRED_INCLUDE}")
@@ -136,7 +138,7 @@ if(EXISTS "${OPENVPN3_SOURCE_DIR}/client/ovpncli.cpp")
         NAMES xxhash.h
         HINTS
             ${XXHASH_ROOT_DIR}
-            /usr/local/opt/xxhash/include
+            "${OPENVPN_BREW_OPT}/xxhash/include"
     )
     if(NOT XXHASH_INCLUDE_DIR)
         message(FATAL_ERROR "找不到 xxhash.h，请设置 XXHASH_ROOT_DIR")
@@ -145,9 +147,9 @@ if(EXISTS "${OPENVPN3_SOURCE_DIR}/client/ovpncli.cpp")
 
     find_package(OpenSSL REQUIRED)
     find_package(Threads REQUIRED)
-    find_library(LZ4_LIBRARY NAMES lz4 HINTS /usr/local/opt/lz4/lib)
-    find_library(FMT_LIBRARY NAMES fmt HINTS /usr/local/opt/fmt/lib)
-    find_library(JSONCPP_LIBRARY NAMES jsoncpp HINTS /usr/local/opt/jsoncpp/lib)
+    find_library(LZ4_LIBRARY NAMES lz4 HINTS "${OPENVPN_BREW_OPT}/lz4/lib")
+    find_library(FMT_LIBRARY NAMES fmt HINTS "${OPENVPN_BREW_OPT}/fmt/lib")
+    find_library(JSONCPP_LIBRARY NAMES jsoncpp HINTS "${OPENVPN_BREW_OPT}/jsoncpp/lib")
     foreach(REQUIRED_LIBRARY LZ4_LIBRARY FMT_LIBRARY JSONCPP_LIBRARY)
         if(NOT ${REQUIRED_LIBRARY})
             message(FATAL_ERROR "找不到 OpenVPN3 依赖库：${REQUIRED_LIBRARY}")
@@ -249,11 +251,11 @@ if(APPLE)
             ${OPENVPN3_SOURCE_DIR}/client
             ${XXHASH_ROOT_DIR}
             ${XXHASH_INCLUDE_DIR}
-            /usr/local/opt/asio/include
-            /usr/local/opt/fmt/include
-            /usr/local/opt/jsoncpp/include
-            /usr/local/opt/lz4/include
-            /usr/local/opt/openssl/include
+            "${OPENVPN_BREW_OPT}/asio/include"
+            "${OPENVPN_BREW_OPT}/fmt/include"
+            "${OPENVPN_BREW_OPT}/jsoncpp/include"
+            "${OPENVPN_BREW_OPT}/lz4/include"
+            "${OPENVPN_BREW_OPT}/openssl/include"
         )
         target_link_libraries(openvpn_macos_agent PRIVATE
             OpenSSL::SSL
@@ -284,10 +286,11 @@ if(APPLE)
 
     add_executable(openvpn_daemon
         tools/daemon_main.cpp
+        tools/daemon_session_controller.cpp
     )
     target_include_directories(openvpn_daemon PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include
-        /usr/local/opt/jsoncpp/include
+        "${OPENVPN_BREW_OPT}/jsoncpp/include"
     )
     target_link_libraries(openvpn_daemon PRIVATE openvpn_core)
     target_link_libraries(openvpn_daemon PRIVATE openvpn_macos_secure_store)
@@ -300,7 +303,6 @@ endif()
 if(WIN32)
     if(EXISTS "${OPENVPN3_SOURCE_DIR}/openvpn/ovpnagent/win/ovpnagent.cpp")
         target_sources(openvpn_windows_service PRIVATE
-            ${OPENVPN3_SOURCE_DIR}/openvpn/ovpnagent/win/ovpnagent.cpp
             ${OPENVPN3_SOURCE_DIR}/openvpn/crypto/data_epoch.cpp
             ${OPENVPN3_SOURCE_DIR}/openvpn/openssl/xkey/xkey_helper.c
             ${OPENVPN3_SOURCE_DIR}/openvpn/openssl/xkey/xkey_provider.c
@@ -356,6 +358,7 @@ if(WIN32)
 
     add_executable(openvpn_windows_daemon
         tools/windows_daemon_main.cpp
+        tools/daemon_session_controller.cpp
     )
     target_include_directories(openvpn_windows_daemon PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include

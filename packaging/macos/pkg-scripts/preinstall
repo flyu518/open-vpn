@@ -1,0 +1,44 @@
+#!/bin/sh
+
+set -eu
+
+stop_service() {
+    service="$1"
+    service_pid=$(/bin/launchctl print "$service" 2>/dev/null |
+        /usr/bin/awk '/^[[:space:]]*pid = [0-9]+/{print $3; exit}')
+    if /bin/launchctl print "$service" >/dev/null 2>&1; then
+        /bin/launchctl bootout "$service"
+    fi
+    attempt=0
+    while [ -n "$service_pid" ] && /bin/kill -0 "$service_pid" 2>/dev/null; do
+        if [ "$attempt" -ge 15 ]; then
+            echo "错误：旧服务尚未退出：$service，已停止升级以保护当前连接。" >&2
+            exit 1
+        fi
+        /bin/sleep 1
+        attempt=$((attempt + 1))
+    done
+}
+
+echo "正在停止旧版本 OpenVPN 服务……"
+console_user=$(/usr/bin/stat -f '%Su' /dev/console)
+if [ -n "$console_user" ] && [ "$console_user" != root ] && [ "$console_user" != loginwindow ]; then
+    console_uid=$(/usr/bin/id -u "$console_user")
+    if [ -S /tmp/openvpn-ui.sock ]; then
+        socket_owner=$(/usr/bin/stat -f '%u' /tmp/openvpn-ui.sock)
+        if [ "$socket_owner" != "$console_uid" ] &&
+            /usr/bin/nc -z -w 1 -U /tmp/openvpn-ui.sock >/dev/null 2>&1; then
+            echo "错误：另一位用户的 OpenVPN 服务仍在运行。请先退出该用户的 VPN 会话后升级。" >&2
+            exit 1
+        fi
+    fi
+    stop_service "gui/$console_uid/com.openvpn.daemon"
+fi
+stop_service system/com.openvpn.helper
+stop_service system/com.vpn.helper
+
+# 只关闭本应用安装路径的 UI，避免升级后旧进程仍显示旧界面。
+for ui_pid in $(/usr/bin/pgrep -f '^/Applications/OpenVPN[.]app/Contents/MacOS/openvpn_qt($| )' || true); do
+    /bin/kill -TERM "$ui_pid" 2>/dev/null || true
+done
+echo "旧服务已停止，准备安装新版本。"

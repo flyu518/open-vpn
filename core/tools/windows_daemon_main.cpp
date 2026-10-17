@@ -1,26 +1,20 @@
 #ifdef _WIN32
 
 #define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
 #include <windows.h>
 
-#include "openvpn3_engine.h"
-#include "vpn_security.h"
-#include "vpn_session_manager.h"
+#include "daemon_session_controller.h"
 #include "platform/windows/secure_store/credential_store.h"
-
-#include <json/json.h>
 
 #include <algorithm>
 #include <atomic>
-#include <chrono>
-#include <csignal>
 #include <iostream>
-#include <map>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
-#include <utility>
 #include <vector>
 
 namespace {
@@ -36,448 +30,230 @@ BOOL WINAPI console_handler(DWORD signal) {
     return FALSE;
 }
 
-std::string write_json(const Json::Value& value) {
-    Json::StreamWriterBuilder builder;
-    builder["indentation"] = "";
-    return Json::writeString(builder, value) + "\n";
-}
-
-Json::Value response(bool ok, std::string message = {}) {
-    Json::Value value(Json::objectValue);
-    value["ok"] = ok;
-    if (!message.empty()) value["message"] = std::move(message);
-    return value;
-}
-
-std::string state_name(vpn::SessionState state) {
-    switch (state) {
-    case vpn::SessionState::Idle:
-        return "idle";
-    case vpn::SessionState::Connecting:
-        return "connecting";
-    case vpn::SessionState::Connected:
-        return "connected";
-    case vpn::SessionState::Disconnecting:
-        return "disconnecting";
-    case vpn::SessionState::Disconnected:
-        return "disconnected";
-    case vpn::SessionState::Failed:
-        return "failed";
-    }
-    return "failed";
-}
-
-vpn::RouteConflictMode route_mode_from_request(const Json::Value& request) {
-    const std::string mode =
-        request["routeStrategy"].get("conflictMode", "compatible").asString();
-    return mode == "strict" || mode == "ask"
-               ? vpn::RouteConflictMode::Strict
-               : vpn::RouteConflictMode::Compatible;
-}
-
-class WindowsDaemon;
-
-class SessionController {
+class Handle {
 public:
-    SessionController(WindowsDaemon* daemon,
-                      vpn::CredentialStore* credential_store)
-        : daemon_(daemon), credential_store_(credential_store) {}
-
-    Json::Value connect(const Json::Value& request);
-    Json::Value disconnect(const std::string& session_id);
-    Json::Value forgetCredentials(const std::string& profile_id);
-    Json::Value snapshot() const;
-    void stopAll();
-    void onEngineEvent(const std::string& session_id,
-                       const vpn::EngineEvent& event);
-
+    explicit Handle(HANDLE value) : value_(value) {}
+    ~Handle() { if (valid()) CloseHandle(value_); }
+    Handle(const Handle&) = delete;
+    Handle& operator=(const Handle&) = delete;
+    HANDLE get() const { return value_; }
+    bool valid() const { return value_ && value_ != INVALID_HANDLE_VALUE; }
+    HANDLE release() { const auto value = value_; value_ = INVALID_HANDLE_VALUE; return value; }
 private:
-    struct Record {
-        std::unique_ptr<vpn::OpenVPN3Session> session;
-        std::string display_name;
-        std::string remote_host;
-        std::string profile_id;
-        vpn::Credentials credentials;
-        bool remember_credentials = false;
-        vpn::SessionState state = vpn::SessionState::Idle;
-        std::chrono::system_clock::time_point connected_at{};
-        std::string error;
-        std::vector<std::string> warnings;
-    };
-
-    static vpn::SessionState state_from_event(
-        const vpn::EngineEvent& event,
-        vpn::SessionState fallback);
-    static Json::Value record_json(const std::string& session_id,
-                                   const Record& record);
-
-    WindowsDaemon* daemon_;
-    vpn::CredentialStore* credential_store_;
-    mutable std::mutex mutex_;
-    vpn::OpenVPN3Engine engine_;
-    std::map<std::string, Record> records_;
+    HANDLE value_;
 };
 
 class WindowsDaemon {
+    struct Client {
+        explicit Client(HANDLE handle)
+            : pipe(handle), cancelled(CreateEventW(nullptr, TRUE, FALSE, nullptr)) {}
+        ~Client() { DisconnectNamedPipe(pipe.get()); }
+        void cancel() {
+            if (!stopped.exchange(true)) {
+                SetEvent(cancelled.get());
+                CancelIoEx(pipe.get(), nullptr);
+            }
+        }
+        Handle pipe;
+        Handle cancelled;
+        std::mutex write_mutex;
+        std::atomic<bool> stopped{false};
+        std::atomic<bool> finished{false};
+        std::thread worker;
+    };
+
 public:
     explicit WindowsDaemon(std::wstring pipe_name)
         : pipe_name_(std::move(pipe_name)),
-          credential_store_(std::make_unique<
-                            vpn::platform::windows::WindowsCredentialStore>()),
-          controller_(this, credential_store_.get()) {}
-
+          stopped_(CreateEventW(nullptr, TRUE, FALSE, nullptr)),
+          // 官方 agent 只有一个 tun，必须在启动第二个引擎前拒绝请求。
+          controller_([this](const Json::Value& value) { broadcast(value); }, &credential_store_, 1) {}
     ~WindowsDaemon() { stop(); }
-
     int run();
     void stop();
-    void broadcast(const Json::Value& value);
-    SessionController& controller() { return controller_; }
 
 private:
-    void client_loop(HANDLE pipe);
-    Json::Value handle_request(const Json::Value& request);
-    bool send_to_client(HANDLE pipe, const Json::Value& value);
-    void remove_client(HANDLE pipe);
+    bool transfer(const std::shared_ptr<Client>& client, void* data, DWORD size,
+                  DWORD& count, bool reading);
+    bool send_to_client(const std::shared_ptr<Client>& client, const Json::Value& value);
+    void client_loop(const std::shared_ptr<Client>& client);
+    void broadcast(const Json::Value& value);
+    void reap_clients();
 
     std::wstring pipe_name_;
     std::atomic<bool> running_{true};
-    HANDLE server_pipe_ = INVALID_HANDLE_VALUE;
-    std::unique_ptr<vpn::CredentialStore> credential_store_;
-    SessionController controller_;
+    Handle stopped_;
+    vpn::platform::windows::WindowsCredentialStore credential_store_;
+    vpn::daemon::SessionController controller_;
     std::mutex clients_mutex_;
-    std::vector<HANDLE> clients_;
+    std::vector<std::shared_ptr<Client>> clients_;
 };
 
-vpn::SessionState SessionController::state_from_event(
-    const vpn::EngineEvent& event,
-    vpn::SessionState fallback) {
-    if (event.name == "CONNECTED") return vpn::SessionState::Connected;
-    if (event.name == "DISCONNECTED") return vpn::SessionState::Disconnected;
-    if (event.name == "RECONNECTING" || event.name == "RESOLVE") {
-        return vpn::SessionState::Connecting;
+bool WindowsDaemon::transfer(const std::shared_ptr<Client>& client, void* data,
+                             DWORD size, DWORD& count, bool reading) {
+    if (!running_.load() || client->stopped.load()) return false;
+    Handle completed(CreateEventW(nullptr, TRUE, FALSE, nullptr));
+    if (!completed.valid()) return false;
+    OVERLAPPED operation{};
+    operation.hEvent = completed.get();
+    count = 0;
+    const BOOL done = reading
+        ? ReadFile(client->pipe.get(), data, size, &count, &operation)
+        : WriteFile(client->pipe.get(), data, size, &count, &operation);
+    if (done) return count > 0;
+    const DWORD error = GetLastError();
+    if (reading && error == ERROR_MORE_DATA) return count > 0;
+    if (error != ERROR_IO_PENDING) return false;
+
+    HANDLE events[] = {stopped_.get(), client->cancelled.get(), completed.get()};
+    const DWORD waited = WaitForMultipleObjects(3, events, FALSE, reading ? INFINITE : 2000);
+    if (waited != WAIT_OBJECT_0 + 2) {
+        // Cancellation is asynchronous: retain OVERLAPPED and its buffer until
+        // completion, then let their owners release them.
+        CancelIoEx(client->pipe.get(), &operation);
+        GetOverlappedResult(client->pipe.get(), &operation, &count, TRUE);
+        return false;
     }
-    if (event.error || event.fatal || event.name == "FATAL_ERROR") {
-        return vpn::SessionState::Failed;
-    }
-    return fallback;
+    const BOOL ok = GetOverlappedResult(client->pipe.get(), &operation, &count, FALSE);
+    return (ok || (reading && GetLastError() == ERROR_MORE_DATA)) && count > 0;
 }
 
-Json::Value SessionController::record_json(const std::string& session_id,
-                                            const Record& record) {
-    Json::Value value(Json::objectValue);
-    value["sessionId"] = session_id;
-    value["name"] = record.display_name;
-    value["remoteHost"] = record.remote_host;
-    value["state"] = state_name(record.state);
-    const auto traffic = record.session->trafficStats();
-    value["downloadBytes"] = static_cast<Json::Int64>(traffic.bytes_in);
-    value["uploadBytes"] = static_cast<Json::Int64>(traffic.bytes_out);
-    if (record.connected_at.time_since_epoch().count() != 0) {
-        const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(
-                                 std::chrono::system_clock::now() -
-                                 record.connected_at)
-                                 .count();
-        value["durationSeconds"] = static_cast<Json::Int64>(
-            seconds < 0 ? 0 : seconds);
-    } else {
-        value["durationSeconds"] = static_cast<Json::Int64>(0);
-    }
-    if (!record.error.empty()) value["error"] = vpn::redactSecrets(record.error);
-    Json::Value warnings(Json::arrayValue);
-    for (const std::string& warning : record.warnings) {
-        warnings.append(vpn::redactSecrets(warning));
-    }
-    value["warnings"] = warnings;
-    return value;
-}
-
-Json::Value SessionController::connect(const Json::Value& request) {
-    const std::string session_id = request.get("sessionId", "").asString();
-    const std::string profile = request.get("profile", "").asString();
-    if (session_id.empty() || profile.empty()) {
-        return response(false, "会话标识和 profile 不能为空");
-    }
-
-    vpn::EngineCredentials credentials;
-    const Json::Value& credential_value = request["credentials"];
-    credentials.username = credential_value.get("username", "").asString();
-    credentials.password = credential_value.get("password", "").asString();
-    credentials.response = credential_value.get("response", "").asString();
-    credentials.dynamic_challenge_cookie =
-        credential_value.get("dynamicChallengeCookie", "").asString();
-    const std::string profile_id =
-        request.get("profileId", session_id).asString();
-    const bool has_credentials = !credentials.username.empty() ||
-                                 !credentials.password.empty() ||
-                                 !credentials.response.empty() ||
-                                 !credentials.dynamic_challenge_cookie.empty();
-    if (!has_credentials) {
-        vpn::Credentials stored_credentials;
-        const auto loaded = credential_store_->load(profile_id, &stored_credentials);
-        if (!loaded.ok()) return response(false, loaded.diagnostic);
-        credentials.username = stored_credentials.username;
-        credentials.password = stored_credentials.password;
-        credentials.response = stored_credentials.response;
-    }
-
-    auto record = std::make_unique<Record>();
-    record->display_name = request.get("name", session_id).asString();
-    record->profile_id = profile_id;
-    record->remember_credentials =
-        request.get("rememberCredentials", false).asBool();
-    record->credentials = vpn::Credentials{
-        credentials.username,
-        credentials.password,
-        credentials.response,
-        "",
-    };
-    record->state = vpn::SessionState::Connecting;
-    record->session = engine_.createSession(
-        session_id,
-        [this, session_id](const vpn::EngineEvent& event) {
-            onEngineEvent(session_id, event);
-        });
-    record->session->setRouteConflictMode(route_mode_from_request(request));
-
-    const vpn::ProfileEvaluation evaluation = record->session->setProfile(profile);
-    if (!evaluation.ok) return response(false, evaluation.message);
-    record->remote_host = evaluation.remote_host;
-    if (!record->session->setCredentials(credentials)) {
-        return response(false, "VPN 凭据设置失败");
-    }
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        if (records_.find(session_id) != records_.end()) {
-            return response(false, "会话标识已经存在");
+bool WindowsDaemon::send_to_client(const std::shared_ptr<Client>& client,
+                                   const Json::Value& value) {
+    std::string payload = vpn::daemon::write_json(value);
+    std::lock_guard<std::mutex> lock(client->write_mutex);
+    std::size_t offset = 0;
+    while (offset < payload.size()) {
+        DWORD written = 0;
+        const auto size = static_cast<DWORD>(std::min<std::size_t>(
+            payload.size() - offset, std::numeric_limits<DWORD>::max()));
+        if (!transfer(client, payload.data() + offset, size, written, false)) {
+            client->cancel();
+            return false;
         }
-        records_.emplace(session_id, std::move(*record));
+        offset += written;
     }
-
-    Record* stored = nullptr;
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        stored = &records_.at(session_id);
-    }
-    if (!stored->session->connect()) {
-        std::lock_guard<std::mutex> lock(mutex_);
-        records_.erase(session_id);
-        return response(false, "VPN 引擎无法启动连接");
-    }
-
-    Json::Value result = response(true, "连接请求已提交");
-    result["session"] = record_json(session_id, *stored);
-    return result;
-}
-
-Json::Value SessionController::disconnect(const std::string& session_id) {
-    std::unique_ptr<vpn::OpenVPN3Session> session;
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        const auto it = records_.find(session_id);
-        if (it == records_.end()) return response(true, "会话已经不存在");
-        session = std::move(it->second.session);
-        records_.erase(it);
-    }
-    session->stop();
-    return response(true, "断开请求已提交");
-}
-
-Json::Value SessionController::forgetCredentials(const std::string& profile_id) {
-    const auto removed = credential_store_->remove(profile_id);
-    return removed.ok() ? response(true, "凭据已删除")
-                        : response(false, removed.diagnostic);
-}
-
-Json::Value SessionController::snapshot() const {
-    Json::Value result(Json::arrayValue);
-    std::lock_guard<std::mutex> lock(mutex_);
-    for (const auto& item : records_) {
-        result.append(record_json(item.first, item.second));
-    }
-    return result;
-}
-
-void SessionController::stopAll() {
-    std::vector<std::unique_ptr<vpn::OpenVPN3Session>> sessions;
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        for (auto& item : records_) sessions.push_back(std::move(item.second.session));
-        records_.clear();
-    }
-    for (auto& session : sessions) {
-        if (session) session->stop();
-    }
-}
-
-void SessionController::onEngineEvent(const std::string& session_id,
-                                      const vpn::EngineEvent& event) {
-    Json::Value notification(Json::objectValue);
-    notification["type"] = "sessionEvent";
-    notification["sessionId"] = session_id;
-    notification["event"] = event.name;
-    notification["message"] = vpn::redactSecrets(event.info);
-    bool save_credentials = false;
-    vpn::Credentials credentials_to_save;
-    std::string profile_id_to_save;
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        const auto it = records_.find(session_id);
-        if (it == records_.end()) return;
-        const vpn::SessionState next_state =
-            state_from_event(event, it->second.state);
-        const bool became_connected =
-            next_state == vpn::SessionState::Connected &&
-            it->second.state != vpn::SessionState::Connected;
-        if (next_state == vpn::SessionState::Connected &&
-            it->second.state != vpn::SessionState::Connected) {
-            it->second.connected_at = std::chrono::system_clock::now();
-        }
-        if (became_connected && it->second.remember_credentials) {
-            save_credentials = true;
-            credentials_to_save = it->second.credentials;
-            profile_id_to_save = it->second.profile_id;
-        }
-        it->second.state = next_state;
-        if (event.error || event.fatal) it->second.error = event.info;
-        notification["state"] = state_name(it->second.state);
-        notification["session"] = record_json(session_id, it->second);
-    }
-    if (save_credentials && credential_store_ != nullptr) {
-        const auto saved =
-            credential_store_->save(profile_id_to_save, credentials_to_save);
-        if (!saved.ok()) {
-            notification["message"] =
-                "连接已建立，但保存凭据失败：" + saved.diagnostic;
-        }
-    }
-    daemon_->broadcast(notification);
-}
-
-bool WindowsDaemon::send_to_client(HANDLE pipe, const Json::Value& value) {
-    const std::string payload = write_json(value);
-    DWORD written = 0;
-    return WriteFile(pipe, payload.data(), static_cast<DWORD>(payload.size()),
-                     &written, nullptr) && written == payload.size();
-}
-
-void WindowsDaemon::remove_client(HANDLE pipe) {
-    std::lock_guard<std::mutex> lock(clients_mutex_);
-    clients_.erase(std::remove(clients_.begin(), clients_.end(), pipe),
-                   clients_.end());
+    return true;
 }
 
 void WindowsDaemon::broadcast(const Json::Value& value) {
-    std::lock_guard<std::mutex> lock(clients_mutex_);
-    for (auto it = clients_.begin(); it != clients_.end();) {
-        if (send_to_client(*it, value)) {
-            ++it;
-        } else {
-            DisconnectNamedPipe(*it);
-            CloseHandle(*it);
-            it = clients_.erase(it);
+    std::vector<std::shared_ptr<Client>> clients;
+    {
+        std::lock_guard<std::mutex> lock(clients_mutex_);
+        clients = clients_;
+    }
+    for (const auto& client : clients) send_to_client(client, value);
+}
+
+void WindowsDaemon::client_loop(const std::shared_ptr<Client>& client) {
+    try {
+        vpn::daemon::RequestBuffer input;
+        char buffer[8192];
+        DWORD count = 0;
+        while (transfer(client, buffer, sizeof(buffer), count, true)) {
+            if (!input.append(buffer, count, [&](const std::string& line) {
+                    if (!running_.load() || client->stopped.load()) return false;
+                    return send_to_client(client, vpn::daemon::process_request(line,
+                        [this](const Json::Value& request) { return controller_.handleRequest(request); }));
+                })) break;
         }
+    } catch (...) {
+        // Keep transport failures local to this pipe.
     }
+    client->cancel();
+    client->finished.store(true);
 }
 
-Json::Value WindowsDaemon::handle_request(const Json::Value& request) {
-    const std::string command = request.get("command", "").asString();
-    if (command == "ping") return response(true, "OpenVPN 服务正常运行");
-    if (command == "snapshot") {
-        Json::Value result = response(true);
-        result["sessions"] = controller_.snapshot();
-        return result;
-    }
-    if (command == "connect") return controller_.connect(request);
-    if (command == "disconnect") {
-        return controller_.disconnect(request.get("sessionId", "").asString());
-    }
-    if (command == "forgetCredentials") {
-        return controller_.forgetCredentials(request.get("profileId", "").asString());
-    }
-    return response(false, "未知命令：" + command);
-}
-
-void WindowsDaemon::client_loop(HANDLE pipe) {
-    std::string input;
-    char buffer[8192];
-    DWORD read = 0;
-    while (running_.load() && ReadFile(pipe, buffer, sizeof(buffer), &read, nullptr) &&
-           read > 0) {
-        input.append(buffer, buffer + read);
-        for (;;) {
-            const std::size_t newline = input.find('\n');
-            if (newline == std::string::npos) break;
-            const std::string line = input.substr(0, newline);
-            input.erase(0, newline + 1);
-            if (line.empty()) continue;
-            Json::CharReaderBuilder builder;
-            Json::Value request;
-            std::string errors;
-            std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
-            if (!reader->parse(line.data(), line.data() + line.size(), &request,
-                               &errors)) {
-                if (!send_to_client(pipe, response(false, "JSON 请求无效"))) {
-                    running_.store(false);
-                    break;
-                }
-                continue;
-            }
-            if (!send_to_client(pipe, handle_request(request))) {
-                running_.store(false);
-                break;
+void WindowsDaemon::reap_clients() {
+    std::vector<std::shared_ptr<Client>> finished;
+    {
+        std::lock_guard<std::mutex> lock(clients_mutex_);
+        for (auto it = clients_.begin(); it != clients_.end();) {
+            if ((*it)->finished.load()) {
+                finished.push_back(*it);
+                it = clients_.erase(it);
+            } else {
+                ++it;
             }
         }
     }
-    remove_client(pipe);
-    DisconnectNamedPipe(pipe);
-    CloseHandle(pipe);
+    for (const auto& client : finished) client->worker.join();
 }
 
 int WindowsDaemon::run() {
+    if (!stopped_.valid()) return 2;
     while (running_.load() && !stop_requested.load()) {
-        HANDLE pipe = CreateNamedPipeW(
-            pipe_name_.c_str(), PIPE_ACCESS_DUPLEX,
-            PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,
-            PIPE_UNLIMITED_INSTANCES, 1 << 20, 1 << 20, 0, nullptr);
-        if (pipe == INVALID_HANDLE_VALUE) {
-            std::cerr << "无法创建 OpenVPN Windows named pipe，错误码："
-                      << GetLastError() << '\n';
+        reap_clients();
+        Handle pipe(CreateNamedPipeW(pipe_name_.c_str(),
+            PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED,
+            PIPE_TYPE_MESSAGE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
+            PIPE_UNLIMITED_INSTANCES, 1 << 20, 1 << 20, 0, nullptr));
+        Handle completed(CreateEventW(nullptr, TRUE, FALSE, nullptr));
+        if (!pipe.valid() || !completed.valid()) {
+            std::cerr << "无法创建 OpenVPN Windows named pipe，错误码：" << GetLastError() << '\n';
             return 2;
         }
-        server_pipe_ = pipe;
-        const BOOL connected = ConnectNamedPipe(pipe, nullptr)
-                                   ? TRUE
-                                   : (GetLastError() == ERROR_PIPE_CONNECTED);
-        if (!connected) {
-            CloseHandle(pipe);
-            server_pipe_ = INVALID_HANDLE_VALUE;
-            continue;
+        OVERLAPPED operation{};
+        operation.hEvent = completed.get();
+        bool connected = ConnectNamedPipe(pipe.get(), &operation) != FALSE;
+        const DWORD error = connected ? ERROR_SUCCESS : GetLastError();
+        if (error == ERROR_PIPE_CONNECTED) connected = true;
+        if (error == ERROR_IO_PENDING) {
+            HANDLE events[] = {stopped_.get(), completed.get()};
+            while (running_.load() && !stop_requested.load()) {
+                const DWORD waited = WaitForMultipleObjects(2, events, FALSE, 100);
+                if (waited == WAIT_TIMEOUT) {
+                    reap_clients();
+                    continue;
+                }
+                if (waited == WAIT_OBJECT_0 + 1) {
+                    DWORD count = 0;
+                    connected = GetOverlappedResult(pipe.get(), &operation, &count, FALSE) != FALSE;
+                }
+                break;
+            }
+            if (!connected) {
+                CancelIoEx(pipe.get(), &operation);
+                DWORD count = 0;
+                GetOverlappedResult(pipe.get(), &operation, &count, TRUE);
+            }
         }
+        if (!connected) continue;
+        auto client = std::make_shared<Client>(pipe.release());
+        if (!client->cancelled.valid()) return 2;
         {
             std::lock_guard<std::mutex> lock(clients_mutex_);
-            clients_.push_back(pipe);
+            clients_.push_back(client);
         }
-        std::thread(&WindowsDaemon::client_loop, this, pipe).detach();
-        server_pipe_ = INVALID_HANDLE_VALUE;
+        try {
+            client->worker = std::thread([this, client] { client_loop(client); });
+        } catch (...) {
+            client->cancel();
+            stop();
+            return 3;
+        }
     }
     stop();
     return 0;
 }
 
 void WindowsDaemon::stop() {
-    if (!running_.exchange(false)) return;
+    running_.store(false);
+    if (stopped_.valid()) SetEvent(stopped_.get());
+    std::vector<std::shared_ptr<Client>> clients;
+    {
+        std::lock_guard<std::mutex> lock(clients_mutex_);
+        clients = clients_;
+    }
+    for (const auto& client : clients) client->cancel();
+    for (const auto& client : clients) {
+        if (client->worker.joinable()) client->worker.join();
+    }
     controller_.stopAll();
-    if (server_pipe_ != INVALID_HANDLE_VALUE) {
-        DisconnectNamedPipe(server_pipe_);
-        CloseHandle(server_pipe_);
-        server_pipe_ = INVALID_HANDLE_VALUE;
+    {
+        std::lock_guard<std::mutex> lock(clients_mutex_);
+        clients_.clear();
     }
-    std::lock_guard<std::mutex> lock(clients_mutex_);
-    for (HANDLE pipe : clients_) {
-        DisconnectNamedPipe(pipe);
-        CloseHandle(pipe);
-    }
-    clients_.clear();
 }
 
 }  // namespace
@@ -496,7 +272,5 @@ int wmain(int argc, wchar_t* argv[]) {
 }
 
 #else
-
 int main() { return 0; }
-
 #endif

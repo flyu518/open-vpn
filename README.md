@@ -1,139 +1,107 @@
 # OpenVPN
 
-正在开发中的跨平台 OpenVPN 桌面客户端。
+OpenVPN 是一个面向企业网络的桌面 VPN 管理客户端，用于导入、保存和管理多个 OpenVPN 配置，重点解决多条企业 VPN 需要同时保持连接、分别查看状态以及避免路由互相覆盖的问题。
 
-第一版目标平台是 Windows 和 macOS，支持同时建立多个相互独立的 OpenVPN 连接。Android 和 iOS 暂不实现，只保留后续扩展所需的接口。
+项目参考官方 OpenVPN Connect 的连接管理体验，并针对多配置同时管理进行了独立实现；本项目不是 OpenVPN 官方客户端，也不隶属于 OpenVPN Inc.。
 
-## 目录边界
+## 项目特点
 
-- `core/`：共享 C++ 契约、会话策略和 OpenVPN3 集成
-- `platform/`：Windows/macOS 适配层，以及未来移动端适配边界
-- `ui/`：Flutter 桌面界面
-- `schemas/`：版本化的进程通信和状态契约
+- 同时管理多条 OpenVPN 连接，每条连接拥有独立的状态、计时、流量和生命周期；
+- 导入 `.ovpn` 或 `.conf` 配置，并保存应用内部副本，原配置文件移动或删除后仍可使用；
+- 自动读取配置中的用户名，密码可保存到 macOS 钥匙串，认证失败时重新输入；
+- 连接列表支持重命名、拖动排序、导入重复检查、配置导出和连接详情查看；
+- 详情中显示服务器信息、连接记录、路由冲突、实时流量和历史流量；
+- macOS 状态栏菜单支持快速打开窗口、连接或断开配置、查看状态、设置、关于和退出；
+- 支持登录后自动启动，关闭主窗口不会自动断开后台 VPN；
+- 关于页面支持检查 GitHub Releases 更新，下载前校验发布资产。
 
-项目外部已有的 OpenVPN Connect 安装包只作为分析参考。本项目不能加载它私有的 Electron 文件或原生扩展。
+## 支持平台
 
-## 基础构建
+### macOS
 
-在工作区根目录执行：
+macOS 提供多连接能力，并分别构建两个安装包：
+
+- `x86_64`：Intel Mac；
+- `arm64`：Apple Silicon Mac。
+
+Apple Silicon 使用 `arm64` 安装包时不需要 Rosetta。当前构建最低支持 macOS 26，开发包使用临时签名，正式发布还需要 Developer ID 签名和公证。
+
+### Windows
+
+Windows 版本使用 Qt 桌面界面、OpenVPN3 Windows Service 和 Wintun/TAP 适配层。目前属于单连接预览实现，仍需要在 Windows 主机上完成驱动、Service、路由、DNS、通知区域和安装升级的实机验收。当前 daemon 会在启动第二条连接前主动拒绝请求，因为接入的 Windows agent 只管理一个 TUN；这是一项保护性限制，不是 Windows 最终版本的能力目标。
+
+### Android/iOS
+
+移动端暂未提供客户端。后续将分别使用 Android `VpnService` 和 iOS `NEPacketTunnelProvider`，并保持单条活动系统 VPN 的能力边界。
+
+## 路由处理
+
+默认使用兼容模式：发生重叠时保留先建立连接的路由，后建立连接跳过冲突路由；严格模式会拒绝发生冲突的新连接。
+
+连接详情支持配置 IP/CIDR 规则：
+
+- 优先当前连接：发现重叠时提示先断开冲突连接，再重新连接当前连接；
+- 排除当前连接：当前连接不安装匹配的服务器路由；
+- 策略修改不会热更新已经建立的隧道，需要断开并重新连接；
+- 域名后缀规则会参与 macOS 分流 DNS；任意模糊匹配和正则规则不支持。
+
+## 使用方式
+
+安装 macOS `.pkg` 后，打开 `/Applications/OpenVPN.app`：
+
+1. 点击“导入配置”，选择 `.ovpn` 或 `.conf` 文件；
+2. 在连接列表中确认名称和服务器信息；
+3. 点击对应卡片的连接按钮；
+4. 首次连接输入用户名和密码，并按需选择保存密码；
+5. 后续连接会优先使用系统安全存储中的凭据，只有认证失败或凭据不可用时才会再次询问。
+
+## 技术架构
+
+- `desktop/qt/`：Qt 6/QML 桌面界面、状态栏菜单、配置管理和更新检查；
+- `core/`：C++ 会话模型、OpenVPN3 引擎、daemon、路由策略和安全处理；
+- `platform/macos/`：macOS utun、路由、DNS、Keychain 和高权限 helper；
+- `platform/windows/`：Windows Service、Wintun/TAP 和本地安全存储适配；
+- `packaging/`：macOS、Windows 构建和安装脚本；
+- `docs/`：协议、平台说明和验收记录。
+
+桌面界面通过用户权限 daemon 与 VPN 引擎通信；需要修改系统网络状态的操作由平台 helper 执行。OpenVPN3 源码版本由 `third_party/openvpn3.lock` 固定，构建时检出对应版本到 `third_party/openvpn3/`。
+
+## 开发和构建
+
+开发环境需要 Qt 6.12、CMake、OpenSSL、asio、fmt、jsoncpp、lz4 和 xxHash。基础测试不需要真实 VPN 配置：
 
 ```bash
 cmake -S core -B /tmp/openvpn-core-build
-cmake --build /tmp/openvpn-core-build
-(cd /tmp/openvpn-core-build && ctest --output-on-failure)
+cmake --build /tmp/openvpn-core-build --parallel
+ctest --test-dir /tmp/openvpn-core-build --output-on-failure
 ```
 
-基础测试不需要 VPN 配置，也不会发起网络连接。
+生成 macOS 安装包时，使用 `packaging/macos/build-release.sh`。Intel 构建的最后两个参数为 `x86_64` 和 `/usr/local`；Apple Silicon 构建改为 `arm64` 和 `/opt/homebrew`。脚本会构建 core、Qt 应用、daemon 和 helper，运行测试并检查安装包动态库。
 
-## 当前验证状态
+更完整的打包说明见[macOS 打包文档](packaging/macos/README.md)，Windows 说明见[Windows 打包文档](packaging/windows/README.md)。
 
-- 共享 C++ 核心、OpenVPN3 离线 profile 解析和多会话对象已可测试。
-- macOS/Windows 路由生命周期模型已可离线测试。
-- macOS helper 已按“进程 PID + 独立会话标识”管理多个 utun，并在 helper 侧执行全隧道/重叠路由校验；`packaging/macos/` 已提供 launchd 配置和本地安装脚本。
-- Windows helper 已接入官方 Service/Wintun 构建边界；仍需要 Windows 主机完成驱动、Service、路由/DNS 和多会话运行验证。
-- Flutter 3.47.5 / Dart 3.13.4 已安装到 `.tools/flutter`；Flutter 测试、静态分析和 macOS 桌面构建已通过，Windows 构建仍需 Windows 主机。
-- macOS 状态栏和 Windows 通知区域已接入 OpenVPN 托盘控制：窗口关闭后仍常驻，菜单显示服务、连接、持续时间和流量，并提供连接/断开、开机自启、设置、关于；版本检查统一放在“关于 OpenVPN”中。
-- GitLab 更新检查读取公开 Release 的 latest 元数据；构建时通过 `--dart-define` 配置项目地址，用户确认后才下载并打开当前平台安装包，不会静默替换程序。
-- macOS Flutter 界面已接入文件选择器、临时凭据输入、Unix socket daemon 响应和事件；本地只持久化
-  profile 路径、显示名称、路由策略和不含敏感信息的活动摘要，不保存 profile 内容或密码，启动时会按路径重新读取配置。
-- 每个连接卡片的“查看详情”中会展示该配置自己的连接次数、最近连接和最近断开时间；这些是轻量活动摘要，
-  会随配置索引保存，不另设占空间的全局连接记录页，也不会保存密码、证书或完整日志。
-- 连接列表从上到下对应优先级 1、2、3……，数字越小越优先；拖动卡片会同步更新优先级。
-- Windows Flutter 界面已经接入用户 daemon 的 named pipe 客户端，CMake 也提供
-  `openvpn_windows_daemon`；Wintun、Service、路由/DNS 的真实运行验证仍需在 Windows 主机完成，
-  macOS 开发机不会把它伪装成已连接。
+## GitHub Releases
 
-macOS 当前可以先做不联网的 profile 检查：
+仓库地址：<https://github.com/flyu518/open-vpn>
 
-```bash
-/tmp/openvpn-core-build-x86/openvpn_smoke_cli --offline \
-  tmp/profile-a.ovpn tmp/profile-b.ovpn
+`.github/workflows/release-macos.yml` 会在推送 `v<版本号>` tag 后，分别构建 Intel 和 Apple Silicon 安装包，生成 SHA-256 校验文件并创建 GitHub Release。发布前需要为仓库配置允许 workflow 写入 `contents` 的权限，并完成正式签名和公证配置。
+
+## 数据和隐私
+
+配置索引和应用副本保存在：
+
+```text
+~/Library/Application Support/OpenVPN/
 ```
 
-真实连接入口会在终端隐藏读取用户名和密码；在 helper 安装、签名和 IPC 鉴权完成前，
-不要输入真实凭据。
+密码使用系统钥匙串保存。历史流量只记录时间和上下行字节，不记录访问内容、密码或私钥文本。日志和错误信息会经过脱敏处理。
 
-macOS 本地 UI daemon 可以这样启动：
+## 已知限制
 
-```bash
-/tmp/openvpn-core-build-x86/openvpn_daemon --socket /tmp/openvpn-ui.sock
-```
+- macOS 当前最低支持 macOS 26；正式签名和公证尚未配置；
+- Windows 尚未完成实机验收，并且当前只支持一条活动连接；
+- Android/iOS 尚未实现；
+- 域名后缀分流依赖 VPN 提供 DNS 服务器；任意模糊匹配和正则规则尚未支持；
+- 路由策略修改需要断开并重新连接后生效。
 
-它使用用户权限 Unix socket 接受界面命令，并把每个 OpenVPN3 会话的状态事件广播给
-已连接的桌面界面。
-
-如果希望登录后自动启动 UI daemon，可以安装用户级 launchd 服务：
-
-```bash
-packaging/macos/install-daemon.sh \
-  /tmp/openvpn-core-build-x86/openvpn_daemon
-```
-
-给最终用户交付时不需要让他们执行上面的脚本，可以生成一次性 macOS 安装包：
-
-```bash
-packaging/macos/build-pkg.sh \
-  ui/build/macos/Build/Products/Release/OpenVPN.app \
-  /tmp/openvpn-core-build-x86/openvpn_macos_agent \
-  /tmp/openvpn-core-build-x86/openvpn_daemon
-```
-
-用户双击 `packaging/macos/dist/OpenVPN-0.1.1.pkg` 安装并输入一次管理员密码即可；安装程序会注册
-helper 和 daemon，之后直接打开 `/Applications/OpenVPN.app`。开发包使用临时签名，正式对外分发还需要
-Developer ID 签名和 notarization。
-
-如果 `third_party/openvpn3` 已经存在，CMake 会额外编译 OpenVPN3 Core
-离线测试。当前开发机的 `/usr/local` 依赖是 x86_64，使用 Rosetta 验证时执行：
-
-```bash
-PYTHONPATH=/private/tmp/vpn-cmake /private/tmp/vpn-cmake/bin/cmake \
-  -S core -B /tmp/openvpn-core-build-x86 \
-  -DCMAKE_OSX_ARCHITECTURES=x86_64 \
-  -DOPENVPN3_SOURCE_DIR=/Users/cuikai/www_python/open-vpn/third_party/openvpn3 \
-  -DXXHASH_ROOT_DIR=/private/tmp/xxHash-0.8.4
-PYTHONPATH=/private/tmp/vpn-cmake /private/tmp/vpn-cmake/bin/cmake \
-  --build /tmp/openvpn-core-build-x86
-(cd /tmp/openvpn-core-build-x86 && ctest --output-on-failure)
-```
-
-正式 arm64 发布包需要 arm64 或 universal 的 OpenSSL、fmt、lz4 和 xxhash
-依赖；不能直接复用当前 x86_64 Homebrew 库。
-
-## 桌面托盘和版本更新
-
-OpenVPN 桌面程序启动后会在 macOS 状态栏或 Windows 通知区域保留图标。点击窗口关闭按钮只隐藏主窗口，
-不会主动断开连接；从托盘菜单选择“退出 OpenVPN”才退出 UI。托盘菜单中的每条连接会显示名称、连接动作、
-持续时间和上下行流量，状态来源与主窗口相同。
-
-桌面设置中的“开机自启”使用 macOS 用户级 LaunchAgent 或 Windows 当前用户 Run 注册表项，保存后立即生效。
-不需要每次改动都重新安装 helper；只有 helper、daemon 或应用安装包本身变化时才需要重新安装对应组件。
-
-构建带 GitLab 更新地址的 macOS 应用：
-
-```bash
-cd ui
-FLUTTER_SUPPRESS_ANALYTICS=true \
-XDG_CONFIG_HOME=/绝对路径/open-vpn/.tools/flutter-config \
-PUB_CACHE=/绝对路径/open-vpn/.tools/pub-cache \
-../.tools/flutter/bin/flutter build macos --release \
-  --dart-define=OPENVPN_VERSION=0.1.1 \
-  --dart-define=OPENVPN_GITLAB_API=https://gitlab.example.com/api/v4 \
-  --dart-define=OPENVPN_GITLAB_PROJECT=group/open-vpn
-```
-
-Windows 使用同样的三个 `--dart-define` 参数，将构建命令换成：
-
-```bash
-../.tools/flutter/bin/flutter build windows --release \
-  --dart-define=OPENVPN_VERSION=0.1.1 \
-  --dart-define=OPENVPN_GITLAB_API=https://gitlab.example.com/api/v4 \
-  --dart-define=OPENVPN_GITLAB_PROJECT=group/open-vpn
-```
-
-GitLab Release 的 tag 使用 `v0.1.1` 或 `0.1.1` 三段版本号；建议上传以下命名的资产：
-
-- macOS：`OpenVPN-0.1.1-macos.pkg`
-- Windows：`OpenVPN-0.1.1-windows.exe` 或 `OpenVPN-0.1.1-windows.msi`
-
-应用“关于 OpenVPN”中点击“检查更新”后会读取 latest Release。没有配置 GitLab 地址、网络失败或没有
-当前平台资产时，会显示中文原因，不影响现有 VPN 连接。
+协议定义见[VPN 协议 v1](docs/protocol-v1.md)，当前桌面验收范围见[桌面客户端验收记录](docs/desktop-acceptance.md)。

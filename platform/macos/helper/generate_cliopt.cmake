@@ -28,6 +28,8 @@ replace_required(
                         session_name_override = option.get(2, 256);
                     else if (key == "VPN_DESKTOP_ROUTE_MODE")
                         route_mode_override = option.get(2, 64);
+                    else if (key == "VPN_DESKTOP_ROUTE_RULES")
+                        route_rules_override = option.get(2, 1024);
                 }
             }
         }
@@ -35,7 +37,11 @@ replace_required(
                                           ? remote_list->current_server_host()
                                           : session_name_override;
         if (!route_mode_override.empty())
-            return base_name + "|route-mode=" + route_mode_override;
+            session_name_override = base_name + "|route-mode=" + route_mode_override;
+        if (!route_rules_override.empty())
+            session_name_override += "|route-rules=" + route_rules_override;
+        if (!session_name_override.empty())
+            return session_name_override;
         return base_name;]=]
     "桌面会话标识")
 
@@ -53,6 +59,7 @@ replace_required(
     [=[    std::string userlocked_username;]=]
     [=[    std::string session_name_override;
     std::string route_mode_override;
+    std::string route_rules_override;
     std::string userlocked_username;]=]
     "桌面会话标识存储")
 
