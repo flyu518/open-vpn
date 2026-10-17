@@ -69,7 +69,13 @@ if(MISSING_RESULT EQUAL 0)
     message(FATAL_ERROR "缺少边界片段时 Windows agent 生成器没有失败")
 endif()
 
-set(UPSTREAM_SOURCE "${SOURCE_DIR}/third_party/openvpn3/openvpn/ovpnagent/win/ovpnagent.cpp")
+if(DEFINED OPENVPN3_SOURCE_DIR AND EXISTS "${OPENVPN3_SOURCE_DIR}")
+    set(OPENVPN3_DIR "${OPENVPN3_SOURCE_DIR}")
+else()
+    set(OPENVPN3_DIR "${SOURCE_DIR}/third_party/openvpn3")
+endif()
+
+set(UPSTREAM_SOURCE "${OPENVPN3_DIR}/openvpn/ovpnagent/win/ovpnagent.cpp")
 if(EXISTS "${UPSTREAM_SOURCE}")
     set(UPSTREAM_OUTPUT "${BINARY_DIR}/upstream/windows-agent-generated.cpp")
     execute_process(

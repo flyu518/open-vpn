@@ -130,6 +130,7 @@ endif()
 add_test(NAME openvpn_windows_agent_patch_tests
     COMMAND ${CMAKE_COMMAND}
         -DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../..
+        -DOPENVPN3_SOURCE_DIR=${OPENVPN3_SOURCE_DIR}
         -DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}/windows-agent-patch
         -P ${CMAKE_CURRENT_SOURCE_DIR}/../../platform/windows/tests/windows_agent_patch_tests.cmake)
 set_tests_properties(openvpn_windows_agent_patch_tests PROPERTIES TIMEOUT 15)
@@ -137,6 +138,7 @@ set_tests_properties(openvpn_windows_agent_patch_tests PROPERTIES TIMEOUT 15)
 add_test(NAME openvpn_windows_client_patch_tests
     COMMAND ${CMAKE_COMMAND}
         -DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../..
+        -DOPENVPN3_SOURCE_DIR=${OPENVPN3_SOURCE_DIR}
         -DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}/windows-client-patch
         -P ${CMAKE_CURRENT_SOURCE_DIR}/../../platform/windows/tests/windows_client_patch_tests.cmake)
 set_tests_properties(openvpn_windows_client_patch_tests PROPERTIES TIMEOUT 15)
