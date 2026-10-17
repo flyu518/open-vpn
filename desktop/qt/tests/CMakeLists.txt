@@ -106,7 +106,7 @@ target_include_directories(openvpn_qt_tray_tests PRIVATE ../src)
 qt_add_resources(openvpn_qt_tray_tests "openvpn_tray_test_assets"
     PREFIX "/openvpn"
     BASE "../assets"
-    FILES ../assets/tray.svg ../assets/tray-mask.svg
+    FILES ../assets/app-icon.png
 )
 target_link_libraries(openvpn_qt_tray_tests PRIVATE
     Qt6::Core

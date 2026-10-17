@@ -51,8 +51,8 @@ C:/Qt/6.12.0/msvc2022_64/bin/windeployqt.exe --qmldir desktop/qt/qml build/qt-wi
 ```
 
 Qt Windows 安装器仍需和 Windows Service、Wintun 以及签名流程一起完成实机验收后再生成。
-正式发布时把安装程序上传到 GitHub Release，资产名称建议为 `OpenVPN-0.0.1-windows-x64.exe` 或
-`OpenVPN-0.0.1-windows-x64.msi`。关于入口位于状态栏/托盘菜单，那里只检查 GitHub Releases；用户确认后才启动安装程序，不会静默替换当前应用。
+正式发布时把安装程序上传到 GitHub Release，资产名称建议为 `OpenVPN-0.0.3-windows-x64.exe` 或
+`OpenVPN-0.0.3-windows-x64.msi`。关于入口位于状态栏/托盘菜单，那里只检查 GitHub Releases；用户确认后才启动安装程序，不会静默替换当前应用。
 
 Windows agent 现在按会话隔离多条 TUN；daemon 不再以单连接上限拒绝第二条连接。多隧道、驱动、安装升级和通知区域仍需 Windows 实机验收；不能以 macOS 测试或离线路由模型测试替代真实 Windows 双配置验收。
 

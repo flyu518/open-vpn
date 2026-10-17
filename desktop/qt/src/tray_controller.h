@@ -19,6 +19,8 @@ public:
 
     QMenu* menu() const;
     void hide();
+    bool recoverTrayIcon();
+    void scheduleTrayRecovery();
 
 private:
     void ensureTrayIcon();

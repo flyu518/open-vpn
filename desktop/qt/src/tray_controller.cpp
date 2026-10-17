@@ -62,6 +62,30 @@ void TrayController::hide() {
     if (tray_) tray_->hide();
 }
 
+bool TrayController::recoverTrayIcon() {
+    if (hidden_ || controller_->quitting()) return false;
+    if (menuOpen_ || menu_->isVisible()) {
+        QTimer::singleShot(120, this, [this] { recoverTrayIcon(); });
+        return false;
+    }
+    if (tray_) {
+        tray_->setContextMenu(nullptr);
+        tray_->hide();
+        delete tray_;
+        tray_ = nullptr;
+    }
+    controller_->setTrayAvailable(false);
+    ensureTrayIcon();
+    return tray_ != nullptr;
+}
+
+void TrayController::scheduleTrayRecovery() {
+    if (hidden_ || controller_->quitting()) return;
+    for (const int delay : {0, 250, 1000, 2500}) {
+        QTimer::singleShot(delay, this, [this] { recoverTrayIcon(); });
+    }
+}
+
 void TrayController::ensureTrayIcon() {
     if (hidden_ || controller_->quitting()) return;
     if (tray_) {
