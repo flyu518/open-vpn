@@ -133,7 +133,7 @@ Json::Value SessionController::connect(const Json::Value& request) {
                 }));
             if (active >= max_active_sessions_) {
                 return response(false,
-                    "当前Windows版本暂不支持同时连接多条VPN，请先断开已有连接");
+                    "活动 VPN 会话数已达到上限，请先断开已有连接");
             }
         }
     }

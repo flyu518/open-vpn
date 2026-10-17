@@ -5,6 +5,7 @@
 #include <windows.h>
 
 #include "daemon_session_controller.h"
+#include "windows_session_policy.h"
 #include "platform/windows/secure_store/credential_store.h"
 
 #include <algorithm>
@@ -66,8 +67,9 @@ public:
     explicit WindowsDaemon(std::wstring pipe_name)
         : pipe_name_(std::move(pipe_name)),
           stopped_(CreateEventW(nullptr, TRUE, FALSE, nullptr)),
-          // 官方 agent 只有一个 tun，必须在启动第二个引擎前拒绝请求。
-          controller_([this](const Json::Value& value) { broadcast(value); }, &credential_store_, 1) {}
+          // The generated Windows agent isolates native resources per desktop session.
+          controller_([this](const Json::Value& value) { broadcast(value); },
+                      &credential_store_, vpn::daemon::windows_max_active_sessions()) {}
     ~WindowsDaemon() { stop(); }
     int run();
     void stop();
