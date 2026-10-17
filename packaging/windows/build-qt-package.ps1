@@ -4,6 +4,7 @@ param(
     [string]$WindowsDaemon = "",
     [string]$WindowsService = "",
     [string]$WintunDll = "",
+    [string]$RuntimeDllDir = "",
     [string]$Version = "0.0.3",
     [string]$Output = "",
     [switch]$BuildInstaller
@@ -57,6 +58,32 @@ try {
             "Wintun" { "wintun.dll" }
         }
         Copy-Item -Force $item.Value (Join-Path $stage $targetName)
+    }
+
+    if ([string]::IsNullOrWhiteSpace($RuntimeDllDir)) {
+        $RuntimeDllDir = Split-Path -Parent (Resolve-Path $WindowsDaemon)
+    }
+    $runtimeDlls = @(
+        "jsoncpp.dll",
+        "lz4.dll",
+        "libcrypto-3-x64.dll",
+        "libssl-3-x64.dll"
+    )
+    foreach ($runtimeDll in $runtimeDlls) {
+        $source = Join-Path $RuntimeDllDir $runtimeDll
+        if (Test-Path $source) {
+            Copy-Item -Force $source (Join-Path $stage $runtimeDll)
+        }
+    }
+    $optionalFmt = Join-Path $RuntimeDllDir "fmt.dll"
+    if (Test-Path $optionalFmt) {
+        Copy-Item -Force $optionalFmt (Join-Path $stage "fmt.dll")
+    }
+    $missingRuntimeDlls = @($runtimeDlls | Where-Object {
+        -not (Test-Path (Join-Path $stage $_))
+    })
+    if ($missingRuntimeDlls.Count -gt 0) {
+        throw "Windows 运行时 DLL 缺失：$($missingRuntimeDlls -join ', ')。请设置 -RuntimeDllDir 指向 vcpkg/bin。"
     }
 
     $outputPath = Join-Path $root $Output

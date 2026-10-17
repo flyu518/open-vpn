@@ -29,7 +29,8 @@ HKCU\Software\Microsoft\Windows\CurrentVersion\Run\OpenVPN
 .\packaging\windows\build-qt-package.ps1 -BuildInstaller `
   -WindowsDaemon build\core-windows\Release\openvpn_windows_daemon.exe `
   -WindowsService build\core-windows\Release\openvpn_windows_service.exe `
-  -WintunDll third_party\wintun\wintun.dll
+  -WintunDll third_party\wintun\wintun.dll `
+  -RuntimeDllDir build\core-windows\Release
 ```
 
 界面的自启开关不要求管理员权限；安装服务的安装包需要管理员授权。Qt 桌面界面在 Windows 主机使用 MSVC kit 构建：
@@ -47,7 +48,8 @@ C:/Qt/6.12.0/msvc2022_64/bin/windeployqt.exe --qmldir desktop/qt/qml build/qt-wi
   -QtDir C:\Qt\6.12.0\msvc2022_64 `
   -WindowsDaemon build\core-windows\Release\openvpn_windows_daemon.exe `
   -WindowsService build\core-windows\Release\openvpn_windows_service.exe `
-  -WintunDll third_party\wintun\wintun.dll
+  -WintunDll third_party\wintun\wintun.dll `
+  -RuntimeDllDir build\core-windows\Release
 ```
 
 Qt Windows 安装器仍需和 Windows Service、Wintun 以及签名流程一起完成实机验收后再生成。

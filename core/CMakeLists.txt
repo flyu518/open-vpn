@@ -463,6 +463,45 @@ if(WIN32)
         CXX_STANDARD 20
         CXX_STANDARD_REQUIRED ON
     )
+
+    # The Windows binaries link against the dynamic vcpkg/OpenSSL runtime.
+    # Keep the build output directly runnable when launched from Explorer or
+    # the desktop UI without a developer-shell PATH.
+    function(vpn_copy_windows_runtime_dlls target)
+        set(runtime_dlls)
+        if(DEFINED OPENSSL_ROOT_DIR)
+            list(APPEND runtime_dlls
+                "${OPENSSL_ROOT_DIR}/bin/libcrypto-3-x64.dll"
+                "${OPENSSL_ROOT_DIR}/bin/libssl-3-x64.dll")
+        endif()
+        foreach(library_variable IN ITEMS LZ4_LIBRARY JSONCPP_LIBRARY FMT_LIBRARY)
+            if(DEFINED ${library_variable} AND EXISTS "${${library_variable}}")
+                get_filename_component(library_dir "${${library_variable}}" DIRECTORY)
+                get_filename_component(runtime_root "${library_dir}" DIRECTORY)
+                if(library_variable STREQUAL "LZ4_LIBRARY")
+                    list(APPEND runtime_dlls "${runtime_root}/bin/lz4.dll")
+                elseif(library_variable STREQUAL "JSONCPP_LIBRARY")
+                    list(APPEND runtime_dlls "${runtime_root}/bin/jsoncpp.dll")
+                elseif(library_variable STREQUAL "FMT_LIBRARY")
+                    list(APPEND runtime_dlls "${runtime_root}/bin/fmt.dll")
+                endif()
+            endif()
+        endforeach()
+        list(REMOVE_DUPLICATES runtime_dlls)
+        foreach(runtime_dll IN LISTS runtime_dlls)
+            if(EXISTS "${runtime_dll}")
+                add_custom_command(TARGET ${target} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        "${runtime_dll}"
+                        "$<TARGET_FILE_DIR:${target}>")
+            endif()
+        endforeach()
+    endfunction()
+
+    vpn_copy_windows_runtime_dlls(openvpn_windows_daemon)
+    if(TARGET openvpn_windows_service)
+        vpn_copy_windows_runtime_dlls(openvpn_windows_service)
+    endif()
 endif()
 
 target_include_directories(openvpn_core
