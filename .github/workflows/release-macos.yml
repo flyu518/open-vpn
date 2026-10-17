@@ -79,7 +79,6 @@ jobs:
           host: mac
           target: desktop
           arch: clang_64
-          modules: qtsvg qtshadertools
           cache: true
 
       - name: 构建并验证安装包

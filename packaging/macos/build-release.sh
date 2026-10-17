@@ -39,6 +39,10 @@ deploy_args=()
 for plugin in platforms/libqcocoa.dylib iconengines/libqsvgicon.dylib \
     imageformats/libqsvg.dylib imageformats/libqjpeg.dylib imageformats/libqgif.dylib \
     imageformats/libqico.dylib tls/libqsecuretransportbackend.dylib; do
+    if [ ! -f "$qt_root/plugins/$plugin" ]; then
+        echo "跳过未提供的 Qt 可选插件：$plugin"
+        continue
+    fi
     /bin/mkdir -p "$app/Contents/PlugIns/$(dirname -- "$plugin")"
     /usr/bin/install -m 0755 "$qt_root/plugins/$plugin" "$app/Contents/PlugIns/$plugin"
     deploy_args+=("-executable=$app/Contents/PlugIns/$plugin")
