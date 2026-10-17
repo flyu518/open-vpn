@@ -94,11 +94,16 @@ ApplicationWindow {
         refreshDetails()
         detailsDialog.open()
     }
+    function scrollDiagnosticToEnd() {
+        if (!diagnosticExpanded || !detailFlick) return
+        detailFlick.contentY = Math.max(0, detailFlick.contentHeight - detailFlick.height)
+    }
     function notify(title, message) {
         noticeTitle = title
         noticeMessage = readableMessage(message, "操作未成功，请在连接详情中查看诊断信息。")
         noticeTimer.restart()
     }
+    onDiagnosticExpandedChanged: if (diagnosticExpanded) diagnosticScrollTimer.restart()
     onClosing: function(close) {
         if (controller.quitting) return
         if (!controller.trayAvailable) {
@@ -618,6 +623,7 @@ ApplicationWindow {
         }
     }
     Timer { id: noticeTimer; interval: 7000; onTriggered: window.noticeMessage = "" }
+    Timer { id: diagnosticScrollTimer; interval: 0; onTriggered: window.scrollDiagnosticToEnd() }
 
     AppDialog {
         id: detailsDialog
@@ -634,10 +640,7 @@ ApplicationWindow {
             Connections {
                 target: detailScroll.contentItem
                 function onContentHeightChanged() {
-                    if (window.diagnosticExpanded) {
-                        const flick = detailScroll.contentItem as Flickable
-                        if (flick) flick.contentY = Math.max(0, flick.contentHeight - flick.height)
-                    }
+                    if (window.diagnosticExpanded) diagnosticScrollTimer.restart()
                 }
             }
             contentItem: Flickable {
