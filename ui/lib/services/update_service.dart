@@ -3,7 +3,7 @@ import 'dart:io';
 
 const String buildAppVersion = String.fromEnvironment(
   'OPENVPN_VERSION',
-  defaultValue: '0.1.0',
+  defaultValue: '0.1.1',
 );
 const String buildGitLabApi = String.fromEnvironment('OPENVPN_GITLAB_API');
 const String buildGitLabProject = String.fromEnvironment(

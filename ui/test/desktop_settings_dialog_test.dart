@@ -45,4 +45,31 @@ void main() {
     expect(find.text('当前版本 0.1.0'), findsOneWidget);
     expect(find.text('检查更新'), findsOneWidget);
   });
+
+  testWidgets('没有当前平台安装包时按钮明确打开 Release 页面', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: OpenVpnAboutDialog(
+          version: '0.1.1',
+          updateService: UpdateService(
+            apiBaseUrl: 'https://gitlab.example.com/api/v4',
+            projectPath: 'group/open-vpn',
+            currentVersion: '0.1.1',
+            responseLoader: (_) async => const UpdateHttpResponse(
+              200,
+              '{"tag_name":"v0.2.0","name":"OpenVPN 0.2.0"}',
+            ),
+          ),
+          platform: UpdatePlatform.macos,
+          onOpenReleasePage: (_) async {},
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('检查更新'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('打开 Release 页面'), findsOneWidget);
+    expect(find.text('下载并安装'), findsNothing);
+  });
 }

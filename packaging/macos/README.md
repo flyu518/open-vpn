@@ -75,3 +75,30 @@ rm -rf "$HOME/Library/Application Support/OpenVPN"
 正式分发前还需要使用 Developer ID 对 `.app` 和 `.pkg` 签名并完成 notarization。
 当前桌面版不启用 App Sandbox，这是为了访问用户配置目录和 VPN Unix socket；正式发布必须使用
 Developer ID、Hardened Runtime，并继续限制 helper IPC 和 Keychain 凭据访问范围。
+
+## 托盘、自启和 GitLab 发布
+
+安装完成后，直接打开 `/Applications/OpenVPN.app` 即可显示 macOS 状态栏图标。关闭窗口只会隐藏主窗口，
+托盘菜单仍可打开 OpenVPN、查看连接、连接/断开配置、打开设置、检查更新或退出程序。
+
+“开机自启”由应用写入当前用户的 `~/Library/LaunchAgents/com.openvpn.ui.plist`，不需要 sudo；它只负责启动
+桌面 UI，不替代 `com.openvpn.daemon` 或高权限 helper。更新 UI 本身不需要重新安装 helper，只有发布包里的
+helper/daemon 变化时才重新执行完整安装包。
+
+发布时用与 UI 一致的版本构建：
+
+```bash
+cd /绝对路径/open-vpn/ui
+../.tools/flutter/bin/flutter build macos --release \
+  --dart-define=OPENVPN_VERSION=0.1.1 \
+  --dart-define=OPENVPN_GITLAB_API=https://gitlab.example.com/api/v4 \
+  --dart-define=OPENVPN_GITLAB_PROJECT=group/open-vpn
+cd /绝对路径/open-vpn
+OPENVPN_VERSION=0.1.1 packaging/macos/build-pkg.sh \
+  ui/build/macos/Build/Products/Release/OpenVPN.app \
+  /tmp/openvpn-core-build-x86/openvpn_macos_agent \
+  /tmp/openvpn-core-build-x86/openvpn_daemon
+```
+
+将生成的 `packaging/macos/dist/OpenVPN-0.1.1.pkg` 上传到 GitLab Release，资产名称建议为
+`OpenVPN-0.1.1-macos.pkg`。应用从 GitLab latest Release 选择 `.pkg`，下载前会等待用户确认。

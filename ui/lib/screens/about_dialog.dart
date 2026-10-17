@@ -163,8 +163,18 @@ class _OpenVpnAboutDialogState extends State<OpenVpnAboutDialog> {
                     dimension: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Icon(Icons.download_rounded),
-            label: Text(_installing ? '准备安装…' : '下载并安装'),
+                : Icon(
+                    installer == null
+                        ? Icons.open_in_new_rounded
+                        : Icons.download_rounded,
+                  ),
+            label: Text(
+              _installing
+                  ? '准备安装…'
+                  : installer == null
+                      ? '打开 Release 页面'
+                      : '下载并安装',
+            ),
           )
         else
           FilledButton.icon(

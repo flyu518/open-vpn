@@ -32,6 +32,8 @@ cmake --build /tmp/openvpn-core-build
 - macOS helper 已按“进程 PID + 独立会话标识”管理多个 utun，并在 helper 侧执行全隧道/重叠路由校验；`packaging/macos/` 已提供 launchd 配置和本地安装脚本。
 - Windows helper 已接入官方 Service/Wintun 构建边界；仍需要 Windows 主机完成驱动、Service、路由/DNS 和多会话运行验证。
 - Flutter 3.47.5 / Dart 3.13.4 已安装到 `.tools/flutter`；Flutter 测试、静态分析和 macOS 桌面构建已通过，Windows 构建仍需 Windows 主机。
+- macOS 状态栏和 Windows 通知区域已接入 OpenVPN 托盘控制：窗口关闭后仍常驻，菜单显示服务、连接、持续时间和流量，并提供连接/断开、开机自启、设置、关于和检查更新。
+- GitLab 更新检查读取公开 Release 的 latest 元数据；构建时通过 `--dart-define` 配置项目地址，用户确认后才下载并打开当前平台安装包，不会静默替换程序。
 - macOS Flutter 界面已接入文件选择器、临时凭据输入、Unix socket daemon 响应和事件；本地只持久化
   profile 路径、显示名称、路由策略和不含敏感信息的活动摘要，不保存 profile 内容或密码，启动时会按路径重新读取配置。
 - 每个连接卡片的“查看详情”中会展示该配置自己的连接次数、最近连接和最近断开时间；这些是轻量活动摘要，
@@ -96,3 +98,42 @@ PYTHONPATH=/private/tmp/vpn-cmake /private/tmp/vpn-cmake/bin/cmake \
 
 正式 arm64 发布包需要 arm64 或 universal 的 OpenSSL、fmt、lz4 和 xxhash
 依赖；不能直接复用当前 x86_64 Homebrew 库。
+
+## 桌面托盘和版本更新
+
+OpenVPN 桌面程序启动后会在 macOS 状态栏或 Windows 通知区域保留图标。点击窗口关闭按钮只隐藏主窗口，
+不会主动断开连接；从托盘菜单选择“退出 OpenVPN”才退出 UI。托盘菜单中的每条连接会显示名称、连接动作、
+持续时间和上下行流量，状态来源与主窗口相同。
+
+桌面设置中的“开机自启”使用 macOS 用户级 LaunchAgent 或 Windows 当前用户 Run 注册表项，保存后立即生效。
+不需要每次改动都重新安装 helper；只有 helper、daemon 或应用安装包本身变化时才需要重新安装对应组件。
+
+构建带 GitLab 更新地址的 macOS 应用：
+
+```bash
+cd ui
+FLUTTER_SUPPRESS_ANALYTICS=true \
+XDG_CONFIG_HOME=/绝对路径/open-vpn/.tools/flutter-config \
+PUB_CACHE=/绝对路径/open-vpn/.tools/pub-cache \
+../.tools/flutter/bin/flutter build macos --release \
+  --dart-define=OPENVPN_VERSION=0.1.1 \
+  --dart-define=OPENVPN_GITLAB_API=https://gitlab.example.com/api/v4 \
+  --dart-define=OPENVPN_GITLAB_PROJECT=group/open-vpn
+```
+
+Windows 使用同样的三个 `--dart-define` 参数，将构建命令换成：
+
+```bash
+../.tools/flutter/bin/flutter build windows --release \
+  --dart-define=OPENVPN_VERSION=0.1.1 \
+  --dart-define=OPENVPN_GITLAB_API=https://gitlab.example.com/api/v4 \
+  --dart-define=OPENVPN_GITLAB_PROJECT=group/open-vpn
+```
+
+GitLab Release 的 tag 使用 `v0.1.1` 或 `0.1.1` 三段版本号；建议上传以下命名的资产：
+
+- macOS：`OpenVPN-0.1.1-macos.pkg`
+- Windows：`OpenVPN-0.1.1-windows.exe` 或 `OpenVPN-0.1.1-windows.msi`
+
+应用“关于 OpenVPN”中点击“检查更新”后会读取 latest Release。没有配置 GitLab 地址、网络失败或没有
+当前平台资产时，会显示中文原因，不影响现有 VPN 连接。
