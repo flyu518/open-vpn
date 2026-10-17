@@ -134,12 +134,30 @@ jobs:
           cat > release-notes.md <<EOF
           # OpenVPN $OPENVPN_RELEASE_VERSION
 
-          提供两个 macOS 安装包：
+          OpenVPN 是一个用于同时管理多条 OpenVPN 连接的桌面客户端。本版本提供两个 macOS 安装包：
 
-          - x86_64：Intel Mac
-          - arm64：Apple Silicon Mac
+          | 文件 | 适用设备 |
+          | --- | --- |
+          | `OpenVPN-$OPENVPN_RELEASE_VERSION-macos-x86_64.pkg` | Intel Mac |
+          | `OpenVPN-$OPENVPN_RELEASE_VERSION-macos-arm64.pkg` | Apple Silicon Mac |
 
-          当前构建尚未完成 Developer ID 签名和公证。
+          ## 主要内容
+
+          - macOS Qt 桌面界面和状态栏菜单；
+          - 多条 OpenVPN 连接的独立状态、流量和生命周期管理；
+          - IP/CIDR 路由优先/排除规则；
+          - 域名后缀的 macOS 分流 DNS 规则；
+          - 配置副本、钥匙串凭据和 GitHub Releases 更新检查。
+
+          ## 安装
+
+          下载与设备架构对应的 `.pkg`，双击安装并按提示授权，然后打开 `/Applications/OpenVPN.app`。
+
+          每个安装包旁边的 `.sha256` 文件用于校验下载完整性。
+
+          ## 限制
+
+          当前构建尚未完成 Developer ID 签名和公证，最低支持 macOS 26。Windows 安装包尚未发布，Windows 版本仍处于单连接预览阶段。
           EOF
 
       - name: 发布 GitHub Release
