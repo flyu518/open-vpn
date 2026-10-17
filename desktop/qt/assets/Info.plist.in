@@ -11,7 +11,7 @@
   <key>CFBundleVersion</key><string>${MACOSX_BUNDLE_BUNDLE_VERSION}</string>
   <key>CFBundleDevelopmentRegion</key><string>zh-Hans</string>
   <key>CFBundleLocalizations</key><array><string>zh-Hans</string><string>en</string></array>
-  <key>NSHumanReadableCopyright</key><string>Copyright © 2026 flyu</string>
+  <key>NSHumanReadableCopyright</key><string>Copyright © 2026 flyu518</string>
   <key>LSMinimumSystemVersion</key><string>26.0</string>
   <key>NSPrincipalClass</key><string>NSApplication</string>
   <key>NSSupportsAutomaticGraphicsSwitching</key><true/>
