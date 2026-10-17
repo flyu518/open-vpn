@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import '../lib/services/update_service.dart';
+import 'package:openvpn_ui/services/update_service.dart';
 
 void main() {
   group('SemanticVersion', () {

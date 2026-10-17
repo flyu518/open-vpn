@@ -261,7 +261,7 @@ class UpdateService {
         status: UpdateCheckStatus.upToDate,
         currentVersion: currentVersion,
         release: release,
-        message: '当前已是最新版本（${currentVersion}）',
+        message: '当前已是最新版本（$currentVersion）',
       );
     } on Object catch (error) {
       return UpdateCheckResult(

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../lib/screens/about_dialog.dart';
-import '../lib/screens/desktop_settings_dialog.dart';
-import '../lib/services/startup_service.dart';
-import '../lib/services/update_service.dart';
+import 'package:openvpn_ui/screens/about_dialog.dart';
+import 'package:openvpn_ui/screens/desktop_settings_dialog.dart';
+import 'package:openvpn_ui/services/startup_service.dart';
+import 'package:openvpn_ui/services/update_service.dart';
 
 void main() {
   testWidgets('设置对话框只展示有实际作用的桌面设置', (tester) async {

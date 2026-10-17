@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import '../lib/services/startup_service.dart';
+import 'package:openvpn_ui/services/startup_service.dart';
 
 void main() {
   test('macOS LaunchAgent plist 保留带空格的应用路径', () {

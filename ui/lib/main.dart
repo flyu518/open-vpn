@@ -1,13 +1,17 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:window_manager/window_manager.dart';
 
 import 'models/credentials.dart';
 import 'models/session.dart';
 import 'models/route_strategy.dart';
+import 'screens/about_dialog.dart';
 import 'screens/credentials_dialog.dart';
+import 'screens/desktop_settings_dialog.dart';
 import 'screens/profile_import_screen.dart';
 import 'screens/profile_details_dialog.dart';
 import 'screens/route_strategy_dialog.dart';
@@ -15,9 +19,26 @@ import 'screens/session_name_dialog.dart';
 import 'screens/sessions_screen.dart';
 import 'services/engine_client.dart';
 import 'services/profile_store.dart';
+import 'services/startup_service.dart';
+import 'services/tray_controller.dart';
+import 'services/update_service.dart';
 import 'view_models/session_view_model.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  if (Platform.isMacOS || Platform.isWindows) {
+    await windowManager.ensureInitialized();
+    const windowOptions = WindowOptions(
+      size: Size(1200, 780),
+      minimumSize: Size(900, 620),
+      center: true,
+      title: 'OpenVPN',
+    );
+    windowManager.waitUntilReadyToShow(windowOptions, () {
+      unawaited(windowManager.show());
+      unawaited(windowManager.focus());
+    });
+  }
   runApp(const VpnApp());
 }
 
@@ -28,11 +49,15 @@ class VpnApp extends StatefulWidget {
   State<VpnApp> createState() => _VpnAppState();
 }
 
-class _VpnAppState extends State<VpnApp> {
+class _VpnAppState extends State<VpnApp> with WindowListener {
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   late final EngineClient engineClient;
   late final SessionViewModel viewModel;
   late final ProfileStore profileStore;
+  late final StartupService startupService;
+  late final UpdateService updateService;
+  late final TrayController trayController;
+  bool _quitting = false;
 
   @override
   void initState() {
@@ -43,12 +68,45 @@ class _VpnAppState extends State<VpnApp> {
             ? WindowsNamedPipeEngineClient()
             : UnavailableEngineClient('当前平台暂未接入 OpenVPN 服务端');
     profileStore = JsonProfileStore();
+    startupService = StartupService();
+    updateService = UpdateService();
     viewModel = SessionViewModel(
       engineClient: engineClient,
       profileStore: profileStore,
     );
+    trayController = TrayController(
+      viewModel: viewModel,
+      startupService: startupService,
+      onOpen: _openWindow,
+      onConnect: (session) async {
+        await _openWindow();
+        await _connect(session);
+      },
+      onDisconnect: (session) async {
+        await _openWindow();
+        await _disconnect(session);
+      },
+      onSettings: _showSettings,
+      onCheckUpdates: _showAbout,
+      onAbout: _showAbout,
+      onQuit: _quitApplication,
+      onDiagnostic: _showDesktopDiagnostic,
+    );
+    if (Platform.isMacOS || Platform.isWindows) {
+      windowManager.addListener(this);
+      unawaited(_initializeDesktopChrome());
+    }
     viewModel.startAutoRefresh();
     _loadInitialState();
+  }
+
+  Future<void> _initializeDesktopChrome() async {
+    try {
+      await windowManager.setPreventClose(true);
+    } on Object catch (error) {
+      _showDesktopDiagnostic('窗口常驻初始化失败：$error');
+    }
+    await trayController.initialize();
   }
 
   Future<void> _loadInitialState() async {
@@ -66,6 +124,8 @@ class _VpnAppState extends State<VpnApp> {
 
   @override
   void dispose() {
+    windowManager.removeListener(this);
+    unawaited(trayController.dispose());
     viewModel.dispose();
     if (engineClient case final UnixSocketEngineClient client) {
       client.dispose();
@@ -131,6 +191,83 @@ class _VpnAppState extends State<VpnApp> {
 
   Future<void> _disconnect(VpnSession session) async {
     await viewModel.disconnectSession(session.id);
+  }
+
+  Future<void> _openWindow() async {
+    if (!Platform.isMacOS && !Platform.isWindows) return;
+    try {
+      await windowManager.show();
+      await windowManager.focus();
+    } on Object catch (error) {
+      _showDesktopDiagnostic('打开 OpenVPN 窗口失败：$error');
+    }
+  }
+
+  Future<void> _showSettings() async {
+    await _openWindow();
+    if (!mounted) return;
+    final context = _navigatorKey.currentState?.context;
+    if (context == null || !context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => DesktopSettingsDialog(
+        startupService: startupService,
+        onCheckForUpdates: () async {
+          Navigator.of(dialogContext).pop();
+          await Future<void>.delayed(Duration.zero);
+          await _showAbout();
+        },
+      ),
+    );
+  }
+
+  Future<void> _showAbout() async {
+    await _openWindow();
+    if (!mounted) return;
+    final context = _navigatorKey.currentState?.context;
+    if (context == null || !context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (_) => OpenVpnAboutDialog(
+        version: updateService.currentVersion.toString(),
+        updateService: updateService,
+        platform: Platform.isWindows
+            ? UpdatePlatform.windows
+            : UpdatePlatform.macos,
+        onOpenReleasePage: openReleasePage,
+      ),
+    );
+  }
+
+  Future<void> _quitApplication() async {
+    if (_quitting) return;
+    _quitting = true;
+    await trayController.dispose();
+    if (Platform.isMacOS || Platform.isWindows) {
+      try {
+        await windowManager.setPreventClose(false);
+        await windowManager.destroy();
+      } on Object catch (error) {
+        _showDesktopDiagnostic('退出 OpenVPN 失败：$error');
+      }
+    }
+  }
+
+  void _showDesktopDiagnostic(String message) {
+    final context = _navigatorKey.currentState?.context;
+    if (context == null || !context.mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    });
+  }
+
+  @override
+  void onWindowClose() {
+    if (_quitting) return;
+    unawaited(windowManager.hide());
   }
 
   Future<void> _viewDetails(VpnSession session) async {
