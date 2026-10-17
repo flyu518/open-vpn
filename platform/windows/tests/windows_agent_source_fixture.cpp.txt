@@ -1,0 +1,182 @@
+#include <vector>
+#include <memory>
+#include <utility>
+
+using namespace openvpn;
+
+class MyListener {
+public:
+    MyListener()
+        : base(io_context),
+          config(config_arg),
+          client_process(io_context),
+          client_confirm_event(io_context),
+          client_destroy_event(io_context),
+          io_context_(io_context)
+    {
+    }
+
+    Win::ScopedHANDLE tun_get_handle(const TunWin::Type tun_type,
+                                      bool allow_local_dns_resolvers,
+                                      std::ostream &os)
+    {
+        if (!tun)
+            tun.reset(new TunWin::Setup(io_context_, tun_type, allow_local_dns_resolvers));
+        return Win::ScopedHANDLE(tun->get_handle(os));
+    }
+
+    TunWin::Util::TapNameGuidPair get_adapter_state()
+    {
+        return tun->get_adapter_state();
+    }
+
+    Win::ScopedHANDLE establish_tun(const TunBuilderCapture &tbc,
+                                    const std::wstring &openvpn_app_path,
+                                    DWORD client_process_id,
+                                    Stop *stop,
+                                    std::ostream &os,
+                                    TunWin::Type tun_type,
+                                    bool allow_local_dns_resolvers,
+                                    TunWin::Util::TapNameGuidPair tap)
+    {
+        return Win::ScopedHANDLE(tun->establish(
+            tbc, openvpn_app_path, stop, os, ring_buffer));
+    }
+
+    // return true if we did any work
+    bool destroy_tun(std::ostream &os)
+    {
+        if (tun)
+            tun->destroy(os);
+        tun.reset();
+        return true;
+    }
+
+    void destroy_tun_exit()
+    {
+        destroy_tun(std::cerr);
+    }
+
+    void set_client_process(Win::ScopedHANDLE &&proc)
+    {
+        client_process.assign(proc.release());
+        client_process.async_wait([self = Ptr(this)](
+            const openvpn_io::error_code &error) {
+            if (!error)
+                self->destroy_tun(std::cerr);
+        });
+    }
+
+    void set_client_confirm_event(const std::string &confirm_handle_hex)
+    {
+        client_confirm_event.assign(nullptr);
+    }
+
+    void set_client_destroy_event(const std::string &event_handle_hex)
+    {
+        client_destroy_event.async_wait([](
+            const openvpn_io::error_code &) {});
+    }
+
+    HANDLE get_client_process()
+    {
+        return client_process.native_handle();
+    }
+
+    void set_remote_tap_handle_hex(const HANDLE tap_handle)
+    {
+        remote_tap_handle_hex = Win::HandleComm::send_handle(tap_handle, get_client_process());
+    }
+
+    const std::string &get_remote_tap_handle_hex()
+    {
+        return remote_tap_handle_hex;
+    }
+
+    void assign_ring_buffer(TunWin::RingBuffer *ring_buffer_arg)
+    {
+        ring_buffer.reset(ring_buffer_arg);
+    }
+
+    void add_bypass_route(const std::string &host, bool ipv6)
+    {
+        TunWin::Setup::add_bypass_route(
+            TunWin::Util::BestGateway{AF_INET, host, vpn_interface_index},
+            host, ipv6, add_cmds, remove_cmds_bypass_hosts);
+    }
+
+#ifdef OPENVPN_AGENT_START_PROCESS
+    void start_openvpn_process()
+    {
+    }
+#endif
+
+    ActionList remove_cmds_bypass_hosts;
+
+    TunWin::RingBuffer::Ptr ring_buffer;
+
+  private:
+    bool allow_client(AsioPolySock::Base &sock) override
+    {
+        return true;
+    }
+
+    TunWin::Setup::Ptr tun;
+    openvpn_io::windows::object_handle client_process;
+    openvpn_io::windows::object_handle client_confirm_event;
+    CancelableHandle client_destroy_event;
+    std::string remote_tap_handle_hex;
+    openvpn_io::io_context &io_context_;
+
+    // with persist tunnel and redirect-gw we must exclude
+    // VPN interface when searching for best gateway when
+    // adding bypass route for the next remote
+    DWORD vpn_interface_index = DWORD(-1);
+};
+
+class MyClientInstance {
+public:
+    virtual ~MyClientInstance() = default;
+
+  private:
+    void request_received()
+    {
+                    if (parent()->destroy_tun(os))
+                    {
+                        os << "Destroyed previous TAP instance\n";
+                        ::Sleep(1000);
+                    }
+        ULONG pid = json::get_uint_optional(root, "pid", 0);
+            const std::string confirm_event_hex = json::get_string(root, "confirm_event");
+            tbc->validate();
+
+            // destroy previous instance
+            ULONG pid = json::get_uint_optional(root, "pid", 0);
+        bool ipv6 = json::get_bool(root, "ipv6");
+            // pre-establish impersonation
+            parent()->set_client_process(std::move(proc));
+            parent()->set_client_confirm_event(confirm_event_hex);
+            parent()->set_client_destroy_event(destroy_event_hex);
+            parent()->assign_ring_buffer(new TunWin::RingBuffer(
+                io_context, parent()->get_client_process()));
+            parent()->tun_get_handle(os, TunWin::OvpnDco, false);
+                    if (tun_type != TunWin::OvpnDco && parent()->destroy_tun(os))
+                    {
+                        os << "Destroyed previous TAP instance\n";
+                        ::Sleep(1000);
+                    }
+
+                    // pre-establish impersonation
+                    // establish the tun setup object
+            parent()->establish_tun(*tbc, client_exe, client_pid, nullptr, os,
+                                    tun_type, false, tap);
+            parent()->set_remote_tap_handle_hex(tap_handle());
+            parent()->get_remote_tap_handle_hex();
+            parent()->get_adapter_state();
+            parent()->add_bypass_route(host, ipv6);
+            parent()->destroy_tun(os);
+    }
+
+    BufferList in;
+    BufferPtr out;
+};

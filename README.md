@@ -28,7 +28,7 @@ Apple Silicon 使用 `arm64` 安装包时不需要 Rosetta。当前构建最低�
 
 ### Windows
 
-Windows 版本使用 Qt 桌面界面、OpenVPN3 Windows Service 和 Wintun/TAP 适配层。目前属于单连接预览实现，仍需要在 Windows 主机上完成驱动、Service、路由、DNS、通知区域和安装升级的实机验收。当前 daemon 会在启动第二条连接前主动拒绝请求，因为接入的 Windows agent 只管理一个 TUN；这是一项保护性限制，不是 Windows 最终版本的能力目标。
+Windows 版本使用 Qt 桌面界面、OpenVPN3 Windows Service 和 Wintun/TAP 适配层，支持多条配置同时连接。Windows daemon 与 macOS 使用相同的会话逻辑，Windows agent 为每条会话隔离 TUN、句柄、路由和 DNS；仍需要在 Windows 主机上完成驱动、Service、路由、DNS、通知区域和安装升级的实机验收。
 
 ### Android/iOS
 
@@ -99,7 +99,7 @@ ctest --test-dir /tmp/openvpn-core-build --output-on-failure
 ## 已知限制
 
 - macOS 当前最低支持 macOS 26；正式签名和公证尚未配置；
-- Windows 尚未完成实机验收，并且当前只支持一条活动连接；
+- Windows 多会话代码和 MSVC/CTest 链路已接入，仍需使用真实 VPN 配置完成 Windows 驱动、Service、路由/DNS 和安装包实机验收；
 - Android/iOS 尚未实现；
 - 域名后缀分流依赖 VPN 提供 DNS 服务器；任意模糊匹配和正则规则尚未支持；
 - 路由策略修改需要断开并重新连接后生效。

@@ -1,19 +1,18 @@
 # Windows 桌面版验收说明
 
-本文说明 Windows 预览版的构建、启动和单连接验收边界。
+本文说明 Windows 多会话版本的构建、启动和双配置验收方式。Windows 与 macOS 使用同一套连接列表、会话生命周期和路由冲突策略；Windows 的原生 agent 负责为每个会话隔离 TUN、事件、进程句柄、路由和 DNS 状态。
 
 ## 当前能力边界
 
-Windows daemon 在创建时把活动会话上限设置为 `1`。原因是当前接入的 OpenVPN3 Windows agent 只管理一个 TUN；如果允许第二条连接，它可能复用或覆盖第一条连接的虚拟网卡、路由和 DNS。
+Windows daemon 的活动会话上限为 `0`，表示不限数量。每条连接由配置会话 ID 隔离；Windows agent 对 `tun-open` 与 `tun-setup` 的跨命名管道生命周期按 PID 和网卡 GUID/索引重新关联，避免第二条连接复用或覆盖第一条连接的虚拟网卡、路由和 DNS。
 
-因此当前 Windows 验收的预期结果是：
+因此 Windows 的预期结果与 macOS 一致：
 
-- 第一条 VPN 可以建立并保持连接；
-- 第二条连接会在启动前返回“当前 Windows 版本暂不支持同时连接多条 VPN”；
-- 第一条连接不会被第二条请求中断或替换；
-- 断开第一条后，第二条可以正常建立。
-
-这是一项保护性限制。Windows 多连接版本需要为每条会话提供独立的 agent/TUN、路由和 DNS 生命周期，目前尚未完成。
+- 配置 A 和配置 B 可以同时建立并保持连接；
+- 两条连接拥有独立的虚拟网卡、计时、流量、路由和 DNS 生命周期；
+- 断开 B 不会断开 A，断开 A 不会断开 B；
+- 断开最后一条连接后，虚拟网卡、路由、DNS 和 agent 句柄都应清理；
+- 严格/兼容路由冲突策略与 macOS 使用相同的会话规则。
 
 ## 验收环境
 
@@ -48,6 +47,13 @@ cmake -S core -B build/core-windows -G "Visual Studio 17 2022" -A x64 `
 cmake --build build/core-windows --config Release --parallel
 ```
 
+也可以只构建 Windows 原生链路：
+
+```powershell
+cmake --build build/core-windows --config Release `
+  --target openvpn_windows_service openvpn_windows_daemon --parallel
+```
+
 构建 Qt 桌面版：
 
 ```powershell
@@ -77,7 +83,19 @@ Start-Process build/qt-windows/Release/openvpn_qt.exe
 
 也可以直接使用 `packaging/windows/build-qt-package.ps1` 生成压缩包或 NSIS 安装器；正式安装器需要同时包含 Qt 应用、daemon、Windows Service 和 Wintun DLL。
 
-## 功能验证
+## 自动化验证
+
+在使用 vcpkg 动态库时，CTest 需要能找到 jsoncpp 等运行库：
+
+```powershell
+$v = (Resolve-Path "third_party/openvpn3/deps/vcpkg_manifests/windows/vcpkg_installed/x64-windows").Path
+$env:PATH = "$v/bin;$env:PATH"
+ctest --test-dir build/core-windows -C Release --output-on-failure
+```
+
+其中 `openvpn_windows_agent_patch_tests` 会用固定版本的 OpenVPN3 Windows agent 生成真实源码并检查关键边界；`openvpn_daemon_session_limit_tests` 会确认 Windows 桌面会话不限数量且不同会话互相隔离。
+
+## 双配置功能验证
 
 1. 导入配置 A，输入用户名和密码并连接；
 2. 检查界面进入“已连接”，并确认通知区域图标存在；
@@ -91,9 +109,23 @@ Start-Process build/qt-windows/Release/openvpn_qt.exe
    Get-DnsClientServerAddress
    ```
 
-4. 导入配置 B 并连接，预期得到单连接限制提示；确认 A 仍保持连接；
-5. 断开 A，再连接 B，确认 B 可以建立；
-6. 断开 B，检查虚拟网卡、路由和 DNS 是否恢复；
-7. 查看 `openvpn_windows_service.exe` 所在目录的 `agent.log`，确认没有崩溃或残留会话。
+4. 在本项目 Qt UI 的同一个连接列表中导入配置 B 并连接，预期 A/B 同时显示“已连接”；
+5. 确认系统中至少有两条活动的 Wintun、TAP 或 OpenVPN DCO 虚拟网卡，并分别检查两条连接的地址、路由和 DNS；
+6. 只断开 B，确认 A 仍保持连接且 A 的流量计时继续；
+7. 断开 A，确认所有 VPN 虚拟网卡、专属路由和 DNS 配置恢复；
+8. 查看 `openvpn_windows_service.exe` 所在目录的 `agent.log`，确认没有崩溃或残留会话。
 
-验收过程中应分别测试认证失败、服务停止、daemon 重启、网络断开、连接取消和路由冲突。真实多连接验收在 Windows 多 TUN 版本完成前不应标记为通过。
+仓库提供了交互式验收脚本，脚本不会读取密码或替代 UI 操作，只负责检查 Service、虚拟网卡数量和断开后的清理：
+
+```powershell
+.\platform\windows\tests\windows_multisession_smoke.ps1 `
+  -ProfileA C:\vpn\profile-a.ovpn `
+  -ProfileB C:\vpn\profile-b.ovpn `
+  -Daemon .\build\core-windows\Release\openvpn_windows_daemon.exe `
+  -QtApp .\build\qt-windows\Release\openvpn_qt.exe `
+  -LaunchApplications
+```
+
+真实 Windows 主机仍需使用可连接的两份配置、Wintun/TAP 驱动和管理员权限完成上述脚本；本地 MSVC 编译和离线测试不能替代 VPN 服务端、驱动和 DNS 的实机验证。
+
+验收过程中还应分别测试认证失败、服务停止、daemon 重启、网络断开、连接取消和路由冲突。

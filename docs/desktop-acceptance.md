@@ -31,7 +31,7 @@
 
 ## 已知限制
 
-- Windows 没有实机验收；当前 Windows agent 只允许一条活动连接，这是保护性预览限制，具体原因和验证步骤见 [Windows 桌面版验收说明](windows-acceptance.md)。
+- Windows 已接入与 macOS 一致的多会话 agent/daemon 逻辑；仍需在 Windows 主机使用两份真实配置完成驱动、Service、路由/DNS 和安装包验收，步骤见 [Windows 桌面版验收说明](windows-acceptance.md)。
 - Android/iOS 尚未实现。
 - macOS 发布流程分别提供 x86_64 和 arm64 两个安装包；两种架构的 GitHub Actions 构建尚未在本机同时实跑。
 - macOS 当前为临时签名，尚未完成 Developer ID 签名和公证。

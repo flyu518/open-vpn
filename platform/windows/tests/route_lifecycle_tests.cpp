@@ -16,9 +16,11 @@ int main() {
     assert(adapter.applyRoutes("office-b", {"10.70.0.0/16"}).ok);
 
     assert(adapter.applyDns("office-a", {"10.60.0.53"}).ok);
-    assert(!adapter.applyDns("office-b", {"10.70.0.53"}).ok);
+    assert(adapter.applyDns("office-b", {"10.70.0.53"}).ok);
     assert(adapter.destroy("office-a").ok);
     assert(adapter.destroy("office-a").ok);
+    assert(adapter.dnsOwner() == "office-b");
+    assert(adapter.destroy("office-b").ok);
     assert(adapter.dnsOwner().empty());
     return 0;
 }
