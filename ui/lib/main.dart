@@ -47,6 +47,13 @@ Future<void> main() async {
   runApp(VpnApp(instanceGuard: instanceGuard, enableDesktopChrome: true));
 }
 
+bool shouldHideWindowOnClose({
+  required bool closeToTrayEnabled,
+  required bool quitting,
+}) {
+  return closeToTrayEnabled && !quitting;
+}
+
 class VpnApp extends StatefulWidget {
   const VpnApp({
     super.key,
@@ -286,7 +293,12 @@ class _VpnAppState extends State<VpnApp> with WindowListener {
 
   @override
   void onWindowClose() {
-    if (_quitting || !_closeToTrayEnabled) return;
+    if (!shouldHideWindowOnClose(
+      closeToTrayEnabled: _closeToTrayEnabled,
+      quitting: _quitting,
+    )) {
+      return;
+    }
     unawaited(windowManager.hide());
   }
 

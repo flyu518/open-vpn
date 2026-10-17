@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:openvpn_ui/main.dart';
 import 'package:openvpn_ui/models/session.dart';
 import 'package:openvpn_ui/services/startup_service.dart';
 import 'package:openvpn_ui/services/tray_controller.dart';
@@ -83,5 +84,29 @@ void main() {
 
     expect(opened, isTrue);
     await controller.dispose();
+  });
+
+  test('只有托盘成功初始化且不是主动退出时才隐藏窗口', () {
+    expect(
+      shouldHideWindowOnClose(
+        closeToTrayEnabled: false,
+        quitting: false,
+      ),
+      isFalse,
+    );
+    expect(
+      shouldHideWindowOnClose(
+        closeToTrayEnabled: true,
+        quitting: true,
+      ),
+      isFalse,
+    );
+    expect(
+      shouldHideWindowOnClose(
+        closeToTrayEnabled: true,
+        quitting: false,
+      ),
+      isTrue,
+    );
   });
 }
