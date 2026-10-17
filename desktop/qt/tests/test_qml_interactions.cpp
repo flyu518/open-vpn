@@ -838,8 +838,8 @@ void QmlInteractionsTest::errorsAreReadableAndDiagnosticsRemainAvailable() {
     for (auto* item : visualChildren(content)) original |= item->isVisible() && item->property("text") == error;
     QVERIFY2(original, "原始诊断必须在详情中可查，不能丢弃");
     auto* diagnostic = named(content, "diagnosticText"); QVERIFY(diagnostic);
-    QTest::qWait(80);
-    QVERIFY2(rect(content, f.root()).contains(rect(diagnostic, f.root())), "展开后诊断原文应滚入可读区域，不能藏在 footer 后面");
+    QTRY_VERIFY2(rect(content, f.root()).contains(rect(diagnostic, f.root())),
+                 "展开后诊断原文应滚入可读区域，不能藏在 footer 后面");
     QVERIFY(f.screenshot("diagnostics-" + QString::fromLatin1(QTest::currentDataTag())));
 }
 void QmlInteractionsTest::detailsScrollKeepsFooterReachable() {
