@@ -44,7 +44,7 @@ class _RouteStrategyDialogState extends State<RouteStrategyDialog> {
       case RouteConflictMode.strict:
         return '严格模式（冲突即拒绝）';
       case RouteConflictMode.ask:
-        return '询问模式（交给用户决定）';
+        return '手动处理（冲突时提示）';
     }
   }
 
