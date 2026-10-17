@@ -634,6 +634,7 @@ ApplicationWindow {
         contentItem: ScrollView {
             id: detailScroll
             implicitHeight: Math.min(detailBody.implicitHeight, window.height - 216)
+            onHeightChanged: if (window.diagnosticExpanded) diagnosticScrollTimer.restart()
             contentWidth: availableWidth
             clip: true
             ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
