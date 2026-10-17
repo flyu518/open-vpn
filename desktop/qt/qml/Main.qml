@@ -1208,6 +1208,7 @@ ApplicationWindow {
                     onClicked: controller.updateInstallerAvailable ? updateDialog.open() : controller.openUpdatePage()
                 }
             }
+            Label { Layout.fillWidth: true; text: "维护者：flyu"; color: window.muted }
             Label { Layout.fillWidth: true; text: "仅在此处手动检查更新。下载安装包前会再次确认。"; color: window.muted; wrapMode: Text.Wrap }
         }
         footer: DialogActions { AppButton { text: "关闭"; onClicked: aboutDialog.close() } }
