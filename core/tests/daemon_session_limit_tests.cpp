@@ -1,4 +1,5 @@
 #include "daemon_session_controller.h"
+#include "windows_session_policy.h"
 
 #include <future>
 #include <iostream>
@@ -153,6 +154,58 @@ void default_configuration_remains_unlimited() {
     require(command(controller, "snapshot")["sessions"].size() == 3, "默认配置丢失了独立会话");
 }
 
+void windows_desktop_policy_is_unlimited() {
+    require(vpn::daemon::windows_max_active_sessions() == 0,
+            "Windows 桌面策略仍然限制为单连接");
+}
+
+void multiple_default_sessions_are_independent() {
+    SessionController controller(ignore_notification, nullptr);
+    require(request(controller, connect_request("a"))["ok"].asBool(), "A 连接失败");
+    require(request(controller, connect_request("b"))["ok"].asBool(), "B 连接失败");
+    auto sessions = command(controller, "snapshot")["sessions"];
+    require(sessions.size() == 2, "默认桌面能力没有保留两个会话");
+    require(command(controller, "disconnect", "a")["ok"].asBool(), "A 断开失败");
+    sessions = command(controller, "snapshot")["sessions"];
+    require(sessions.size() == 1 && sessions[0]["sessionId"] == "b" &&
+                sessions[0]["state"] == "connected" &&
+                sessions[0]["downloadBytes"].asInt64() == 222,
+            "断开 A 影响了 B");
+}
+
+void concurrent_default_sessions_are_isolated() {
+    SessionController controller(ignore_notification, nullptr);
+    std::promise<void> start;
+    const auto ready = start.get_future().share();
+    std::vector<Json::Value> results(8);
+    std::vector<std::thread> threads;
+    for (std::size_t i = 0; i < results.size(); ++i) {
+        threads.emplace_back([&, i] {
+            ready.wait();
+            results[i] = request(controller,
+                connect_request("desktop-" + std::to_string(i), "fixture:slow-start"));
+        });
+    }
+    start.set_value();
+    for (auto& thread : threads) thread.join();
+    for (const auto& result : results) {
+        require(result["ok"].asBool(), "默认桌面并发连接被错误拒绝");
+    }
+    const auto sessions = command(controller, "snapshot")["sessions"];
+    require(sessions.size() == results.size(), "并发连接替换或丢失了会话记录");
+    for (std::size_t i = 0; i < results.size(); ++i) {
+        const auto id = "desktop-" + std::to_string(i);
+        bool found = false;
+        for (const auto& session : sessions) {
+            if (session["sessionId"].asString() == id) {
+                found = true;
+                break;
+            }
+        }
+        require(found, "并发连接缺少独立会话");
+    }
+}
+
 }  // namespace
 
 int main() {
@@ -166,6 +219,9 @@ int main() {
         {"已退出的历史记录不占活动名额", inactive_terminal_records_do_not_consume_slots},
         {"启动失败后释放名额", failed_start_releases_slot},
         {"默认配置保持不限连接数", default_configuration_remains_unlimited},
+        {"Windows 桌面策略保持不限连接数", windows_desktop_policy_is_unlimited},
+        {"默认桌面会话可以独立断开", multiple_default_sessions_are_independent},
+        {"默认桌面会话可以并发建立", concurrent_default_sessions_are_isolated},
     };
     int failures = 0;
     for (const auto& test : cases) {
