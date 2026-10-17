@@ -10,6 +10,12 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+find_package(Threads REQUIRED)
+
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
+
 add_library(openvpn_windows_adapter STATIC
     ../platform/windows/adapter/adapter.cpp
 )
@@ -51,21 +57,45 @@ set(OPENVPN_BREW_OPT "${OPENVPN_BREW_PREFIX}/opt")
 if(EXISTS "${OPENVPN3_SOURCE_DIR}/client/ovpncli.cpp")
     set(VPN_OPENVPN3_PATCHED_INCLUDE
         "${CMAKE_CURRENT_BINARY_DIR}/openvpn3_patched_include")
-    set(VPN_OPENVPN3_CMDAGENT_GENERATED
-        "${VPN_OPENVPN3_PATCHED_INCLUDE}/openvpn/client/unix/cmdagent.hpp")
+    if(WIN32)
+        set(VPN_OPENVPN3_CMDAGENT_SOURCE
+            "${OPENVPN3_SOURCE_DIR}/openvpn/client/win/cmdagent.hpp")
+        set(VPN_OPENVPN3_CMDAGENT_GENERATED
+            "${VPN_OPENVPN3_PATCHED_INCLUDE}/openvpn/client/win/cmdagent.hpp")
+        set(VPN_OPENVPN3_CMDAGENT_DIRECTORY
+            "${VPN_OPENVPN3_PATCHED_INCLUDE}/openvpn/client/win")
+        set(VPN_OPENVPN3_CMDAGENT_SCRIPT
+            "${CMAKE_CURRENT_SOURCE_DIR}/../platform/windows/service/generate_cmdagent.cmake")
+    else()
+        set(VPN_OPENVPN3_CMDAGENT_SOURCE
+            "${OPENVPN3_SOURCE_DIR}/openvpn/client/unix/cmdagent.hpp")
+        set(VPN_OPENVPN3_CMDAGENT_GENERATED
+            "${VPN_OPENVPN3_PATCHED_INCLUDE}/openvpn/client/unix/cmdagent.hpp")
+        set(VPN_OPENVPN3_CMDAGENT_DIRECTORY
+            "${VPN_OPENVPN3_PATCHED_INCLUDE}/openvpn/client/unix")
+        set(VPN_OPENVPN3_CMDAGENT_SCRIPT
+            "${CMAKE_CURRENT_SOURCE_DIR}/../platform/macos/helper/generate_cmdagent.cmake")
+    endif()
     set(VPN_OPENVPN3_CLIOPT_GENERATED
         "${VPN_OPENVPN3_PATCHED_INCLUDE}/openvpn/client/cliopt.hpp")
+    if(WIN32)
+        set(VPN_OPENVPN3_CLIOPT_SCRIPT
+            "${CMAKE_CURRENT_SOURCE_DIR}/../platform/windows/service/generate_cliopt.cmake")
+    else()
+        set(VPN_OPENVPN3_CLIOPT_SCRIPT
+            "${CMAKE_CURRENT_SOURCE_DIR}/../platform/macos/helper/generate_cliopt.cmake")
+    endif()
     add_custom_command(
         OUTPUT "${VPN_OPENVPN3_CMDAGENT_GENERATED}"
         COMMAND ${CMAKE_COMMAND} -E make_directory
-            "${VPN_OPENVPN3_PATCHED_INCLUDE}/openvpn/client/unix"
+            "${VPN_OPENVPN3_CMDAGENT_DIRECTORY}"
         COMMAND ${CMAKE_COMMAND}
-            -DINPUT_SOURCE=${OPENVPN3_SOURCE_DIR}/openvpn/client/unix/cmdagent.hpp
-            -DOUTPUT_SOURCE=${VPN_OPENVPN3_CMDAGENT_GENERATED}
-            -P ${CMAKE_CURRENT_SOURCE_DIR}/../platform/macos/helper/generate_cmdagent.cmake
+            "-DINPUT_SOURCE=${VPN_OPENVPN3_CMDAGENT_SOURCE}"
+            "-DOUTPUT_SOURCE=${VPN_OPENVPN3_CMDAGENT_GENERATED}"
+            -P ${VPN_OPENVPN3_CMDAGENT_SCRIPT}
         DEPENDS
-            ${OPENVPN3_SOURCE_DIR}/openvpn/client/unix/cmdagent.hpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/../platform/macos/helper/generate_cmdagent.cmake
+            ${VPN_OPENVPN3_CMDAGENT_SOURCE}
+            ${VPN_OPENVPN3_CMDAGENT_SCRIPT}
         VERBATIM
     )
     add_custom_command(
@@ -73,18 +103,38 @@ if(EXISTS "${OPENVPN3_SOURCE_DIR}/client/ovpncli.cpp")
         COMMAND ${CMAKE_COMMAND} -E make_directory
             "${VPN_OPENVPN3_PATCHED_INCLUDE}/openvpn/client"
         COMMAND ${CMAKE_COMMAND}
-            -DINPUT_SOURCE=${OPENVPN3_SOURCE_DIR}/openvpn/client/cliopt.hpp
-            -DOUTPUT_SOURCE=${VPN_OPENVPN3_CLIOPT_GENERATED}
-            -P ${CMAKE_CURRENT_SOURCE_DIR}/../platform/macos/helper/generate_cliopt.cmake
+            "-DINPUT_SOURCE=${OPENVPN3_SOURCE_DIR}/openvpn/client/cliopt.hpp"
+            "-DOUTPUT_SOURCE=${VPN_OPENVPN3_CLIOPT_GENERATED}"
+            -P ${VPN_OPENVPN3_CLIOPT_SCRIPT}
         DEPENDS
             ${OPENVPN3_SOURCE_DIR}/openvpn/client/cliopt.hpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/../platform/macos/helper/generate_cliopt.cmake
+            ${VPN_OPENVPN3_CLIOPT_SCRIPT}
         VERBATIM
     )
     add_custom_target(openvpn_openvpn3_cmdagent_source
         DEPENDS
             "${VPN_OPENVPN3_CMDAGENT_GENERATED}"
             "${VPN_OPENVPN3_CLIOPT_GENERATED}")
+
+    if(WIN32)
+        set(VPN_OPENVPN3_OVPNCLI_GENERATED
+            "${VPN_OPENVPN3_PATCHED_INCLUDE}/client/ovpncli.cpp")
+        add_custom_command(
+            OUTPUT "${VPN_OPENVPN3_OVPNCLI_GENERATED}"
+            COMMAND ${CMAKE_COMMAND}
+                "-DINPUT_SOURCE=${OPENVPN3_SOURCE_DIR}/client/ovpncli.cpp"
+                "-DOUTPUT_SOURCE=${VPN_OPENVPN3_OVPNCLI_GENERATED}"
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/../platform/windows/service/generate_ovpncli.cmake
+            DEPENDS
+                ${OPENVPN3_SOURCE_DIR}/client/ovpncli.cpp
+                ${CMAKE_CURRENT_SOURCE_DIR}/../platform/windows/service/generate_ovpncli.cmake
+            VERBATIM
+        )
+        add_custom_target(openvpn_windows_ovpncli_source
+            DEPENDS "${VPN_OPENVPN3_OVPNCLI_GENERATED}")
+        add_dependencies(openvpn_openvpn3_cmdagent_source
+            openvpn_windows_ovpncli_source)
+    endif()
 
     target_sources(openvpn_core PRIVATE
         src/openvpn3_engine.cpp
@@ -96,6 +146,7 @@ if(EXISTS "${OPENVPN3_SOURCE_DIR}/client/ovpncli.cpp")
 
     target_compile_definitions(openvpn_core PRIVATE
         ASIO_STANDALONE
+        ASIO_DISABLE_LOCAL_SOCKETS
         USE_ASIO
         HAVE_LZ4
         USE_OPENSSL
@@ -146,7 +197,6 @@ if(EXISTS "${OPENVPN3_SOURCE_DIR}/client/ovpncli.cpp")
     target_include_directories(openvpn_core PRIVATE ${XXHASH_INCLUDE_DIR})
 
     find_package(OpenSSL REQUIRED)
-    find_package(Threads REQUIRED)
     find_library(LZ4_LIBRARY NAMES lz4 HINTS "${OPENVPN_BREW_OPT}/lz4/lib")
     find_library(FMT_LIBRARY NAMES fmt HINTS "${OPENVPN_BREW_OPT}/fmt/lib")
     find_library(JSONCPP_LIBRARY NAMES jsoncpp HINTS "${OPENVPN_BREW_OPT}/jsoncpp/lib")
@@ -301,7 +351,32 @@ if(APPLE)
 endif()
 
 if(WIN32)
+    if(NOT EXISTS "${OPENVPN3_SOURCE_DIR}/openvpn/ovpnagent/win/ovpnagent.cpp")
+        message(FATAL_ERROR
+            "Windows 构建必须提供锁定版本的 OpenVPN3 Windows agent 源码："
+            "${OPENVPN3_SOURCE_DIR}/openvpn/ovpnagent/win/ovpnagent.cpp")
+    endif()
     if(EXISTS "${OPENVPN3_SOURCE_DIR}/openvpn/ovpnagent/win/ovpnagent.cpp")
+        set(VPN_WINDOWS_AGENT_GENERATED
+            "${CMAKE_CURRENT_BINARY_DIR}/openvpn_windows_agent_generated.cpp")
+        add_custom_command(
+            OUTPUT "${VPN_WINDOWS_AGENT_GENERATED}"
+            COMMAND ${CMAKE_COMMAND}
+                "-DINPUT_SOURCE=${OPENVPN3_SOURCE_DIR}/openvpn/ovpnagent/win/ovpnagent.cpp"
+                "-DOUTPUT_SOURCE=${VPN_WINDOWS_AGENT_GENERATED}"
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/../platform/windows/service/generate_multisession_agent.cmake
+            DEPENDS
+                ${OPENVPN3_SOURCE_DIR}/openvpn/ovpnagent/win/ovpnagent.cpp
+                ${CMAKE_CURRENT_SOURCE_DIR}/../platform/windows/service/generate_multisession_agent.cmake
+                ${CMAKE_CURRENT_SOURCE_DIR}/include/vpn_route_policy.h
+            VERBATIM
+        )
+        add_custom_target(openvpn_windows_agent_source
+            DEPENDS "${VPN_WINDOWS_AGENT_GENERATED}")
+        add_dependencies(openvpn_windows_service openvpn_windows_agent_source)
+        target_sources(openvpn_windows_service PRIVATE
+            "${VPN_WINDOWS_AGENT_GENERATED}"
+        )
         target_sources(openvpn_windows_service PRIVATE
             ${OPENVPN3_SOURCE_DIR}/openvpn/crypto/data_epoch.cpp
             ${OPENVPN3_SOURCE_DIR}/openvpn/openssl/xkey/xkey_helper.c
@@ -309,6 +384,7 @@ if(WIN32)
         )
         target_compile_definitions(openvpn_windows_service PRIVATE
             ASIO_STANDALONE
+            ASIO_DISABLE_LOCAL_SOCKETS
             USE_ASIO
             HAVE_LZ4
             USE_OPENSSL
@@ -317,8 +393,11 @@ if(WIN32)
             OPENVPN_COMMAND_AGENT
             OVPNAGENT_NAME=openvpn
             OPENVPN_CORE_API_VISIBILITY_HIDDEN
+            OPENVPN_WINDOWS_AGENT_GENERATED
+            OPENVPN_WINDOWS_AGENT_SOURCE
         )
         target_include_directories(openvpn_windows_service PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/include
             ${VPN_OPENVPN3_PATCHED_INCLUDE}
             ${OPENVPN3_SOURCE_DIR}
             ${OPENVPN3_SOURCE_DIR}/client
@@ -339,6 +418,11 @@ if(WIN32)
             ws2_32
             advapi32
             iphlpapi
+            fwpuclnt
+            wininet
+            setupapi
+            rpcrt4
+            wtsapi32
         )
     endif()
 
@@ -349,6 +433,9 @@ if(WIN32)
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_CURRENT_SOURCE_DIR}/..
         ${CMAKE_CURRENT_SOURCE_DIR}/../platform/common
+    )
+    target_compile_definitions(openvpn_windows_secure_store PRIVATE
+        NOMINMAX
     )
     target_link_libraries(openvpn_windows_secure_store PUBLIC advapi32)
     set_target_properties(openvpn_windows_secure_store PROPERTIES
@@ -388,7 +475,14 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
 endif()
 
 if(WIN32)
-    target_link_libraries(openvpn_core PUBLIC ws2_32)
+    target_link_libraries(openvpn_core PUBLIC
+        ws2_32
+        fwpuclnt
+        wininet
+        setupapi
+        rpcrt4
+        wtsapi32
+    )
 endif()
 
 enable_testing()

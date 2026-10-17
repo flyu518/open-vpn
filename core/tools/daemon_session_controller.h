@@ -17,7 +17,7 @@ namespace vpn::daemon {
 class SessionController {
 public:
     using NotificationSink = std::function<void(const Json::Value&)>;
-    // 0 表示不限；Windows 官方 agent 为单隧道，调用方应传入 1。
+    // 0 表示不限；移动端等调用方仍可传入显式的活动会话上限。
     SessionController(NotificationSink notify, CredentialStore* credential_store,
                       std::size_t max_active_sessions = 0)
         : notify_(std::move(notify)), credential_store_(credential_store),

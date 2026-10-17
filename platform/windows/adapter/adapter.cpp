@@ -77,15 +77,12 @@ PlatformResult WindowsAdapter::applyRoutes(
 
 PlatformResult WindowsAdapter::applyDns(
     std::string_view session_id,
-    const std::vector<std::string>&) {
+    const std::vector<std::string>& servers) {
     Session* session = find_session(sessions_, session_id);
     if (session == nullptr || !session->established) {
         return failure("Windows VPN 虚拟网卡尚未建立");
     }
-    if (!dns_owner_.empty() && dns_owner_ != session->id) {
-        return failure("当前版本只允许一个 DNS 所有者");
-    }
-    dns_owner_ = session->id;
+    dns_servers_[session->id] = servers;
     return success();
 }
 
@@ -97,9 +94,7 @@ PlatformResult WindowsAdapter::destroy(std::string_view session_id) {
     if (it == sessions_.end()) {
         return success();
     }
-    if (dns_owner_ == it->id) {
-        dns_owner_.clear();
-    }
+    dns_servers_.erase(it->id);
     sessions_.erase(it);
     return success();
 }
@@ -125,7 +120,7 @@ std::vector<std::string> WindowsAdapter::bypassEndpoints() const {
 }
 
 std::string WindowsAdapter::dnsOwner() const {
-    return dns_owner_;
+    return dns_servers_.size() == 1 ? dns_servers_.begin()->first : std::string();
 }
 
 }  // namespace vpn::platform::windows

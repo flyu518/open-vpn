@@ -1,6 +1,7 @@
 #ifndef VPN_WINDOWS_ADAPTER_H
 #define VPN_WINDOWS_ADAPTER_H
 
+#include <map>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -34,7 +35,7 @@ public:
 
 private:
     std::vector<Session> sessions_;
-    std::string dns_owner_;
+    std::map<std::string, std::vector<std::string>> dns_servers_;
 };
 
 }  // namespace vpn::platform::windows
