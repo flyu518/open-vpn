@@ -73,3 +73,5 @@ rm -rf "$HOME/Library/Application Support/OpenVPN"
 默认输出到 `packaging/macos/dist/OpenVPN-0.1.1.pkg`。用户双击安装包，输入一次管理员密码，
 安装程序会注册高权限 helper 和用户 daemon；以后不需要再执行脚本。当前开发包使用临时签名，
 正式分发前还需要使用 Developer ID 对 `.app` 和 `.pkg` 签名并完成 notarization。
+当前桌面版不启用 App Sandbox，这是为了访问用户配置目录和 VPN Unix socket；正式发布必须使用
+Developer ID、Hardened Runtime，并继续限制 helper IPC 和 Keychain 凭据访问范围。
