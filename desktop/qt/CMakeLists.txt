@@ -60,6 +60,13 @@ qt_add_qml_module(openvpn_qt
         qml/TrafficChart.qml
 )
 
+if(WIN32 AND CMAKE_GENERATOR MATCHES "^Visual Studio")
+    # The application owns moc --collect-json and the registration command.
+    # The separate helper target duplicates that command under Visual Studio,
+    # so it must wait for the application just as Qt does for its Xcode path.
+    add_dependencies(openvpn_qt_qmltyperegistration openvpn_qt)
+endif()
+
 
 qt_add_resources(openvpn_qt "openvpn_assets"
     PREFIX "/"

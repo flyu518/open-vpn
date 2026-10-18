@@ -1,6 +1,11 @@
 add_test(NAME openvpn_project_config_tests COMMAND "${CMAKE_COMMAND}"
     "-DTEST_OUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/project-config-tests"
     -P "${CMAKE_CURRENT_SOURCE_DIR}/../../../tests/config/test_project_config.cmake")
+if(WIN32 AND CMAKE_GENERATOR MATCHES "^Visual Studio")
+    add_test(NAME openvpn_msvc_qml_build_order_tests COMMAND "${CMAKE_COMMAND}"
+        "-DQT_BUILD_DIR=${PROJECT_BINARY_DIR}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/test_msvc_qml_build_order.cmake")
+endif()
 if(WIN32)
     add_test(NAME openvpn_windows_version_metadata_tests
         COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass
