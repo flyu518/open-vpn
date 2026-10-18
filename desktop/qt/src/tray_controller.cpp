@@ -68,6 +68,10 @@ bool TrayController::recoverTrayIcon() {
         QTimer::singleShot(120, this, [this] { recoverTrayIcon(); });
         return false;
     }
+    if (tray_ && tray_->isVisible()) {
+        controller_->setTrayAvailable(true);
+        return true;
+    }
     if (tray_) {
         tray_->setContextMenu(nullptr);
         tray_->hide();

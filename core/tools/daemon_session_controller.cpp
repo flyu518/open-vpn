@@ -36,8 +36,13 @@ const char* state_label(SessionState state) {
     return "未知状态";
 }
 
+bool terminal_failure(const EngineEvent& event) {
+    return event.error || event.fatal || event.name == "FATAL_ERROR" ||
+           event.name == "AUTH_FAILED" || event.name == "CONNECTION_TIMEOUT";
+}
+
 SessionState state_from_event(const EngineEvent& event, SessionState fallback) {
-    if (event.error || event.fatal || event.name == "FATAL_ERROR") return SessionState::Failed;
+    if (terminal_failure(event)) return SessionState::Failed;
     if (event.name == "CONNECTED") return SessionState::Connected;
     if (event.name == "DISCONNECTED")
         return fallback == SessionState::Failed ? fallback : SessionState::Disconnected;
@@ -287,7 +292,16 @@ void SessionController::onEngineEvent(const std::string& id, const EngineEvent& 
             record.route_conflicts = Json::Value(Json::arrayValue);
         }
         record.state = next;
-        if (event.error || event.fatal || event.name == "FATAL_ERROR") record.error = event.info;
+        if (terminal_failure(event)) {
+            record.error = event.info;
+            if (record.error.empty()) {
+                if (event.name == "CONNECTION_TIMEOUT")
+                    record.error = "连接超时，请检查网络、服务器和 OpenVPN 服务。";
+                else if (event.name == "AUTH_FAILED")
+                    record.error = "认证失败，请检查用户名和密码。";
+                else record.error = "VPN 连接失败，请重试。";
+            }
+        }
         const auto warning = event.name == "LOG" ? user_warning_for_log(event.info) : "";
         if (!warning.empty() && std::find(record.warnings.begin(), record.warnings.end(), warning) == record.warnings.end())
             record.warnings.push_back(warning);
@@ -298,6 +312,15 @@ void SessionController::onEngineEvent(const std::string& id, const EngineEvent& 
                 if (record.route_conflicts.size() < 32 &&
                     std::find(record.route_conflicts.begin(), record.route_conflicts.end(), conflict) == record.route_conflicts.end())
                     record.route_conflicts.append(conflict);
+            }
+        }
+        if (event.name == "TUN_SETUP_FAILED" &&
+            event.info == "ovpnagent: request error") {
+            for (const auto& conflict : record.route_conflicts) {
+                if (conflict.get("action", "").asString() == "blocked") {
+                    record.error = "路由与活动 VPN 重叠，请调整路由策略或断开冲突连接。";
+                    break;
+                }
             }
         }
         notification["state"] = state_name(record.state);

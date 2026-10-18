@@ -206,6 +206,28 @@ void concurrent_default_sessions_are_isolated() {
     }
 }
 
+void native_terminal_events_remain_failures_after_disconnect() {
+    for (const auto *profile : {"fixture:timeout", "fixture:auth-rejection"}) {
+        SessionController controller(ignore_notification, nullptr);
+        require(request(controller, connect_request("terminal", profile))["ok"].asBool(),
+                "未接受终止事件测试请求");
+        const auto session = command(controller, "snapshot")["sessions"][0];
+        require(session["state"] == "failed", "超时或认证失败被后续 DISCONNECTED 覆盖");
+        require(!session.get("error", "").asString().empty(), "终止事件没有保留用户可见错误");
+    }
+}
+
+void strict_rejection_keeps_a_user_readable_diagnostic() {
+    SessionController controller(ignore_notification, nullptr);
+    require(request(controller, connect_request("strict", "fixture:strict-conflict"))["ok"].asBool(),
+            "未接受路由冲突测试请求");
+    const auto session = command(controller, "snapshot")["sessions"][0];
+    require(session["state"] == "failed", "路由冲突没有保持失败状态");
+    require(session["routeConflicts"].size() == 1, "没有保留路由冲突细节");
+    require(session["error"].asString().find("重叠") != std::string::npos,
+            "原生通用错误覆盖了可读路由冲突诊断");
+}
+
 }  // namespace
 
 int main() {
@@ -222,6 +244,8 @@ int main() {
         {"Windows 桌面策略保持不限连接数", windows_desktop_policy_is_unlimited},
         {"默认桌面会话可以独立断开", multiple_default_sessions_are_independent},
         {"默认桌面会话可以并发建立", concurrent_default_sessions_are_isolated},
+        {"原生超时和认证失败保持失败状态及错误", native_terminal_events_remain_failures_after_disconnect},
+        {"严格模式保留可读的路由冲突诊断", strict_rejection_keeps_a_user_readable_diagnostic},
     };
     int failures = 0;
     for (const auto& test : cases) {

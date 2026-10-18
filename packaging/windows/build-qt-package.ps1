@@ -1,13 +1,16 @@
-param(
-    [string]$QtDir = "C:\Qt\6.12.0\msvc2022_64",
+﻿param(
+    [string]$QtDir = "C:\Qt\6.8.3\msvc2022_64",
     [string]$BuildDir = "build\qt-windows",
     [string]$WindowsDaemon = "",
+    [string]$WindowsDaemonLauncher = "",
     [string]$WindowsService = "",
     [string]$WintunDll = "",
     [string]$RuntimeDllDir = "",
     [string]$Version = "0.0.3",
     [string]$Output = "",
-    [switch]$BuildInstaller
+    [int]$Parallel = 1,
+    [switch]$BuildInstaller,
+    [switch]$AllowTestWintun
 )
 
 $ErrorActionPreference = "Stop"
@@ -20,30 +23,157 @@ if ([string]::IsNullOrWhiteSpace($Output)) { $Output = "dist\OpenVPN-$Version-wi
 if (-not (Test-Path $qtCmake)) { throw "找不到 Qt CMake：$qtCmake" }
 if (-not (Test-Path $qtDeploy)) { throw "找不到 windeployqt：$qtDeploy" }
 
+function Assert-WintunDll([string]$Path) {
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "找不到 Wintun DLL：$Path"
+    }
+    $bytes = [IO.File]::ReadAllBytes((Resolve-Path -LiteralPath $Path))
+    $ascii = [Text.Encoding]::ASCII.GetString($bytes)
+    $requiredExports = @(
+        "WintunCreateAdapter",
+        "WintunOpenAdapter",
+        "WintunStartSession",
+        "WintunReceivePacket",
+        "WintunSendPacket"
+    )
+    $missing = @($requiredExports | Where-Object { $ascii.IndexOf($_, [StringComparison]::Ordinal) -lt 0 })
+    if ($missing.Count -gt 0 -and -not $AllowTestWintun) {
+        throw "提供的 Wintun DLL 不是官方 Wintun 二进制，缺少导出：$($missing -join ', ')。正式包禁止使用测试替身；仅离线 UI 测试可显式传入 -AllowTestWintun。"
+    }
+    if ($missing.Count -gt 0) {
+        Write-Warning "使用测试 Wintun 替身，仅允许用于离线 UI 测试：$Path"
+        return
+    }
+    $signature = Get-AuthenticodeSignature -LiteralPath $Path
+    if ($signature.Status -ne "Valid" -and -not $AllowTestWintun) {
+        throw "Wintun DLL 签名无效：$Path（状态：$($signature.Status)）。正式包必须使用官方签名二进制。"
+    }
+    if ($signature.SignerCertificate -and
+        $signature.SignerCertificate.Subject -notmatch "WireGuard LLC" -and
+        -not $AllowTestWintun) {
+        throw "Wintun DLL 签名者不是 WireGuard LLC：$($signature.SignerCertificate.Subject)。正式包必须使用官方 Wintun。"
+    }
+}
+
 Write-Host "正在配置 OpenVPN Qt Windows 桌面版……"
 & $qtCmake -S (Join-Path $root "desktop\qt") -B (Join-Path $root $BuildDir) `
-    -DCMAKE_BUILD_TYPE=Release -DOPENVPN_APP_VERSION=$Version
+    "-DCMAKE_BUILD_TYPE=Release" "-DOPENVPN_APP_VERSION=$Version"
 if ($LASTEXITCODE -ne 0) { throw "Qt Windows 配置失败" }
 
 Write-Host "正在编译 OpenVPN Qt Windows 桌面版……"
-& $cmake --build (Join-Path $root $BuildDir) --config Release --parallel
+if ($Parallel -lt 1) { throw "Parallel 必须大于等于 1" }
+$buildDirectory = Join-Path $root $BuildDir
+$solution = Join-Path $buildDirectory "OpenVPNQt.sln"
+if (Test-Path -LiteralPath $solution -PathType Leaf) {
+    # Use MSBuild directly for the Visual Studio generator. CMake's build
+    # wrapper can leave MSBuild idle in managed Windows shells without
+    # returning a completion status.
+    $msbuildExecutable = $null
+    $msbuildCommand = Get-Command MSBuild.exe -ErrorAction SilentlyContinue
+    if ($null -ne $msbuildCommand) {
+        $msbuildExecutable = $msbuildCommand.Source
+    } else {
+        $vswhere = Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) `
+            'Microsoft Visual Studio\Installer\vswhere.exe'
+        if (Test-Path -LiteralPath $vswhere) {
+            $msbuildPath = & $vswhere -latest -products '*' -requires Microsoft.Component.MSBuild `
+                -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+            if ($msbuildPath -and (Test-Path -LiteralPath $msbuildPath -PathType Leaf)) {
+                $msbuildExecutable = (Resolve-Path -LiteralPath $msbuildPath).Path
+            }
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($msbuildExecutable)) {
+        throw "找不到 Visual Studio MSBuild.exe，无法编译 Qt Windows 桌面版。"
+    }
+    & $msbuildExecutable $solution '/t:openvpn_qt' "/p:Configuration=Release" "/p:Platform=x64" `
+        "/m:$Parallel" "/v:minimal" "/nologo"
+} else {
+    & $cmake --build $buildDirectory --config Release --target openvpn_qt -- /m:$Parallel /v:minimal
+}
 if ($LASTEXITCODE -ne 0) { throw "Qt Windows 编译失败" }
 
 $app = Join-Path $root "$BuildDir\Release\openvpn_qt.exe"
 if (-not (Test-Path $app)) { throw "找不到 Qt Windows 应用：$app" }
 
 Write-Host "正在部署 Qt 运行时……"
-& $qtDeploy --release --qmldir (Join-Path $root "desktop\qt\qml") $app
+# Qt 6.8's qmlimportscanner can terminate unexpectedly when scanning this
+# project through windeployqt. Deploy the native runtime first, then copy the
+# known QML modules and their Windows DLLs explicitly. This is also the same
+# layout used by the Windows acceptance bundle tested in this repository.
+& $qtDeploy --release --no-quick-import --no-translations $app
 if ($LASTEXITCODE -ne 0) { throw "Qt Windows 运行时部署失败" }
+$releaseDir = Split-Path -Parent $app
+$qmlDestination = Join-Path $releaseDir "qml"
+New-Item -ItemType Directory -Force -Path $qmlDestination | Out-Null
+foreach ($qmlModule in @("Qt", "QtQml", "QtQuick")) {
+    $qmlSource = Join-Path $QtDir "qml\$qmlModule"
+    if (-not (Test-Path $qmlSource)) { throw "找不到 Qt QML 模块：$qmlSource" }
+    Copy-Item -Recurse -Force $qmlSource $qmlDestination
+}
+foreach ($dllPattern in @("Qt6Qml*.dll", "Qt6Quick*.dll")) {
+    Get-ChildItem (Join-Path $QtDir "bin") -Filter $dllPattern -File |
+        Copy-Item -Force -Destination $releaseDir
+}
 
-$stage = Join-Path $env:TEMP ("openvpn-package-" + [Guid]::NewGuid().ToString("N"))
+# Keep the staging directory beside the build tree. Some managed Windows
+# environments apply restrictive ACLs to %TEMP%, which can allow copying but
+# reject an otherwise harmless rename of the deployed executable.
+$stage = Join-Path $root ("build\openvpn-package-" + [Guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Force -Path $stage | Out-Null
+$stage = (Resolve-Path -LiteralPath $stage).Path
+$stageParent = (Resolve-Path -LiteralPath (Join-Path $root 'build')).Path.TrimEnd('\') + '\'
+if (-not $stage.StartsWith($stageParent, [StringComparison]::OrdinalIgnoreCase) -or
+    (Split-Path -Leaf $stage) -notmatch '^openvpn-package-[0-9a-f]{32}$') {
+    throw "打包暂存路径不在预期的 build 子目录内：$stage"
+}
 try {
-    Copy-Item -Recurse -Force (Join-Path $root "$BuildDir\Release\*") $stage
+    $releaseRoot = Join-Path $root "$BuildDir\Release"
+    $releaseItems = Get-ChildItem -LiteralPath $releaseRoot -Force
+    foreach ($item in $releaseItems) {
+        # The Release directory also contains test executables, linker/import
+        # files and debug symbols when the full Qt test build ran. None of
+        # those are runtime inputs and shipping them makes the bundle look as
+        # if it contains another application.
+        if ($item.Name -like "*_tests.exe" -or
+            $item.Name -like "*.previous.exe" -or
+            $item.Name -like "*.pdb" -or
+            $item.Name -like "*.ilk" -or
+            $item.Name -like "*.exp" -or
+            $item.Name -like "*.lib" -or
+            $item.Name -like "*.lock*" -or
+            $item.Name -like "*d.dll" -or
+            $item.Name -like "Qt6QuickTest*.dll") {
+            continue
+        }
+        Copy-Item -Recurse -Force -LiteralPath $item.FullName -Destination $stage
+    }
+    $staleFiles = Get-ChildItem -LiteralPath $stage -Recurse -File | Where-Object {
+        $_.Name -eq "install-iexpress.cmd" -or
+        $_.Name -like "*.previous.exe" -or $_.Name -like "*.pdb" -or
+        $_.Name -like "*.ilk" -or $_.Name -like "*.obj" -or
+        $_.Name -like "*.lock*" -or $_.Name -like "*d.dll" -or
+        $_.Name -like "Qt6QuickTest*.dll"
+    }
+    if ($staleFiles) { $staleFiles | Remove-Item -Force }
+    # windeployqt's Qt directory can contain Qt's development-only test
+    # plugin objects. They are not runtime dependencies and must never ship.
+    $qtTestModules = Join-Path $stage "qml\Qt\test"
+    if (Test-Path -LiteralPath $qtTestModules -PathType Container) {
+        if (-not (Resolve-Path -LiteralPath $qtTestModules).Path.StartsWith(
+            $stage + '\', [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'Qt 测试模块路径超出暂存目录，拒绝删除'
+        }
+        Remove-Item -LiteralPath $qtTestModules -Recurse -Force
+    }
+    if (-not (Test-Path (Join-Path $stage "openvpn_qt.exe"))) {
+        throw "打包暂存目录缺少 Qt Windows 应用"
+    }
     Rename-Item (Join-Path $stage "openvpn_qt.exe") "OpenVPN.exe"
 
     $runtime = @{
         "Windows daemon" = $WindowsDaemon
+        "Windows daemon launcher" = $WindowsDaemonLauncher
         "Windows service" = $WindowsService
         "Wintun" = $WintunDll
     }
@@ -52,8 +182,10 @@ try {
             throw "生成 Windows 包必须提供 $($item.Key) 路径"
         }
         if (-not (Test-Path $item.Value)) { throw "找不到 $($item.Key)：$($item.Value)" }
+        if ($item.Key -eq "Wintun") { Assert-WintunDll $item.Value }
         $targetName = switch ($item.Key) {
             "Windows daemon" { "openvpn_windows_daemon.exe" }
+            "Windows daemon launcher" { "openvpn_windows_daemon_launcher.exe" }
             "Windows service" { "openvpn_windows_service.exe" }
             "Wintun" { "wintun.dll" }
         }
@@ -88,78 +220,57 @@ try {
 
     $outputPath = Join-Path $root $Output
     New-Item -ItemType Directory -Force -Path (Split-Path $outputPath) | Out-Null
-    if (Test-Path $outputPath) { Remove-Item -Force $outputPath }
-    Compress-Archive -Path (Join-Path $stage "*") -DestinationPath $outputPath
-    Write-Host "OpenVPN Windows Qt 压缩包已生成：$outputPath"
-
     if ($BuildInstaller) {
-        $makensis = Get-Command makensis.exe -ErrorAction SilentlyContinue
-        if ($null -eq $makensis) { throw "找不到 makensis.exe，请先安装 NSIS" }
         $installerPath = [IO.Path]::ChangeExtension($outputPath, ".exe")
-        $stageForNsis = $stage.Replace("\", "/")
-        $installerForNsis = $installerPath.Replace("\", "/")
-        $nsiPath = Join-Path $env:TEMP ("openvpn-" + [Guid]::NewGuid().ToString("N") + ".nsi")
-        $nsiContent = @'
-!include "MUI2.nsh"
-!include "LogicLib.nsh"
-Unicode true
-Name "OpenVPN"
-OutFile "__OUTPUT__"
-InstallDir "$PROGRAMFILES64\OpenVPN"
-RequestExecutionLevel admin
-!insertmacro MUI_PAGE_WELCOME
-!insertmacro MUI_PAGE_DIRECTORY
-!insertmacro MUI_PAGE_INSTFILES
-!insertmacro MUI_UNPAGE_CONFIRM
-!insertmacro MUI_UNPAGE_INSTFILES
-!insertmacro MUI_LANGUAGE "SimpChinese"
-Section "OpenVPN"
-  nsExec::ExecToLog '"$SYSDIR\sc.exe" stop openvpn'
-  Pop $0
-  SetOutPath "$INSTDIR"
-  File /r "__STAGE__\*"
-  nsExec::ExecToLog '"$SYSDIR\sc.exe" query openvpn'
-  Pop $0
-  ${If} $0 == 0
-    nsExec::ExecToLog '"$SYSDIR\sc.exe" config openvpn binPath= $\"$INSTDIR\openvpn_windows_service.exe$\" start= auto'
-  ${Else}
-    nsExec::ExecToLog '"$INSTDIR\openvpn_windows_service.exe" install'
-  ${EndIf}
-  Pop $0
-  ${If} $0 != 0
-    MessageBox MB_ICONSTOP "OpenVPN 服务注册失败。请查看安装日志。"
-    Abort
-  ${EndIf}
-  nsExec::ExecToLog '"$SYSDIR\sc.exe" start openvpn'
-  Pop $0
-  ${If} $0 != 0
-  ${AndIf} $0 != 1056
-    MessageBox MB_ICONSTOP "OpenVPN 服务启动失败。请查看安装日志。"
-    Abort
-  ${EndIf}
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "OpenVPNDaemon" '"$INSTDIR\openvpn_windows_daemon.exe"'
-  Exec '"$INSTDIR\openvpn_windows_daemon.exe"'
-  CreateShortCut "$DESKTOP\OpenVPN.lnk" "$INSTDIR\OpenVPN.exe"
-  WriteUninstaller "$INSTDIR\Uninstall.exe"
-SectionEnd
-Section "Uninstall"
-  nsExec::ExecToLog '"$SYSDIR\sc.exe" stop openvpn'
-  Pop $0
-  nsExec::ExecToLog '"$INSTDIR\openvpn_windows_service.exe" remove'
-  Pop $0
-  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "OpenVPNDaemon"
-  Delete "$DESKTOP\OpenVPN.lnk"
-  RMDir /r "$INSTDIR"
-SectionEnd
-'@
-        $nsiContent = $nsiContent.Replace("__STAGE__", $stageForNsis).Replace("__OUTPUT__", $installerForNsis)
-        $nsiContent | Set-Content -Encoding UTF8 $nsiPath
-        & $makensis.Source $nsiPath
-        if ($LASTEXITCODE -ne 0) { throw "NSIS 安装器生成失败" }
-        Remove-Item -Force $nsiPath
-        Write-Host "OpenVPN Windows 安装器已生成：$installerPath"
+        $isccExecutable = $null
+        $isccCommand = Get-Command ISCC.exe -ErrorAction SilentlyContinue
+        if ($null -ne $isccCommand) {
+            $isccExecutable = $isccCommand.Source
+        } else {
+            $isccCandidates = @(
+                (Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Inno Setup 6\ISCC.exe'),
+                (Join-Path ([Environment]::GetFolderPath('ProgramFiles')) 'Inno Setup 6\ISCC.exe'),
+                (Join-Path $env:USERPROFILE 'AppData\Local\Programs\Inno Setup 6\ISCC.exe'),
+                (Join-Path $env:LOCALAPPDATA 'Programs\Inno Setup 6\ISCC.exe')
+            )
+            $isccPath = $isccCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+            if ($isccPath) { $isccExecutable = (Resolve-Path -LiteralPath $isccPath).Path }
+        }
+        if ([string]::IsNullOrWhiteSpace($isccExecutable)) {
+            throw "找不到 Inno Setup 6 编译器 ISCC.exe。请先安装 Inno Setup 6，再重新打包。"
+        }
+
+        $installerDirectory = Split-Path -Parent $installerPath
+        New-Item -ItemType Directory -Force -Path $installerDirectory | Out-Null
+        $installerScript = Join-Path $PSScriptRoot 'OpenVPN.iss'
+        $compilerArguments = @(
+            "/DAppVersion=$Version",
+            "/DStageDir=$($stage.Replace('\', '/'))",
+            "/DOutputDirectory=$((Resolve-Path -LiteralPath $installerDirectory).Path.Replace('\', '/'))",
+            "/DOutputBaseFilename=$([IO.Path]::GetFileNameWithoutExtension($installerPath))",
+            $installerScript
+        )
+        & $isccExecutable @compilerArguments
+        if ($LASTEXITCODE -ne 0) { throw "Inno Setup 安装器编译失败（ISCC exit code $LASTEXITCODE）" }
+        if (-not (Test-Path -LiteralPath $installerPath -PathType Leaf) -or
+            (Get-Item -LiteralPath $installerPath).Length -eq 0) {
+            throw "Inno Setup 未生成有效安装程序：$installerPath"
+        }
+        Write-Host "OpenVPN Windows x64 标准安装程序已生成：$installerPath"
+    } else {
+        if (Test-Path $outputPath) { Remove-Item -Force $outputPath }
+        Compress-Archive -Path (Join-Path $stage "*") -DestinationPath $outputPath
+        Write-Host "OpenVPN Windows Qt 压缩包已生成：$outputPath"
     }
 }
 finally {
-    if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
+    if (Test-Path -LiteralPath $stage) {
+        $resolvedStage = (Resolve-Path -LiteralPath $stage).Path
+        if ($resolvedStage -ne $stage -or
+            -not $resolvedStage.StartsWith($stageParent, [StringComparison]::OrdinalIgnoreCase) -or
+            ((Get-Item -LiteralPath $stage).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+            throw '暂存目录身份发生变化，拒绝递归删除'
+        }
+        Remove-Item -LiteralPath $resolvedStage -Recurse -Force
+    }
 }

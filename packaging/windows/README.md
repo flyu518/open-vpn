@@ -1,6 +1,6 @@
 # Windows 打包
 
-发布包需要包含桌面应用、OpenVPN3 Windows Service、用户级 `openvpn_windows_daemon`、
+发布包需要包含桌面应用、OpenVPN3 Windows Service、用户级 `openvpn_windows_daemon` 及其隐藏启动器、
 Wintun/TAP 依赖，并完成代码签名。
 
 Windows UI daemon 使用 `\\.\pipe\openvpn-ui`；官方高权限 agent 使用自己的
@@ -22,37 +22,49 @@ Windows 应用启动后会在通知区域显示 OpenVPN 图标。关闭窗口只
 HKCU\Software\Microsoft\Windows\CurrentVersion\Run\OpenVPN
 ```
 
-如果 Windows 主机安装了 NSIS，可以追加 `-BuildInstaller` 生成带 Service 注册、用户 daemon
-开机启动和卸载入口的 `.exe` 安装器：
+使用 `-BuildInstaller` 会通过 Inno Setup 6 生成标准中文安装向导和单文件 `.exe` 安装器，
+其中直接嵌入应用文件，不会先打开命令行或让用户解压压缩包。安装器以管理员权限安装，
+注册并启动 Windows Service，并提供桌面快捷方式选项。完成页以原用户身份启动桌面应用；
+桌面应用在发送首个服务请求前，以当前用户权限启动并确认用户级 daemon 已就绪。开机自启
+仍由应用“设置”中的当前用户开关管理，因此不会由提升权限的安装器写入用户注册表：
 
 ```powershell
 .\packaging\windows\build-qt-package.ps1 -BuildInstaller `
   -WindowsDaemon build\core-windows\Release\openvpn_windows_daemon.exe `
+  -WindowsDaemonLauncher build\core-windows\Release\openvpn_windows_daemon_launcher.exe `
   -WindowsService build\core-windows\Release\openvpn_windows_service.exe `
   -WintunDll third_party\wintun\wintun.dll `
   -RuntimeDllDir build\core-windows\Release
 ```
+
+打包机器需要安装 Inno Setup 6（ISCC.exe）。安装向导在替换文件前会停止旧版 Windows Service、
+daemon 和 `OpenVPN.exe` 桌面进程，再覆盖安装文件；
+daemon 由隐藏启动器以 `CREATE_NO_WINDOW` 启动，不会先弹出命令行窗口。Windows Service
+单独停止和启动，避免新版 EXE 因单实例锁弹出“已有 OpenVPN 实例正在运行”。手动同时
+启动两个桌面 EXE 时仍保留单实例保护。
 
 界面的自启开关不要求管理员权限；安装服务的安装包需要管理员授权。Qt 桌面界面在 Windows 主机使用 MSVC kit 构建：
 
 ```powershell
-cmake -S desktop/qt -B build/qt-windows -DCMAKE_PREFIX_PATH=C:/Qt/6.12.0/msvc2022_64 -DCMAKE_BUILD_TYPE=Release
+cmake -S desktop/qt -B build/qt-windows -DCMAKE_PREFIX_PATH=C:/Qt/6.8.3/msvc2022_64 -DCMAKE_BUILD_TYPE=Release
 cmake --build build/qt-windows --config Release
-C:/Qt/6.12.0/msvc2022_64/bin/windeployqt.exe --qmldir desktop/qt/qml build/qt-windows/Release/openvpn_qt.exe
+C:/Qt/6.8.3/msvc2022_64/bin/windeployqt.exe --qmldir desktop/qt/qml build/qt-windows/Release/openvpn_qt.exe
 ```
 
-也可以使用仓库中的 PowerShell 脚本生成 Qt 运行时压缩包：
+如需开发用的便携压缩包（不是安装程序），可不传 `-BuildInstaller`：
 
 ```powershell
 .\packaging\windows\build-qt-package.ps1 `
-  -QtDir C:\Qt\6.12.0\msvc2022_64 `
+  -QtDir C:\Qt\6.8.3\msvc2022_64 `
   -WindowsDaemon build\core-windows\Release\openvpn_windows_daemon.exe `
+  -WindowsDaemonLauncher build\core-windows\Release\openvpn_windows_daemon_launcher.exe `
   -WindowsService build\core-windows\Release\openvpn_windows_service.exe `
   -WintunDll third_party\wintun\wintun.dll `
   -RuntimeDllDir build\core-windows\Release
 ```
 
-Qt Windows 安装器仍需和 Windows Service、Wintun 以及签名流程一起完成实机验收后再生成。
+正式发布前仍需在具有管理员权限的 Windows 主机上完成安装器安装、Windows Service、Wintun、
+签名和真实双配置连接验收；当前构建脚本不会把离线 UI 测试替代为真实连接成功。
 正式发布时把安装程序上传到 GitHub Release，资产名称建议为 `OpenVPN-0.0.3-windows-x64.exe` 或
 `OpenVPN-0.0.3-windows-x64.msi`。关于入口位于状态栏/托盘菜单，那里只检查 GitHub Releases；用户确认后才启动安装程序，不会静默替换当前应用。
 

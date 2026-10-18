@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "openvpn3_engine.h"
+#include "openvpn3_engine_config.h"
 
 namespace {
 
@@ -23,6 +24,13 @@ void evaluates_profile_without_network() {
         engine.evaluateProfile(minimal_profile());
     assert(evaluation.ok);
     assert(evaluation.remote_host == "127.0.0.1");
+}
+
+void uses_shared_connection_policy() {
+    static_assert(vpn::openvpn3_config::connection_timeout_seconds == 30);
+    static_assert(!vpn::openvpn3_config::retry_on_auth_failed);
+    assert(vpn::openvpn3_config::connection_timeout_seconds == 30);
+    assert(!vpn::openvpn3_config::retry_on_auth_failed);
 }
 
 void creates_two_independent_client_objects() {
@@ -85,6 +93,7 @@ void evaluates_profile_files(int argc, char** argv) {
 }  // namespace
 
 int main(int argc, char** argv) {
+    uses_shared_connection_policy();
     evaluates_profile_without_network();
     creates_two_independent_client_objects();
     stopping_one_session_does_not_stop_the_other();

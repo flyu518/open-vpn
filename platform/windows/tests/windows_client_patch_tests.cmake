@@ -2,6 +2,25 @@ if(NOT DEFINED SOURCE_DIR OR NOT DEFINED BINARY_DIR)
     message(FATAL_ERROR "需要 SOURCE_DIR 和 BINARY_DIR")
 endif()
 
+file(READ "${SOURCE_DIR}/core/CMakeLists.txt" CORE_CMAKE)
+foreach(TARGET_NAME openvpn_core openvpn_windows_service)
+    string(FIND "${CORE_CMAKE}"
+        "target_compile_definitions(${TARGET_NAME} PRIVATE" TARGET_BLOCK_START)
+    if(TARGET_BLOCK_START EQUAL -1)
+        message(FATAL_ERROR "未找到 ${TARGET_NAME} 的 Windows 编译定义")
+    endif()
+    string(SUBSTRING "${CORE_CMAKE}" ${TARGET_BLOCK_START} -1 TARGET_BLOCK_REMAINDER)
+    string(FIND "${TARGET_BLOCK_REMAINDER}" ")" TARGET_BLOCK_END)
+    if(TARGET_BLOCK_END EQUAL -1)
+        message(FATAL_ERROR "无法读取 ${TARGET_NAME} 的编译定义")
+    endif()
+    string(SUBSTRING "${TARGET_BLOCK_REMAINDER}" 0 ${TARGET_BLOCK_END} TARGET_BLOCK)
+    string(FIND "${TARGET_BLOCK}" "TAP_WIN_COMPONENT_ID=tap0901" TAP_COMPONENT_AT)
+    if(TAP_COMPONENT_AT EQUAL -1)
+        message(FATAL_ERROR "${TARGET_NAME} 缺少 TAP-Windows6 组件 ID tap0901")
+    endif()
+endforeach()
+
 if(DEFINED OPENVPN3_SOURCE_DIR AND EXISTS "${OPENVPN3_SOURCE_DIR}")
     set(OPENVPN3_DIR "${OPENVPN3_SOURCE_DIR}")
 else()
@@ -48,7 +67,10 @@ file(READ "${OUTPUT_DIR}/ovpncli.cpp" OVPNCLI)
 foreach(marker
         "load_transport_config(&opt)"
         "VPN_DESKTOP_SESSION_ID"
-        "session_name_override")
+        "session_name_override"
+        "wintun = config.wintun"
+        "bool wintun = false"
+        "config.clientconf.wintun ? TunWin::Wintun : TunWin::TapWindows6")
     string(FIND "${CLIOPT}" "${marker}" found)
     if(found EQUAL -1)
         message(FATAL_ERROR "cliopt 补丁缺少标记：${marker}")

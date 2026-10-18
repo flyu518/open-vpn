@@ -4,10 +4,10 @@
 
 ## macOS 构建
 
-先安装 Qt 6.12 或更新版本、CMake 3.21 或更新版本，并确保 `qt-cmake`、`macdeployqt` 可用。先把 Qt SDK 根目录设置为 `QT_ROOT`：
+先安装 Qt 6.8 或更新版本、CMake 3.21 或更新版本，并确保 `qt-cmake`、`macdeployqt` 可用。先把 Qt SDK 根目录设置为 `QT_ROOT`：
 
 ```text
-QT_ROOT=/Qt/6.12.0/macos
+QT_ROOT=/Qt/6.8.3/macos  # 替换为实际安装的 Qt 6.8+ macOS SDK 路径
 ```
 
 构建和测试：

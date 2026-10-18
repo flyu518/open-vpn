@@ -46,6 +46,26 @@ replace_required(
     "桌面会话标识")
 
 replace_required(
+    [=[        ClientAPI::ConfigCommon::operator=(config);
+
+        if (!config.protoOverride.empty())]=]
+    [=[        ClientAPI::ConfigCommon::operator=(config);
+        wintun = config.wintun;
+
+        if (!config.protoOverride.empty())]=]
+    "Wintun 客户端设置导入")
+
+replace_required(
+    [=[    TriStateSetting allowUnusedAddrFamilies;
+
+    /* from eval config */]=]
+    [=[    TriStateSetting allowUnusedAddrFamilies;
+    bool wintun = false;
+
+    /* from eval config */]=]
+    "Wintun 解析配置字段")
+
+replace_required(
     [=[    std::string load_transport_config()]=]
     [=[    std::string load_transport_config(const OptionList *options = nullptr)]=]
     "transport 配置参数")

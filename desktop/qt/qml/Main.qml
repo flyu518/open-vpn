@@ -77,13 +77,13 @@ ApplicationWindow {
     function refreshDetails() {
         detail = controller.detailsForSession(detailSessionId)
         if (credentialPending) {
-            const state = controller.detailsForSession(credentialSessionId).state
-            if (state === "connected") {
+            const credentialDetail = controller.detailsForSession(credentialSessionId)
+            if (credentialDetail.state === "connected") {
                 credentialPending = false
                 credentialsDialog.close()
-            } else if (state === "failed") {
+            } else if (credentialDetail.state === "failed") {
                 credentialPending = false
-                credentialReason = "连接未成功，请检查凭据后重试。"
+                credentialReason = credentialDetail.error || "连接未成功，请检查凭据后重试。"
             }
         }
     }
@@ -374,6 +374,7 @@ ApplicationWindow {
             objectName: "sessionList"
             Layout.fillWidth: true
             Layout.fillHeight: true
+            visible: controller.sessionModel.count > 0
             clip: true
             spacing: 8
             model: controller.sessionModel
@@ -499,9 +500,9 @@ ApplicationWindow {
                                 Layout.fillWidth: true
                                 text: sessionDelegate.conflictInfo.summary || (model.connected ? "运行 " + window.formatDuration(model.durationSeconds) +
                                       "    ↓ " + window.formatBytes(model.downloadBytes) + "    ↑ " + window.formatBytes(model.uploadBytes) +
-                                      (model.warnings.length > 0 ? " · 部分路由重叠" : "") :
+                                      ((model.warnings || []).length > 0 ? " · 部分路由重叠" : "") :
                                       model.failed ? window.readableMessage(model.error, "连接未成功，请打开详情查看诊断信息。") :
-                                      model.warnings.length > 0 ? window.readableMessage(model.warnings[0], "连接存在路由提示，请打开详情查看诊断信息。") : "")
+                                      (model.warnings || []).length > 0 ? window.readableMessage(model.warnings[0], "连接存在路由提示，请打开详情查看诊断信息。") : "")
                                 textFormat: Text.PlainText
                                 visible: text !== ""
                                 color: model.failed ? window.red :
@@ -587,10 +588,13 @@ ApplicationWindow {
             }
             }
             Label {
-                anchors.centerIn: parent
+                objectName: "emptyStateLabel"
+                Layout.fillWidth: true
+                Layout.fillHeight: true
                 visible: controller.sessionModel.count === 0
                 text: "尚未导入配置\n点击“导入配置”选择 .ovpn 文件"
                 horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
                 lineHeight: 1.6
                 font.pixelSize: 14
                 color: window.muted
@@ -776,7 +780,7 @@ ApplicationWindow {
                 }
                 Label {
                     Layout.fillWidth: true
-                    text: "IP/CIDR 规则会参与地址路由处理；域名后缀会加入 macOS 分流 DNS 范围，需要当前 VPN 提供 DNS 服务器。模糊匹配和正则规则不支持。"
+                    text: "IP/CIDR 规则会参与地址路由处理；域名后缀会加入系统分流 DNS 范围，需要当前 VPN 提供 DNS 服务器。模糊匹配和正则规则不支持。"
                     color: window.muted
                     wrapMode: Text.Wrap
                 }
@@ -907,7 +911,7 @@ ApplicationWindow {
             Label {
                 Layout.fillWidth: true
                 text: window.routeRuleTypeDraft === "domainSuffix" ?
-                      "域名后缀会加入当前 VPN 的 macOS 分流 DNS 范围；当前 VPN 需要提供 DNS 服务器，IP 路由仍由 VPN 配置提供。" :
+                      "域名后缀会加入当前 VPN 的系统分流 DNS 范围；当前 VPN 需要提供 DNS 服务器，IP 路由仍由 VPN 配置提供。" :
                       "IP/CIDR 使用地址范围匹配。优先规则要求冲突时先断开对方；排除规则不会在当前 VPN 安装匹配路由。"
                 color: window.muted
                 wrapMode: Text.Wrap

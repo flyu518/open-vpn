@@ -29,11 +29,24 @@ target_link_libraries(openvpn_windows_adapter PUBLIC openvpn_core)
 set_target_properties(openvpn_windows_adapter PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
 
 if(WIN32)
+    add_executable(openvpn_windows_ipv6_probe EXCLUDE_FROM_ALL
+        tools/windows_ipv6_probe.cpp ../platform/windows/service/shared_ipv6_block.cpp)
+    target_include_directories(openvpn_windows_ipv6_probe PRIVATE ../platform/windows/service)
+    target_link_libraries(openvpn_windows_ipv6_probe PRIVATE iphlpapi ws2_32 advapi32 rpcrt4)
     add_executable(openvpn_windows_service
         ../platform/windows/service/main.cpp
     )
     target_link_libraries(openvpn_windows_service PRIVATE openvpn_windows_adapter)
     set_target_properties(openvpn_windows_service PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+
+    add_executable(openvpn_windows_daemon_launcher WIN32
+        tools/windows_daemon_launcher.cpp
+    )
+    set_target_properties(openvpn_windows_daemon_launcher PROPERTIES
+        CXX_STANDARD 20
+        CXX_STANDARD_REQUIRED ON
+    )
+
 endif()
 
 add_library(openvpn_core STATIC
@@ -117,6 +130,25 @@ if(EXISTS "${OPENVPN3_SOURCE_DIR}/client/ovpncli.cpp")
             "${VPN_OPENVPN3_CLIOPT_GENERATED}")
 
     if(WIN32)
+        set(VPN_WINDOWS_DNS_SCRIPT
+            "${CMAKE_CURRENT_SOURCE_DIR}/../platform/windows/service/generate_session_dns.cmake")
+        set(VPN_WINDOWS_DNS_OUTPUTS
+            "${VPN_OPENVPN3_PATCHED_INCLUDE}/openvpn/tun/win/session_nrpt.hpp"
+            "${VPN_OPENVPN3_PATCHED_INCLUDE}/openvpn/tun/win/client/tunsetup.hpp")
+        add_custom_command(
+            OUTPUT ${VPN_WINDOWS_DNS_OUTPUTS}
+            COMMAND ${CMAKE_COMMAND}
+                "-DOPENVPN3_SOURCE_DIR=${OPENVPN3_SOURCE_DIR}"
+                "-DOUTPUT_DIRECTORY=${VPN_OPENVPN3_PATCHED_INCLUDE}"
+                -P ${VPN_WINDOWS_DNS_SCRIPT}
+            DEPENDS ${VPN_WINDOWS_DNS_SCRIPT}
+                ${OPENVPN3_SOURCE_DIR}/openvpn/tun/win/nrpt.hpp
+                ${OPENVPN3_SOURCE_DIR}/openvpn/tun/win/client/tunsetup.hpp
+            VERBATIM)
+        add_custom_target(openvpn_windows_session_dns_source
+            DEPENDS ${VPN_WINDOWS_DNS_OUTPUTS})
+        add_dependencies(openvpn_windows_service openvpn_windows_session_dns_source)
+        add_dependencies(openvpn_openvpn3_cmdagent_source openvpn_windows_session_dns_source)
         set(VPN_OPENVPN3_OVPNCLI_GENERATED
             "${VPN_OPENVPN3_PATCHED_INCLUDE}/client/ovpncli.cpp")
         add_custom_command(
@@ -154,6 +186,7 @@ if(EXISTS "${OPENVPN3_SOURCE_DIR}/client/ovpncli.cpp")
         HAVE_JSONCPP
         OPENVPN_COMMAND_AGENT
         OVPNAGENT_NAME=openvpn
+        TAP_WIN_COMPONENT_ID=tap0901
         OPENVPN_CORE_API_VISIBILITY_HIDDEN
     )
 
@@ -376,6 +409,8 @@ if(WIN32)
         add_dependencies(openvpn_windows_service openvpn_windows_agent_source)
         target_sources(openvpn_windows_service PRIVATE
             "${VPN_WINDOWS_AGENT_GENERATED}"
+            ../platform/windows/service/wintun_adapter_lease.cpp
+            ../platform/windows/service/shared_ipv6_block.cpp
         )
         target_sources(openvpn_windows_service PRIVATE
             ${OPENVPN3_SOURCE_DIR}/openvpn/crypto/data_epoch.cpp
@@ -392,12 +427,14 @@ if(WIN32)
             HAVE_JSONCPP
             OPENVPN_COMMAND_AGENT
             OVPNAGENT_NAME=openvpn
+            TAP_WIN_COMPONENT_ID=tap0901
             OPENVPN_CORE_API_VISIBILITY_HIDDEN
             OPENVPN_WINDOWS_AGENT_GENERATED
             OPENVPN_WINDOWS_AGENT_SOURCE
         )
         target_include_directories(openvpn_windows_service PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/../platform/windows/service
             ${VPN_OPENVPN3_PATCHED_INCLUDE}
             ${OPENVPN3_SOURCE_DIR}
             ${OPENVPN3_SOURCE_DIR}/client
@@ -424,6 +461,17 @@ if(WIN32)
             rpcrt4
             wtsapi32
         )
+
+        # Explicit standalone driver check; never run automatically by CTest.
+        add_executable(openvpn_windows_wintun_probe EXCLUDE_FROM_ALL
+            tools/windows_wintun_probe.cpp
+            ../platform/windows/service/wintun_adapter_lease.cpp)
+        target_include_directories(openvpn_windows_wintun_probe PRIVATE
+            $<TARGET_PROPERTY:openvpn_windows_service,INCLUDE_DIRECTORIES>)
+        target_compile_definitions(openvpn_windows_wintun_probe PRIVATE
+            $<TARGET_PROPERTY:openvpn_windows_service,COMPILE_DEFINITIONS>)
+        target_link_libraries(openvpn_windows_wintun_probe PRIVATE
+            $<TARGET_PROPERTY:openvpn_windows_service,LINK_LIBRARIES>)
     endif()
 
     add_library(openvpn_windows_secure_store STATIC
@@ -463,6 +511,17 @@ if(WIN32)
         CXX_STANDARD 20
         CXX_STANDARD_REQUIRED ON
     )
+
+    add_executable(openvpn_windows_connection_probe EXCLUDE_FROM_ALL
+        tools/windows_connection_probe.cpp
+        tools/daemon_session_controller.cpp)
+    target_include_directories(openvpn_windows_connection_probe PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/..
+        ${JSONCPP_INCLUDE_DIR})
+    target_link_libraries(openvpn_windows_connection_probe PRIVATE
+        openvpn_core openvpn_windows_secure_store ws2_32 advapi32 iphlpapi credui)
 
     # The Windows binaries link against the dynamic vcpkg/OpenSSL runtime.
     # Keep the build output directly runnable when launched from Explorer or

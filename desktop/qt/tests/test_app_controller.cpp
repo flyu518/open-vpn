@@ -4,6 +4,8 @@
 #include <QJsonObject>
 #include <QSignalSpy>
 #include <QFile>
+#include <QFileDialog>
+#include <QDir>
 #include <QTemporaryDir>
 #include <QJsonDocument>
 #include <QLocalServer>
@@ -12,6 +14,8 @@
 #include <QCryptographicHash>
 #include <QXmlStreamReader>
 #include <QApplication>
+#include <QStandardPaths>
+#include <QTimer>
 #include <QtTest>
 
 namespace {
@@ -91,7 +95,9 @@ private slots:
     void authenticationCancelAndRetry();
     void normalErrorsDoNotPrompt_data();
     void normalErrorsDoNotPrompt();
+    void credentialManagerPermissionPromptsForCredentials();
     void eventsPreserveMetadataAndRecordRealTransitions();
+    void connectionTimeoutEventBecomesReadableFailure();
     void externalSessionsDisappearWithoutPersisting();
     void priorityOrderPersistsAndFailedSaveReturnsFalse();
     void update404IsNotSuccess();
@@ -112,6 +118,9 @@ private slots:
     void snapshotsDoNotCreateConnectionHistory();
     void connectedEventAfterSnapshotCountsOnce();
     void localConnectionCompletedBySnapshotCountsOnce();
+#ifdef Q_OS_WIN
+    void importDialogStartsInDownloadsDirectory();
+#endif
 };
 
 void AppControllerTest::editsRouteStrategyRulesAndMode() {
@@ -390,6 +399,24 @@ void AppControllerTest::normalErrorsDoNotPrompt() {
     QCOMPARE(controller.sessionModel()->session("a").value("error").toString(), message);
 }
 
+void AppControllerTest::credentialManagerPermissionPromptsForCredentials() {
+    QTemporaryDir directory;
+    LocalDaemon daemon(directory.filePath("engine.sock"));
+    daemon.handler = [](const auto&) {
+        return QJsonObject{{"ok", false},
+                           {"message", QStringLiteral("读取凭据：Credential Manager 权限不足")}};
+    };
+    AppController controller(false, directory.filePath("profiles.json"), daemon.server.fullServerName());
+    controller.sessionModel()->setSessions({testProfile("a", "disconnected")});
+    QSignalSpy prompts(&controller, &AppController::credentialsRequired);
+
+    controller.toggleConnection("a");
+
+    QTRY_COMPARE(prompts.size(), 1);
+    QCOMPARE(controller.sessionModel()->session("a").value("state").toString(),
+             QStringLiteral("failed"));
+}
+
 void AppControllerTest::eventsPreserveMetadataAndRecordRealTransitions() {
     QTemporaryDir directory;
     AppController controller(false, directory.filePath("profiles.json"));
@@ -405,6 +432,23 @@ void AppControllerTest::eventsPreserveMetadataAndRecordRealTransitions() {
     deliverEvent(controller, QJsonObject{{"sessionId", "a"}, {"event", "DISCONNECTED"}});
     QCOMPARE(controller.sessionModel()->session("a").value("state").toString(), QString("disconnected"));
     QVERIFY(!controller.detailsForSession("a").value("lastDisconnectedAt").toString().isEmpty());
+}
+
+void AppControllerTest::connectionTimeoutEventBecomesReadableFailure() {
+    QTemporaryDir directory;
+    AppController controller(false, directory.filePath("profiles.json"));
+    controller.sessionModel()->setSessions({testProfile("a", "connecting")});
+
+    deliverEvent(controller, QJsonObject{
+        {"sessionId", "a"},
+        {"event", "CONNECTION_TIMEOUT"},
+        {"session", QJsonObject{{"sessionId", "a"}, {"state", "failed"}}},
+    });
+
+    QCOMPARE(controller.sessionModel()->session("a").value("state").toString(),
+             QStringLiteral("failed"));
+    QCOMPARE(controller.sessionModel()->session("a").value("error").toString(),
+             QStringLiteral("连接超时，请检查网络、服务器和 OpenVPN 服务。"));
 }
 
 void AppControllerTest::externalSessionsDisappearWithoutPersisting() {
@@ -478,8 +522,13 @@ void AppControllerTest::verifiesInstallerBeforeWriting() {
     AppController controller(false, directory.filePath("profiles.json"));
     const QByteArray data("installer-fixture");
     const QString digest = "sha256:" + QString::fromLatin1(QCryptographicHash::hash(data, QCryptographicHash::Sha256).toHex());
+#if defined(Q_OS_WIN)
+    const QString installerName = QStringLiteral("OpenVPN-windows-x64.exe");
+#else
+    const QString installerName = QStringLiteral("OpenVPN-macos-universal.pkg");
+#endif
     const auto release = QJsonObject{{"tag_name", "v0.3.0"}, {"html_url", "https://github.com/flyu518/open-vpn/releases/tag/v0.3.0"},
-        {"assets", QJsonArray{QJsonObject{{"name", "OpenVPN-macos-universal.pkg"}, {"browser_download_url", "https://github.com/flyu518/open-vpn/releases/download/v0.3.0/OpenVPN-macos-universal.pkg"},
+        {"assets", QJsonArray{QJsonObject{{"name", installerName}, {"browser_download_url", "https://github.com/flyu518/open-vpn/releases/download/v0.3.0/" + installerName},
                                         {"size", data.size()}, {"digest", digest}}}}};
     controller.applyReleaseResponse(QJsonDocument(release).toJson(), 200, QNetworkReply::NoError);
     QVERIFY(controller.updateInstallerAvailable());
@@ -711,16 +760,29 @@ void AppControllerTest::selectsMatchingInstallerArchitecture() {
     QCoreApplication::setApplicationVersion("0.2.2");
     AppController controller(false, directory.filePath("profiles.json"));
     QJsonArray assets;
-    for (const QString name : {QString("OpenVPN-macos-arm64.pkg"), QString("OpenVPN-macos-x86_64.pkg"), QString("OpenVPN-macos-universal.pkg")}) {
+#if defined(Q_OS_WIN)
+    const QStringList assetNames{QStringLiteral("OpenVPN-windows-arm64.exe"), QStringLiteral("OpenVPN-windows-x64.exe")};
+#else
+    const QStringList assetNames{QStringLiteral("OpenVPN-macos-arm64.pkg"), QStringLiteral("OpenVPN-macos-x86_64.pkg"), QStringLiteral("OpenVPN-macos-universal.pkg")};
+#endif
+    for (const QString& name : assetNames) {
         assets.append(QJsonObject{{"name", name}, {"browser_download_url", "https://github.com/flyu518/open-vpn/releases/download/v0.3.0/" + name},
                                   {"size", 10}, {"digest", "sha256:" + QString(64, 'a')}});
     }
     controller.applyReleaseResponse(QJsonDocument(QJsonObject{{"tag_name", "v0.3.0"}, {"assets", assets}}).toJson(), 200, QNetworkReply::NoError);
     QVERIFY(controller.updateInstallerAvailable());
+#if defined(Q_OS_WIN)
+#if defined(Q_PROCESSOR_ARM_64)
+    QCOMPARE(controller.updateInstallerName(), QString("OpenVPN-windows-arm64.exe"));
+#elif defined(Q_PROCESSOR_X86_64)
+    QCOMPARE(controller.updateInstallerName(), QString("OpenVPN-windows-x64.exe"));
+#endif
+#else
 #if defined(Q_PROCESSOR_ARM_64)
     QCOMPARE(controller.updateInstallerName(), QString("OpenVPN-macos-arm64.pkg"));
 #elif defined(Q_PROCESSOR_X86_64)
     QCOMPARE(controller.updateInstallerName(), QString("OpenVPN-macos-x86_64.pkg"));
+#endif
 #endif
 }
 
@@ -851,6 +913,44 @@ void AppControllerTest::routeConflictSnapshotKeepsNamesAndValidatesDetails() {
     controller.connectSession(controller.sessionModel()->session("a"));
     QVERIFY(controller.routeConflictInfo("a").value("groups").toList().isEmpty());
 }
+
+#ifdef Q_OS_WIN
+void AppControllerTest::importDialogStartsInDownloadsDirectory() {
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    AppController controller(false, directory.filePath("profiles.json"),
+                             directory.filePath("missing.sock"));
+
+    const bool wasUsingNativeDialogs =
+        QCoreApplication::testAttribute(Qt::AA_DontUseNativeDialogs);
+    QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs);
+    QString openedDirectory;
+    bool dialogFound = false;
+    QTimer::singleShot(0, [&] {
+        auto* dialog = qobject_cast<QFileDialog*>(QApplication::activeModalWidget());
+        if (!dialog) {
+            for (QWidget* widget : QApplication::topLevelWidgets()) {
+                dialog = qobject_cast<QFileDialog*>(widget);
+                if (dialog) break;
+            }
+        }
+        if (!dialog) return;
+        openedDirectory = QDir::cleanPath(dialog->directory().absolutePath());
+        dialogFound = true;
+        dialog->reject();
+    });
+
+    controller.importProfile();
+    QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs,
+                                   wasUsingNativeDialogs);
+
+    QVERIFY(dialogFound);
+    QString expectedDirectory =
+        QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
+    if (!QDir(expectedDirectory).exists()) expectedDirectory = QDir::homePath();
+    QCOMPARE(openedDirectory, QDir::cleanPath(expectedDirectory));
+}
+#endif
 
 QTEST_MAIN(AppControllerTest)
 #include "test_app_controller.moc"

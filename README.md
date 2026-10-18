@@ -68,7 +68,7 @@ Windows 版本使用 Qt 桌面界面、OpenVPN3 Windows Service 和 Wintun/TAP �
 
 ## 开发和构建
 
-开发环境需要 Qt 6.12、CMake、OpenSSL、asio、fmt、jsoncpp、lz4 和 xxHash。基础测试不需要真实 VPN 配置：
+开发环境需要 Qt 6.8 或更新版本、CMake、OpenSSL、asio、fmt、jsoncpp、lz4 和 xxHash。基础测试不需要真实 VPN 配置：
 
 ```bash
 cmake -S core -B /tmp/openvpn-core-build

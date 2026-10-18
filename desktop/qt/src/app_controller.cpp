@@ -40,7 +40,11 @@ QString stateForEvent(const QString& event) {
         event == QStringLiteral("RESOLVE")) {
         return QStringLiteral("connecting");
     }
-    if (event == QStringLiteral("FATAL_ERROR") || event == QStringLiteral("AUTH_FAILED")) return QStringLiteral("failed");
+    if (event == QStringLiteral("FATAL_ERROR") ||
+        event == QStringLiteral("AUTH_FAILED") ||
+        event == QStringLiteral("CONNECTION_TIMEOUT")) {
+        return QStringLiteral("failed");
+    }
     return {};
 }
 
@@ -216,8 +220,18 @@ void AppController::refreshService() {
 }
 
 void AppController::importProfile() {
+#ifdef Q_OS_WIN
+    QString initialDirectory = QStandardPaths::writableLocation(
+        QStandardPaths::DownloadLocation);
+    if (!QDir(initialDirectory).exists()) {
+        initialDirectory = QStandardPaths::writableLocation(
+            QStandardPaths::HomeLocation);
+    }
+#else
+    const QString initialDirectory;
+#endif
     const QString path = QFileDialog::getOpenFileName(
-        nullptr, QStringLiteral("导入 OpenVPN 配置"), {},
+        nullptr, QStringLiteral("导入 OpenVPN 配置"), initialDirectory,
         QStringLiteral("OpenVPN 配置 (*.ovpn);;所有文件 (*)"));
     if (path.isEmpty()) return;
 
@@ -654,6 +668,7 @@ QVariantMap AppController::detailsForSession(const QString& sessionId) const {
     details.insert(QStringLiteral("username"),
                    profile.value(QStringLiteral("username")).toString());
     details.insert(QStringLiteral("state"), profile.value(QStringLiteral("state")).toString());
+    details.insert(QStringLiteral("error"), profile.value(QStringLiteral("error")).toString());
     details.insert(QStringLiteral("profileId"),
                    profile.value(QStringLiteral("profileId")).toString(sessionId));
     details.insert(QStringLiteral("configLines"),
@@ -1020,6 +1035,12 @@ void AppController::showAbout() {
     emit aboutRequested();
 }
 
+#ifdef OPENVPN_QT_TESTING
+void AppController::applyReleaseResponseForTest(const QByteArray& payload) {
+    applyReleaseResponse(payload, 200, QNetworkReply::NoError);
+}
+#endif
+
 void AppController::setStartupError(const QString& value) {
     if (startupError_ == value) return;
     startupError_ = value;
@@ -1206,7 +1227,10 @@ void AppController::onEngineEvent(const QJsonObject& event) {
     }
     if ((disconnecting_.contains(sessionId) || cancelledConnections_.contains(sessionId)) && session.value("state") != "disconnected") return;
     ++revisions_[sessionId];
-    const QString message = event.value("message").toString(session.value("error").toString());
+    QString message = event.value("message").toString(session.value("error").toString());
+    if (message.isEmpty() && event.value("event").toString() == QStringLiteral("CONNECTION_TIMEOUT")) {
+        message = QStringLiteral("连接超时，请检查网络、服务器和 OpenVPN 服务。");
+    }
     if (session.value("state") == "failed" && !message.isEmpty()) session.insert("error", message);
     applyRuntimeSession(session, event.value("event") == "CONNECTED");
     if (session.value("state") == "failed") {
@@ -1559,7 +1583,10 @@ bool AppController::isCredentialFailure(const QString& message) {
            lower.contains(QStringLiteral("invalid credentials")) ||
            message.contains(QStringLiteral("认证失败")) ||
            message.contains(QStringLiteral("用户名或密码错误")) ||
-           message.contains(QStringLiteral("没有对应凭据"));
+           message.contains(QStringLiteral("没有对应凭据")) ||
+           (lower.contains(QStringLiteral("credential manager")) &&
+            (message.contains(QStringLiteral("权限不足")) ||
+             lower.contains(QStringLiteral("permission denied"))));
 }
 
 QJsonObject AppController::routeStrategyOrDefault(const QJsonObject& profile) {

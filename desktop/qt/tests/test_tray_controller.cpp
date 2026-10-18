@@ -139,7 +139,7 @@ void TrayControllerTest::secondSessionAndWindowActionsWork() {
     window.hide();
 }
 
-void TrayControllerTest::recreatesTrayItemAfterMenuBarRefresh() {
+void TrayControllerTest::preservesTrayItemDuringRoutineRecovery() {
     QTemporaryDir directory;
     QVERIFY(directory.isValid());
     AppController controller(false,
@@ -149,8 +149,11 @@ void TrayControllerTest::recreatesTrayItemAfterMenuBarRefresh() {
     if (!QSystemTrayIcon::isSystemTrayAvailable())
         QSKIP("当前测试环境没有可用的系统状态栏");
 
+    auto* originalTrayItem = tray.findChild<QSystemTrayIcon*>();
+    QVERIFY(originalTrayItem);
     QVERIFY(tray.recoverTrayIcon());
     QVERIFY(controller.trayAvailable());
+    QCOMPARE(tray.findChild<QSystemTrayIcon*>(), originalTrayItem);
     QVERIFY(!tray.menu()->actions().isEmpty());
 }
 

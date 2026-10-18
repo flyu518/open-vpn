@@ -38,6 +38,16 @@ foreach(MARKER
         "confirm event and remote TAP handle"
         "session_states.find(key)"
         "std::map<SessionKey, vpn::RoutePolicy> route_policies"
+        "wintun_adapter_lease.h"
+        "session_wintun_setup.h"
+        "vpn::windows::SharedIpv6Block::Lease ipv6_block"
+        "ipv6_blocks.acquire()"
+        "Win::ScopedHANDLE handle(state.tun->establish"
+        "state.ipv6_block.reset()"
+        "new SessionWintunSetup(io_context_,"
+        "std::unique_ptr<vpn::windows::WintunAdapterLease> wintun_adapter"
+        "tun_type == TunWin::Wintun && !state.wintun_adapter"
+        "Wintun adapters visible to agent:"
         "vpn_route_policy_validate"
         "default_session_name"
         "parent()->set_client_process(session_key(),")
@@ -46,6 +56,25 @@ foreach(MARKER
         message(FATAL_ERROR "生成结果缺少 Windows 多会话标记：${MARKER}")
     endif()
 endforeach()
+
+string(FIND "${GENERATED}"
+    "Win::ScopedHANDLE establish_tun(const SessionKey &key," ESTABLISH_START)
+string(FIND "${GENERATED}" "    bool destroy_tun(const SessionKey &key," DESTROY_START)
+if(ESTABLISH_START EQUAL -1 OR DESTROY_START EQUAL -1 OR
+   DESTROY_START LESS_EQUAL ESTABLISH_START)
+    message(FATAL_ERROR "无法定位 Windows 会话 establish_tun 方法")
+endif()
+math(EXPR ESTABLISH_LENGTH "${DESTROY_START} - ${ESTABLISH_START}")
+string(SUBSTRING "${GENERATED}" ${ESTABLISH_START} ${ESTABLISH_LENGTH}
+    ESTABLISH_METHOD)
+string(FIND "${ESTABLISH_METHOD}"
+    "tun_type == TunWin::Wintun && !state.wintun_adapter" ESTABLISH_LEASE_AT)
+string(FIND "${ESTABLISH_METHOD}" "state.tun->establish" TUN_ESTABLISH_AT)
+if(ESTABLISH_LEASE_AT EQUAL -1 OR TUN_ESTABLISH_AT EQUAL -1 OR
+   ESTABLISH_LEASE_AT GREATER TUN_ESTABLISH_AT)
+    message(FATAL_ERROR
+        "Wintun 会话必须在 establish_tun 创建或访问 TUN 设备前持有独立适配器")
+endif()
 
 string(FIND "${GENERATED}" "parent()->destroy_tun(os)" OLD_DESTROY_CALL_AT)
 if(NOT OLD_DESTROY_CALL_AT EQUAL -1)
@@ -101,6 +130,11 @@ if(EXISTS "${UPSTREAM_SOURCE}")
             message(FATAL_ERROR "锁定版 OpenVPN3 Windows agent 生成结果缺少标记：${MARKER}")
         endif()
     endforeach()
+    string(FIND "${UPSTREAM_GENERATED}" "TunWin::NRPT::delete_rules(0)" GLOBAL_DNS_CLEANUP)
+    string(FIND "${UPSTREAM_GENERATED}" "TunWin::SessionNRPT::delete_rules(std::string())" SESSION_DNS_CLEANUP)
+    if(NOT GLOBAL_DNS_CLEANUP EQUAL -1 OR SESSION_DNS_CLEANUP EQUAL -1)
+        message(FATAL_ERROR "Windows agent must not remove another product's DNS rules")
+    endif()
 endif()
 
 message(STATUS "Windows agent 多会话生成器 fixture 和缺失边界测试通过")

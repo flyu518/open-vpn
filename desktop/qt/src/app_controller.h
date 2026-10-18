@@ -100,6 +100,9 @@ public:
     Q_INVOKABLE void showAbout();
     Q_INVOKABLE void quitApplication(bool showConfirmation = true);
     Q_INVOKABLE void cancelQuitApplication();
+#ifdef OPENVPN_QT_TESTING
+    Q_INVOKABLE void applyReleaseResponseForTest(const QByteArray& payload);
+#endif
 
 signals:
     void serviceErrorChanged();

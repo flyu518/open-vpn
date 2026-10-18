@@ -47,6 +47,7 @@ ProfileEvaluation OpenVPN3Session::setProfile(std::string_view profile) {
         profile != "fixture:failure" && profile != "fixture:stop-error" &&
         profile != "fixture:slow-start" && profile != "fixture:burst" &&
         profile != "fixture:connecting" && profile != "fixture:inactive-failure" &&
+        profile != "fixture:timeout" && profile != "fixture:auth-rejection" &&
         profile != "fixture:disconnected" && profile != "fixture:connect-error" && profile != "fixture:strict-conflict" && profile != "fixture:external-conflict") {
         throw std::runtime_error("测试替身禁止使用真实 VPN 配置");
     }
@@ -56,6 +57,13 @@ void OpenVPN3Session::setRouteConflictMode(RouteConflictMode) {}
 void OpenVPN3Session::setRouteRules(const std::vector<RouteRule>&) {}
 bool OpenVPN3Session::setCredentials(const EngineCredentials&) { return true; }
 bool OpenVPN3Session::connect() {
+    if (impl_->profile == "fixture:timeout" || impl_->profile == "fixture:auth-rejection") {
+        impl_->sink({impl_->profile == "fixture:timeout" ? "CONNECTION_TIMEOUT" : "AUTH_FAILED",
+                     "", false, false}); // Native events need not have error/fatal flags.
+        impl_->sink({"DISCONNECTED", "", false, false});
+        impl_->stopped = true;
+        return true;
+    }
     if (impl_->profile == "fixture:connecting") return true;
     if (impl_->profile == "fixture:connect-error") throw std::runtime_error("模拟启动失败");
     if (impl_->profile == "fixture:slow-start")
@@ -69,9 +77,10 @@ bool OpenVPN3Session::connect() {
                 "冲突：当前 2001:db8::/64；前一个会话 " + std::to_string(getpid()) + ":a 使用 2001:db8::/32\n", false, false});
     }
     if (impl_->profile == "fixture:strict-conflict") {
-        impl_->sink({"TUN_SETUP_FAILED", "ovpnagent: request error: 路由与活动 VPN 重叠：候选会话 " +
+        impl_->sink({"LOG", "ovpnagent: request error: 路由与活动 VPN 重叠：候选会话 " +
             std::to_string(getpid()) + ":b 的 10.20.0.0/16 与活动会话 " + std::to_string(getpid()) +
-            ":a 的 10.0.0.0/8 重叠", true, true});
+            ":a 的 10.0.0.0/8 重叠", false, false});
+        impl_->sink({"TUN_SETUP_FAILED", "ovpnagent: request error", true, true});
         return true;
     }
     if (impl_->profile == "fixture:external-conflict") {

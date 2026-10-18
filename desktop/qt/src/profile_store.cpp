@@ -16,12 +16,102 @@
 #include <algorithm>
 #include <utility>
 #include <limits>
+#include <vector>
+
+#ifdef Q_OS_WIN
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <aclapi.h>
+#pragma comment(lib, "Advapi32.lib")
+#endif
 
 namespace {
 
 QString managedDirectory(const QString& indexPath) {
     return QDir(QFileInfo(indexPath).absolutePath()).filePath("profiles");
 }
+
+#ifdef Q_OS_WIN
+bool protectWindowsPath(const QString& path, bool directory, QString* error) {
+    HANDLE token = nullptr;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) {
+        if (error) *error = QStringLiteral("无法读取 Windows 当前用户：错误 %1").arg(GetLastError());
+        return false;
+    }
+
+    DWORD tokenSize = 0;
+    GetTokenInformation(token, TokenUser, nullptr, 0, &tokenSize);
+    if (tokenSize == 0) {
+        const DWORD result = GetLastError();
+        CloseHandle(token);
+        if (error) *error = QStringLiteral("无法读取 Windows 当前用户：错误 %1").arg(result);
+        return false;
+    }
+    std::vector<unsigned char> tokenBuffer(tokenSize);
+    if (!GetTokenInformation(token, TokenUser, tokenBuffer.data(), tokenSize, &tokenSize)) {
+        const DWORD result = GetLastError();
+        CloseHandle(token);
+        if (error) *error = QStringLiteral("无法读取 Windows 当前用户：错误 %1").arg(result);
+        return false;
+    }
+    const PSID userSid = reinterpret_cast<PTOKEN_USER>(tokenBuffer.data())->User.Sid;
+
+    SID_IDENTIFIER_AUTHORITY ntAuthority = SECURITY_NT_AUTHORITY;
+    PSID systemSid = nullptr;
+    PSID administratorsSid = nullptr;
+    const bool systemAllocated = AllocateAndInitializeSid(
+        &ntAuthority, 1, SECURITY_LOCAL_SYSTEM_RID, 0, 0, 0, 0, 0, 0, 0,
+        &systemSid) != FALSE;
+    const bool administratorsAllocated = AllocateAndInitializeSid(
+        &ntAuthority, 2, SECURITY_BUILTIN_DOMAIN_RID,
+        DOMAIN_ALIAS_RID_ADMINS, 0, 0, 0, 0, 0, 0, &administratorsSid) != FALSE;
+    if (!systemAllocated || !administratorsAllocated) {
+        if (systemSid) FreeSid(systemSid);
+        if (administratorsSid) FreeSid(administratorsSid);
+        CloseHandle(token);
+        if (error) *error = QStringLiteral("无法创建 Windows 配置权限：错误 %1").arg(GetLastError());
+        return false;
+    }
+
+    EXPLICIT_ACCESS_W entries[3]{};
+    const DWORD inheritance = directory
+        ? CONTAINER_INHERIT_ACE | OBJECT_INHERIT_ACE
+        : NO_INHERITANCE;
+    const auto fillEntry = [inheritance](EXPLICIT_ACCESS_W& entry, PSID sid) {
+        entry.grfAccessPermissions = FILE_ALL_ACCESS;
+        entry.grfAccessMode = SET_ACCESS;
+        entry.grfInheritance = inheritance;
+        entry.Trustee.MultipleTrusteeOperation = NO_MULTIPLE_TRUSTEE;
+        entry.Trustee.TrusteeForm = TRUSTEE_IS_SID;
+        entry.Trustee.TrusteeType = TRUSTEE_IS_UNKNOWN;
+        entry.Trustee.ptstrName = reinterpret_cast<LPWSTR>(sid);
+    };
+    fillEntry(entries[0], userSid);
+    fillEntry(entries[1], systemSid);
+    fillEntry(entries[2], administratorsSid);
+
+    PACL acl = nullptr;
+    DWORD result = SetEntriesInAclW(3, entries, nullptr, &acl);
+    if (result == ERROR_SUCCESS) {
+        const std::wstring nativePath = path.toStdWString();
+        result = SetNamedSecurityInfoW(
+            const_cast<LPWSTR>(nativePath.c_str()), SE_FILE_OBJECT,
+            DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+            nullptr, nullptr, acl, nullptr);
+    }
+    if (acl) LocalFree(acl);
+    FreeSid(systemSid);
+    FreeSid(administratorsSid);
+    CloseHandle(token);
+    if (result != ERROR_SUCCESS) {
+        if (error) *error = QStringLiteral("无法设置 Windows 配置权限：错误 %1").arg(result);
+        return false;
+    }
+    return true;
+}
+#endif
 
 bool readIndex(const QString& path, QJsonArray* profiles, QString* error) {
     QFile file(path);
@@ -133,6 +223,9 @@ bool writePrivateFile(const QString& path, const QByteArray& data, QString* erro
         if (error) *error = QStringLiteral("配置保存失败：") + file.errorString();
         return false;
     }
+#ifdef Q_OS_WIN
+    if (!protectWindowsPath(path, false, error)) return false;
+#endif
     return true;
 }
 
@@ -228,6 +321,9 @@ bool ProfileStore::save(const QList<QJsonObject>& profiles, QString* error) cons
         if (error) *error = QStringLiteral("无法创建受限配置副本目录");
         return false;
     }
+#ifdef Q_OS_WIN
+    if (!protectWindowsPath(directory, true, error)) return false;
+#endif
     QJsonArray values;
     QSet<QString> ids;
     int order = 1;
@@ -276,6 +372,9 @@ bool ProfileStore::save(const QList<QJsonObject>& profiles, QString* error) cons
                     if (error) *error = QStringLiteral("无法设置配置副本权限");
                     return false;
                 }
+#ifdef Q_OS_WIN
+                if (!protectWindowsPath(copyPath, false, error)) return false;
+#endif
             } else if (!writePrivateFile(copyPath, contents, error)) return false;
             stored.insert("managedFile", name);
             stored.insert("contentHash", hash);

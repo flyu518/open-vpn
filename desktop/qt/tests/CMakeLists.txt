@@ -70,6 +70,7 @@ qt_add_resources(openvpn_qt_qml_tests "openvpn_qml_test_assets"
 )
 target_compile_definitions(openvpn_qt_qml_tests PRIVATE
     OPENVPN_QT_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/.."
+    OPENVPN_QT_TESTING
 )
 target_include_directories(openvpn_qt_qml_tests PRIVATE ../src)
 target_link_libraries(openvpn_qt_qml_tests PRIVATE
@@ -128,3 +129,34 @@ qt_add_resources(openvpn_qt_qml_tests "openvpn_blue_icon"
     PREFIX "/openvpn" BASE "../assets" FILES ../assets/app-icon.png)
 qt_add_resources(openvpn_qt_tray_tests "openvpn_blue_tray_icon"
     PREFIX "/openvpn" BASE "../assets" FILES ../assets/app-icon.png)
+
+if(WIN32)
+    set(OPENVPN_QT_TEST_TEMP "${CMAKE_CURRENT_BINARY_DIR}/qt-test-temp")
+    # CTest does not inherit the Qt environment used while configuring the
+    # project. Keep the Windows test executables self-contained by pointing
+    # them at the same Qt bin/plugins directories as the configured Qt6
+    # package. Without the bin path Windows reports 0xc0000135 before a test
+    # can even start because Qt6Core.dll is not on PATH.
+    get_filename_component(OPENVPN_QT_TEST_QT_CMAKE_DIR "${Qt6_DIR}" ABSOLUTE)
+    get_filename_component(OPENVPN_QT_TEST_QT_LIB_DIR "${OPENVPN_QT_TEST_QT_CMAKE_DIR}/../.." ABSOLUTE)
+    get_filename_component(OPENVPN_QT_TEST_QT_ROOT "${OPENVPN_QT_TEST_QT_LIB_DIR}/.." ABSOLUTE)
+    set(OPENVPN_QT_TEST_BIN "${OPENVPN_QT_TEST_QT_ROOT}/bin")
+    set(OPENVPN_QT_TEST_PLUGIN_PATH "${OPENVPN_QT_TEST_QT_ROOT}/plugins")
+    file(MAKE_DIRECTORY "${OPENVPN_QT_TEST_TEMP}")
+    set_tests_properties(
+        openvpn_qt_model_tests
+        openvpn_qt_engine_tests
+        openvpn_qt_controller_tests
+        openvpn_qt_traffic_tests
+        PROPERTIES
+            ENVIRONMENT "TEMP=${OPENVPN_QT_TEST_TEMP};TMP=${OPENVPN_QT_TEST_TEMP};QT_PLUGIN_PATH=${OPENVPN_QT_TEST_PLUGIN_PATH}"
+            ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OPENVPN_QT_TEST_BIN}"
+    )
+    set_tests_properties(
+        openvpn_qt_qml_tests
+        openvpn_qt_tray_tests
+        PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen;TEMP=${OPENVPN_QT_TEST_TEMP};TMP=${OPENVPN_QT_TEST_TEMP};QT_PLUGIN_PATH=${OPENVPN_QT_TEST_PLUGIN_PATH}"
+            ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${OPENVPN_QT_TEST_BIN}"
+    )
+endif()

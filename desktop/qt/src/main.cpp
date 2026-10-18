@@ -8,6 +8,7 @@
 #include <QLockFile>
 #include <QDir>
 #include <QMessageBox>
+#include <QProcess>
 #include <QLocalServer>
 #include <QLocalSocket>
 #include <QQmlApplicationEngine>
@@ -17,6 +18,7 @@
 #include <QStandardPaths>
 #include <QSystemTrayIcon>
 #include <QTimer>
+#include <QDebug>
 
 class QuitConfirmationFilter final : public QObject {
 public:
@@ -31,6 +33,98 @@ private:
     AppController& controller_;
 };
 
+#ifdef Q_OS_WIN
+void ensureWindowsDaemonReady() {
+    const QString pipeName = QStringLiteral(R"(\\.\pipe\openvpn-ui)");
+    QLocalSocket probe;
+    probe.connectToServer(pipeName);
+    if (probe.waitForConnected(200)) {
+        probe.disconnectFromServer();
+        return;
+    }
+    // An access-denied pipe belongs to another security principal. Starting a
+    // second daemon cannot repair that existing pipe and would only obscure
+    // the real error; leave it for EngineClient to report in the UI.
+    if (probe.error() == QLocalSocket::SocketAccessError) return;
+    probe.abort();
+
+    const QString appDirectory = QCoreApplication::applicationDirPath();
+    const QString launcher = QDir(appDirectory).filePath(
+        QStringLiteral("openvpn_windows_daemon_launcher.exe"));
+    if (!QFile::exists(launcher)) {
+        qWarning().noquote() << "OpenVPN Windows daemon launcher is missing:" << launcher;
+        return;
+    }
+    if (!QProcess::startDetached(launcher, {}, appDirectory)) {
+        qWarning().noquote() << "Unable to start OpenVPN Windows daemon:" << launcher;
+        return;
+    }
+
+    probe.connectToServer(pipeName);
+    if (!probe.waitForConnected(3000)) {
+        qWarning().noquote() << "OpenVPN Windows daemon did not open its pipe:"
+                             << probe.errorString();
+        return;
+    }
+    probe.disconnectFromServer();
+}
+#endif
+
+// The packaged Windows executable is also used for visual smoke tests.  This
+// hook is inert unless the test-only environment variable is explicitly set;
+// normal launches never take this path.  Keeping the scene selection in the
+// executable lets us inspect the exact QML resources shipped in the package,
+// instead of testing a separately built QML test fixture.
+void openUiSmokeScene(const QString& scene,
+                      QObject* root,
+                      AppController& controller) {
+    if (!root) return;
+
+    const auto dialog = [root](const char* name) {
+        return root->findChild<QObject*>(QString::fromLatin1(name));
+    };
+    const auto session = controller.sessionModel()->sessions().value(0);
+    const QString sessionId = session.value(QStringLiteral("sessionId")).toString();
+
+    if (scene == QStringLiteral("details") ||
+        scene == QStringLiteral("route") ||
+        scene == QStringLiteral("rename") ||
+        scene == QStringLiteral("delete") ||
+        scene == QStringLiteral("forget")) {
+        QMetaObject::invokeMethod(root, "openDetails",
+                                  Q_ARG(QVariant, sessionId),
+                                  Q_ARG(QVariant, QString()));
+    }
+    if (scene == QStringLiteral("settings")) {
+        if (auto* value = dialog("settingsDialog")) value->setProperty("visible", true);
+    } else if (scene == QStringLiteral("about")) {
+        if (auto* value = dialog("aboutDialog")) value->setProperty("visible", true);
+    } else if (scene == QStringLiteral("details")) {
+        if (auto* value = dialog("detailsDialog")) value->setProperty("visible", true);
+    } else if (scene == QStringLiteral("route")) {
+        if (auto* value = dialog("routePolicyDialog")) value->setProperty("visible", true);
+    } else if (scene == QStringLiteral("rename")) {
+        if (auto* value = dialog("renameDialog")) value->setProperty("visible", true);
+    } else if (scene == QStringLiteral("delete")) {
+        if (auto* value = dialog("deleteProfileDialog")) value->setProperty("visible", true);
+    } else if (scene == QStringLiteral("forget")) {
+        if (auto* value = dialog("forgetDialog")) value->setProperty("visible", true);
+    } else if (scene == QStringLiteral("credentials")) {
+        root->setProperty("credentialSessionId", sessionId);
+        root->setProperty("credentialReason", QStringLiteral("请输入用户名和密码后连接。"));
+        root->setProperty("credentialPending", false);
+        if (auto* value = dialog("credentialsDialog")) value->setProperty("visible", true);
+    } else if (scene == QStringLiteral("quit")) {
+        root->setProperty("activeConnectionsAtQuit", 1);
+        if (auto* value = dialog("quitDialog")) value->setProperty("visible", true);
+    } else if (scene == QStringLiteral("update")) {
+        if (auto* value = dialog("updateDialog")) value->setProperty("visible", true);
+    } else if (scene == QStringLiteral("notice")) {
+        root->setProperty("noticeTitle", QStringLiteral("测试提示"));
+        root->setProperty("noticeMessage", QStringLiteral("这是最终打包版的操作反馈区域。"));
+    }
+}
+
 int main(int argc, char* argv[]) {
     // 使用 Qt 的非原生控件样式，保证自定义按钮、卡片和悬停反馈在
     // macOS、Windows 上都保持一致，不被系统原生样式覆盖。
@@ -41,6 +135,9 @@ int main(int argc, char* argv[]) {
     application.setApplicationVersion(QStringLiteral(OPENVPN_APP_VERSION));
     application.setWindowIcon(QIcon(QStringLiteral(":/openvpn/app-icon.png")));
     QApplication::setQuitOnLastWindowClosed(false);
+    if (!qEnvironmentVariableIsEmpty("OPENVPN_QT_SCREENSHOT_PATH")) {
+        QStandardPaths::setTestModeEnabled(true);
+    }
 
     const QString appData = QStandardPaths::writableLocation(
         QStandardPaths::AppDataLocation);
@@ -74,6 +171,10 @@ int main(int argc, char* argv[]) {
                              QStringLiteral("已有 OpenVPN 实例正在运行，请先关闭已有窗口后再启动。"));
         return 0;
     }
+
+#ifdef Q_OS_WIN
+    ensureWindowsDaemonReady();
+#endif
 
     AppController controller(QSystemTrayIcon::isSystemTrayAvailable());
     QuitConfirmationFilter quitFilter(controller);
@@ -119,9 +220,16 @@ int main(int argc, char* argv[]) {
     controller.start();
     const QString screenshotPath = qEnvironmentVariable("OPENVPN_QT_SCREENSHOT_PATH");
     if (!screenshotPath.isEmpty() && window) {
-        QTimer::singleShot(800, &application, [window, screenshotPath, &application] {
+        const QString smokeScene = qEnvironmentVariable("OPENVPN_QT_UI_SMOKE_SCENE");
+        QTimer::singleShot(900, &application,
+                          [window, screenshotPath, smokeScene, &controller, &application] {
+            if (!smokeScene.isEmpty()) {
+                openUiSmokeScene(smokeScene, window, controller);
+            }
+            QTimer::singleShot(180, &application, [window, screenshotPath, &application] {
             window->grabWindow().save(screenshotPath);
             application.quit();
+            });
         });
     }
     return application.exec();

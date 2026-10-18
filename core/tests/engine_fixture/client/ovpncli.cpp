@@ -3,6 +3,7 @@
 // access is enabled, while get_async_stop() registers a persistent Stop scope.
 // No networking, tun setup, filesystem access or credential backend exists here.
 #include "openvpn/common/stop.hpp"
+#include "../engine_fixture.h"
 
 #include <atomic>
 #include <chrono>
@@ -14,11 +15,27 @@
 #include <thread>
 
 namespace openvpn_io::detail { using socket_type = int; }
+namespace engine_fixture {
+namespace {
+bool last_wintun_config_value = false;
+}
+void set_last_wintun_config(bool enabled) {
+    last_wintun_config_value = enabled;
+}
+bool last_wintun_config() {
+    return last_wintun_config_value;
+}
+}  // namespace engine_fixture
 namespace openvpn::ClientAPI {
-struct Config { std::string content; };
+struct Config {
+    std::string content;
+    bool wintun = false;
+    int connTimeout = 0;
+    bool retryOnAuthFailed = true;
+};
 struct EvalConfig {
     bool error = false;
-    std::string message, remoteHost, remotePort, remoteProto;
+    std::string message, remoteHost, remotePort, remoteProto, windowsDriver;
 };
 struct ProvideCreds { std::string username, password, response, dynamicChallengeCookie; };
 struct Status { bool error = false; std::string message; };
@@ -30,7 +47,16 @@ using ExternalPKISignRequest = ExternalPKICertRequest;
 struct TransportStats { long long bytesIn = 0, bytesOut = 0; };
 class OpenVPNClientHelper {
 public:
-    EvalConfig eval_config(const Config&) { return {}; }
+    EvalConfig eval_config(const Config& config) {
+        EvalConfig result;
+        const auto marker = config.content.find("windows-driver ");
+        if (marker != std::string::npos) {
+            const auto start = marker + std::string("windows-driver ").size();
+            const auto end = config.content.find_first_of("\r\n", start);
+            result.windowsDriver = config.content.substr(start, end - start);
+        }
+        return result;
+    }
 };
 class OpenVPNClient {
 public:
@@ -42,7 +68,20 @@ public:
     virtual void external_pki_cert_request(ExternalPKICertRequest&) = 0;
     virtual void external_pki_sign_request(ExternalPKISignRequest&) = 0;
     virtual bool socket_protect(int, std::string, bool) = 0;
-    EvalConfig eval_config(const Config& config) { profile_ = config.content; return {}; }
+    EvalConfig eval_config(const Config& config) {
+        profile_ = config.content;
+        // The real OpenVPN3 client imports Config into internal client state
+        // during eval_config(). Record the value at that boundary, not later.
+        engine_fixture::set_last_wintun_config(config.wintun);
+        EvalConfig result;
+        const auto marker = config.content.find("windows-driver ");
+        if (marker != std::string::npos) {
+            const auto start = marker + std::string("windows-driver ").size();
+            const auto end = config.content.find_first_of("\r\n", start);
+            result.windowsDriver = config.content.substr(start, end - start);
+        }
+        return result;
+    }
     Status provide_creds(const ProvideCreds&) { return {}; }
     TransportStats transport_stats() const { return {}; }
     Status connect() {

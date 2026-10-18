@@ -241,9 +241,12 @@ private slots:
     void dragAutoScroll();
     void dialogs_data();
     void dialogs();
+    void emptyState();
+    void updateConfirmationDialog();
     void renameSave();
     void credentialsSubmit();
     void credentialsRetryKeepsInput();
+    void credentialsFailureShowsActualReason();
     void credentialsPendingCanBeCancelled();
     void deleteConfirmation();
     void nestedEscapeReturnsToDetails();
@@ -606,6 +609,46 @@ void QmlInteractionsTest::dialogs() {
     QVERIFY(f.click(closeButton));
     QTRY_VERIFY(!popup->property("visible").toBool());
 }
+void QmlInteractionsTest::emptyState() {
+    Fixture f; QVERIFY(f.load({}, {820, 560}));
+    QVERIFY(f.list());
+    QVERIFY(!f.list()->isVisible());
+    auto* empty = f.item("emptyStateLabel");
+    QVERIFY(empty);
+    QVERIFY(empty->isVisible());
+    QVERIFY(empty->property("text").toString().contains("尚未导入配置"));
+    QCOMPARE(empty->property("horizontalAlignment").toInt(), int(Qt::AlignHCenter));
+    QCOMPARE(empty->property("verticalAlignment").toInt(), int(Qt::AlignVCenter));
+    const auto bounds = rect(empty, f.root());
+    QVERIFY(bounds.width() > 0);
+    QVERIFY(bounds.height() > 0);
+    QVERIFY(QRectF(0, 0, f.window->width(), f.window->height()).contains(bounds));
+}
+void QmlInteractionsTest::updateConfirmationDialog() {
+    Fixture f; QVERIFY(f.load({profile("a")}, {820, 560}));
+    const QJsonObject release{
+        {"tag_name", "v0.3.0"},
+        {"html_url", "https://github.com/flyu518/open-vpn/releases/tag/v0.3.0"},
+        {"assets", QJsonArray{QJsonObject{
+            {"name", "OpenVPN-windows-x64.exe"},
+            {"browser_download_url", "https://github.com/flyu518/open-vpn/releases/download/v0.3.0/OpenVPN-windows-x64.exe"},
+            {"size", 32},
+            {"digest", "sha256:" + QString(64, 'a')}}}}};
+    f.controller->applyReleaseResponseForTest(QJsonDocument(release).toJson());
+    QVERIFY(f.controller->updateAvailable());
+    QVERIFY(f.controller->updateInstallerAvailable());
+    f.controller->showAbout();
+    auto* about = f.dialog("aboutDialog");
+    QTRY_VERIFY(about && about->property("visible").toBool());
+    QVERIFY(f.clickText("下载更新"));
+    auto* update = f.dialog("updateDialog");
+    QTRY_VERIFY(update && update->property("visible").toBool());
+    QVERIFY(f.screenshot("update-confirmation-820"));
+    QVERIFY(f.click(buttonText(footer(update), "取消")));
+    QTRY_VERIFY(!update->property("visible").toBool());
+    QVERIFY(f.click(buttonText(footer(about), "关闭")));
+    QTRY_VERIFY(!about->property("visible").toBool());
+}
 void QmlInteractionsTest::renameSave() {
     Fixture f; QVERIFY(f.load({profile("a")}, {820, 560}));
     QVERIFY(f.details()); QVERIFY(f.clickText("编辑名称"));
@@ -669,6 +712,32 @@ void QmlInteractionsTest::credentialsRetryKeepsInput() {
     QTRY_COMPARE(f.commands("connect"), 3);
     f.event("connected");
     QTRY_VERIFY(!popup->property("visible").toBool());
+}
+void QmlInteractionsTest::credentialsFailureShowsActualReason() {
+    Fixture f; f.requireCredentials = true;
+    QVERIFY(f.load({profile("a")}, {820, 560})); QVERIFY(f.click(f.action()));
+    auto* popup = f.dialog("输入 VPN 凭据"); QVERIFY(popup);
+    QTRY_VERIFY(popup->property("visible").toBool());
+    QVERIFY(f.click(f.field("用户名"))); f.type("test-user");
+    QVERIFY(f.click(f.field("密码"))); f.type("test-password");
+    QVERIFY(f.click(buttonText(footer(popup), "连接")));
+    QTRY_VERIFY(f.window->property("credentialPending").toBool());
+
+    QVERIFY(f.controller->sessionModel()->updateSession(
+        QJsonObject{{"sessionId", "a"}, {"state", "failed"},
+                    {"error", "连接超时，请检查网络、服务器和 OpenVPN 服务。"}}));
+    QTRY_VERIFY(!f.window->property("credentialPending").toBool());
+
+    auto* reason = qobject_cast<QQuickItem*>(popup->property("contentItem").value<QQuickItem*>());
+    QVERIFY(reason);
+    bool found = false;
+    for (auto* item : visualChildren(reason)) {
+        if (item->property("text").toString().contains("连接超时")) {
+            found = true;
+            break;
+        }
+    }
+    QVERIFY2(found, "凭据框应展示实际连接失败原因，而不是固定的凭据错误提示");
 }
 void QmlInteractionsTest::credentialsPendingCanBeCancelled() {
     Fixture f; f.requireCredentials = true;
@@ -787,6 +856,7 @@ void QmlInteractionsTest::domainSuffixRuleDetails() {
         if (!item->isVisible()) continue;
         const auto text = item->property("text").toString();
         routeLimit |= text.contains("先连接成功") && text.contains("重新连接");
+        QVERIFY2(!text.contains("macOS 分流 DNS"), "共享界面不能把 Windows DNS 功能描述成 macOS 专用");
         stored |= text == "corp.example.test";
         QVERIFY(item->objectName() != "routeRuleRemoveButton");
         QVERIFY(!item->property("placeholderText").toString().contains("10.20.0.0"));

@@ -9,5 +9,5 @@ private slots:
     void sessionActionTriggersControllerBeforeMenuRefresh();
     void nativeMenuKeepsActionsAliveUntilItCloses();
     void secondSessionAndWindowActionsWork();
-    void recreatesTrayItemAfterMenuBarRefresh();
+    void preservesTrayItemDuringRoutineRecovery();
 };

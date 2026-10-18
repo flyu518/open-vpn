@@ -55,6 +55,52 @@ if(EXISTS "${OPENVPN3_SOURCE_DIR}/client/ovpncli.cpp")
     endif()
 
     add_test(NAME openvpn_openvpn3_engine_tests COMMAND openvpn_openvpn3_engine_tests)
+
+    if(WIN32)
+        add_executable(openvpn_engine_driver_policy_tests
+            engine_driver_policy_tests.cpp
+            ../src/openvpn3_engine.cpp
+            ../src/engine_worker.cpp
+        )
+        target_include_directories(openvpn_engine_driver_policy_tests PRIVATE
+            engine_fixture
+            ../include
+            ${OPENVPN3_SOURCE_DIR}
+            ${FMT_INCLUDE_DIR}
+        )
+        target_link_libraries(openvpn_engine_driver_policy_tests PRIVATE
+            Threads::Threads
+            ${FMT_LIBRARY}
+        )
+        add_test(NAME openvpn_engine_driver_policy_tests
+            COMMAND openvpn_engine_driver_policy_tests)
+    endif()
+endif()
+
+if(WIN32)
+    add_executable(openvpn_windows_ipv6_block_tests windows_ipv6_block_tests.cpp
+        ../../platform/windows/service/shared_ipv6_block.cpp)
+    target_include_directories(openvpn_windows_ipv6_block_tests PRIVATE ../../platform/windows/service)
+    target_link_libraries(openvpn_windows_ipv6_block_tests PRIVATE iphlpapi ws2_32 advapi32 rpcrt4)
+    add_test(NAME openvpn_windows_ipv6_block_tests COMMAND openvpn_windows_ipv6_block_tests)
+    add_executable(openvpn_windows_session_dns_tests windows_session_dns_tests.cpp)
+    add_dependencies(openvpn_windows_session_dns_tests openvpn_windows_session_dns_source)
+    target_include_directories(openvpn_windows_session_dns_tests PRIVATE
+        $<TARGET_PROPERTY:openvpn_windows_service,INCLUDE_DIRECTORIES>)
+    target_compile_definitions(openvpn_windows_session_dns_tests PRIVATE
+        $<TARGET_PROPERTY:openvpn_windows_service,COMPILE_DEFINITIONS>)
+    target_link_libraries(openvpn_windows_session_dns_tests PRIVATE
+        $<TARGET_PROPERTY:openvpn_windows_service,LINK_LIBRARIES>)
+    add_test(NAME openvpn_windows_session_dns_tests COMMAND openvpn_windows_session_dns_tests)
+    add_executable(openvpn_windows_wintun_adapter_lease_tests
+        wintun_adapter_lease_tests.cpp
+        ../../platform/windows/service/wintun_adapter_lease.cpp
+    )
+    target_include_directories(openvpn_windows_wintun_adapter_lease_tests PRIVATE
+        ../../platform/windows/service
+    )
+    add_test(NAME openvpn_windows_wintun_adapter_lease_tests
+        COMMAND openvpn_windows_wintun_adapter_lease_tests)
 endif()
 
 if(APPLE)
@@ -142,6 +188,14 @@ add_test(NAME openvpn_windows_client_patch_tests
         -DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}/windows-client-patch
         -P ${CMAKE_CURRENT_SOURCE_DIR}/../../platform/windows/tests/windows_client_patch_tests.cmake)
 set_tests_properties(openvpn_windows_client_patch_tests PROPERTIES TIMEOUT 15)
+
+if(WIN32)
+    add_test(NAME openvpn_windows_connection_timeout_config_test
+            COMMAND ${CMAKE_COMMAND}
+                -DENGINE_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/../src/openvpn3_engine.cpp
+                -DCONFIG_HEADER=${CMAKE_CURRENT_SOURCE_DIR}/../include/openvpn3_engine_config.h
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/../../packaging/windows/tests/test_connection_timeout_config.cmake)
+endif()
 
 # The existing tests use assert(), including calls with side effects. Keep those
 # checks enabled in the requested Release build as well.

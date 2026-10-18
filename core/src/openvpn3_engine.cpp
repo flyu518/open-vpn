@@ -1,6 +1,10 @@
 #include "openvpn3_engine.h"
 
 #include "engine_worker.h"
+#include "openvpn3_engine_config.h"
+#if defined(_WIN32)
+#include "windows_driver_policy.h"
+#endif
 
 #include <atomic>
 #include <memory>
@@ -185,9 +189,28 @@ ProfileEvaluation OpenVPN3Session::setProfile(std::string_view profile_content) 
                              session_id_for_profile(sessionId()) + "\n";
     impl_->config.content += "setenv VPN_DESKTOP_ROUTE_MODE " +
                              std::string(route_mode_name(impl_->route_conflict_mode)) + "\n";
+    // OpenVPN3 defaults to retrying a connection indefinitely. A finite,
+    // shared timeout keeps macOS and Windows in the same terminal state when
+    // the agent, TUN device, network, or credentials cannot be established.
+    impl_->config.connTimeout = openvpn3_config::connection_timeout_seconds;
+    impl_->config.retryOnAuthFailed = openvpn3_config::retry_on_auth_failed;
     const std::string encoded_rules = encode_route_rules(impl_->route_rules);
     if (!encoded_rules.empty())
         impl_->config.content += "setenv VPN_DESKTOP_ROUTE_RULES " + encoded_rules + "\n";
+#if defined(_WIN32)
+    // OpenVPN3's Client::eval_config() copies these settings into internal
+    // client state, so choose the adapter after a side-effect-free helper
+    // evaluation but before evaluating the live client (see upstream OMI).
+    // A standard Layer-3 tunnel gets a dynamically provisioned Wintun adapter
+    // so concurrent sessions do not contend for TAP-Windows6's exclusive
+    // device handle. Explicit driver choices and Layer-2 TAP profiles retain
+    // their requested behavior.
+    openvpn::ClientAPI::OpenVPNClientHelper helper;
+    const auto driver_evaluation = helper.eval_config(impl_->config);
+    impl_->config.wintun = !driver_evaluation.error &&
+        windows_driver_policy::use_wintun(impl_->config.content,
+                                          driver_evaluation.windowsDriver);
+#endif
     const openvpn::ClientAPI::EvalConfig evaluation =
         impl_->client->eval_config(impl_->config);
 

@@ -11,6 +11,12 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <aclapi.h>
+#pragma comment(lib, "Advapi32.lib")
+#endif
+
 namespace {
 
 QString legacyCompatibleId(const QString& path) {
@@ -22,6 +28,29 @@ QString legacyCompatibleId(const QString& path) {
     }
     return QStringLiteral("profile-%1").arg(hash, 8, 16, QLatin1Char('0'));
 }
+
+#ifdef Q_OS_WIN
+bool hasProtectedDacl(const QString& path) {
+    PACL dacl = nullptr;
+    PSECURITY_DESCRIPTOR descriptor = nullptr;
+    const std::wstring nativePath = path.toStdWString();
+    const DWORD result = GetNamedSecurityInfoW(
+        const_cast<LPWSTR>(nativePath.c_str()), SE_FILE_OBJECT,
+        DACL_SECURITY_INFORMATION, nullptr, nullptr, &dacl, nullptr,
+        &descriptor);
+    if (result != ERROR_SUCCESS || descriptor == nullptr || dacl == nullptr) {
+        if (descriptor != nullptr) LocalFree(descriptor);
+        return false;
+    }
+    SECURITY_DESCRIPTOR_CONTROL control = 0;
+    DWORD revision = 0;
+    const bool protectedDacl = GetSecurityDescriptorControl(
+        descriptor, &control, &revision) != FALSE &&
+        (control & SE_DACL_PROTECTED) != 0;
+    LocalFree(descriptor);
+    return protectedDacl;
+}
+#endif
 
 }  // namespace
 
@@ -35,6 +64,7 @@ private slots:
     void usesExistingOpenVpnProfileIndexLocation();
     void keepsLegacyProfileIdForUnicodePath();
     void persistsPrivateContentsAfterSourceRemoval();
+    void protectsPrivateFilesOnWindows();
     void rejectsCorruptIndexWithoutOverwriting_data();
     void rejectsCorruptIndexWithoutOverwriting();
     void loadsLegacyIdAndPriorityOrder();
@@ -200,23 +230,65 @@ void SessionListModelTest::persistsPrivateContentsAfterSourceRemoval() {
     QVERIFY(!record.contains("profile"));
     QVERIFY(!record.value("managedFile").toString().isEmpty());
     const auto managedPath = directory.filePath("profiles/" + record.value("managedFile").toString());
+#if !defined(Q_OS_WIN)
     QVERIFY(!(QFile::permissions(directory.filePath("profiles")) & (QFile::ReadGroup | QFile::ReadOther | QFile::WriteGroup | QFile::WriteOther | QFile::ExeGroup | QFile::ExeOther)));
+#endif
     QVERIFY(QFileInfo::exists(managedPath));
+#if !defined(Q_OS_WIN)
     QVERIFY(!(QFile::permissions(managedPath) & (QFile::ReadGroup | QFile::ReadOther | QFile::WriteGroup | QFile::WriteOther)));
+#endif
     QVERIFY(source.remove());
     const auto loaded = store.load(&error);
     QVERIFY2(error.isEmpty(), qPrintable(error));
     QCOMPARE(loaded.size(), 1);
     QCOMPARE(loaded.first().value("profile").toString(), QString::fromUtf8(contents));
+#if !defined(Q_OS_WIN)
     const auto permissions = QFile::permissions(store.location());
     QVERIFY(!(permissions & (QFile::ReadGroup | QFile::WriteGroup | QFile::ExeGroup |
                               QFile::ReadOther | QFile::WriteOther | QFile::ExeOther)));
+#endif
     const QString exported = directory.filePath("export.ovpn");
     QVERIFY(store.exportFile(loaded.first(), exported, &error));
     QFile exportedFile(exported);
     QVERIFY(exportedFile.open(QIODevice::ReadOnly));
     QCOMPARE(exportedFile.readAll(), contents);
+#if !defined(Q_OS_WIN)
     QVERIFY(!(QFile::permissions(exported) & (QFile::ReadGroup | QFile::ReadOther)));
+#endif
+}
+
+void SessionListModelTest::protectsPrivateFilesOnWindows() {
+#ifndef Q_OS_WIN
+    QSKIP("Windows ACL verification only applies on Windows");
+#else
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString sourcePath = directory.filePath(QStringLiteral("source.ovpn"));
+    QFile source(sourcePath);
+    QVERIFY(source.open(QIODevice::WriteOnly));
+    QVERIFY(source.write("client\nremote acl.example\n") > 0);
+    source.close();
+
+    ProfileStore store(directory.filePath(QStringLiteral("profiles.json")));
+    QJsonObject profile;
+    QString error;
+    QVERIFY2(store.importFile(sourcePath, &profile, &error), qPrintable(error));
+    QVERIFY2(store.save({profile}, &error), qPrintable(error));
+
+    QFile index(store.location());
+    QVERIFY(index.open(QIODevice::ReadOnly));
+    const auto record = QJsonDocument::fromJson(index.readAll())
+                            .object().value("profiles").toArray().first().toObject();
+    const QString managedPath = directory.filePath(
+        QStringLiteral("profiles/") + record.value("managedFile").toString());
+    QVERIFY(hasProtectedDacl(directory.filePath(QStringLiteral("profiles"))));
+    QVERIFY(hasProtectedDacl(store.location()));
+    QVERIFY(hasProtectedDacl(managedPath));
+
+    const QString exportPath = directory.filePath(QStringLiteral("export.ovpn"));
+    QVERIFY2(store.exportFile(profile, exportPath, &error), qPrintable(error));
+    QVERIFY(hasProtectedDacl(exportPath));
+#endif
 }
 
 void SessionListModelTest::rejectsCorruptIndexWithoutOverwriting_data() {

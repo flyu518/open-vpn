@@ -47,17 +47,25 @@ replace_required(
 #include <memory>
 #include <utility>
 
-#include "vpn_route_policy.h"]=]
+#include "vpn_route_policy.h"
+#include "wintun_adapter_lease.h"
+#include "wintun_adapter_selection.h"]=]
     "standard includes")
 
 replace_required(
     [=[using namespace openvpn;]=]
-    [=[using namespace openvpn;
+    [=[#include "session_wintun_setup.h"
+#include "shared_ipv6_block.h"
+
+using namespace openvpn;
+using vpn::windows::SessionWintunSetup;
 
 using SessionKey = std::string;
 
 struct WindowsAgentSessionState
 {
+    std::unique_ptr<vpn::windows::WintunAdapterLease> wintun_adapter;
+    vpn::windows::SharedIpv6Block::Lease ipv6_block;
     TunWin::Setup::Ptr tun;
     openvpn_io::windows::object_handle client_process;
     openvpn_io::windows::object_handle client_confirm_event;
@@ -303,9 +311,25 @@ replace_between_required(
                                   const TunWin::Util::TapNameGuidPair &tap)
     {
         auto &state = session_states[key];
+        os << "Selected TUN driver: "
+           << (tun_type == TunWin::Wintun ? "Wintun" : "TAP-Windows6")
+           << "\n";
+        if (tun_type == TunWin::Wintun && !state.wintun_adapter)
+        {
+            state.wintun_adapter.reset(new vpn::windows::WintunAdapterLease());
+            const TunWin::Util::TapNameGuidPairList adapters(tun_type);
+            os << "Wintun adapters visible to agent: " << adapters.size()
+               << "\n" << adapters.to_string();
+        }
         if (!state.tun)
-            state.tun.reset(new TunWin::Setup(io_context_, tun_type,
-                                              allow_local_dns_resolvers));
+        {
+            if (tun_type == TunWin::Wintun)
+                state.tun.reset(new SessionWintunSetup(io_context_,
+                    allow_local_dns_resolvers, state.wintun_adapter->name()));
+            else
+                state.tun.reset(new TunWin::Setup(io_context_, tun_type,
+                                                  allow_local_dns_resolvers));
+        }
         if ((tun_type == TunWin::OvpnDco) && tap.index != DWORD(-1))
             state.tun->set_adapter_state(tap);
         state.tun->set_process_id(client_process_id);
@@ -364,11 +388,14 @@ replace_between_required(
 
         if (effective->remote_address.defined())
             session_bypass_hosts[key] = effective->remote_address.address;
-        auto handle = state.tun->establish(*effective, openvpn_app_path, stop, os,
-                                            state.ring_buffer);
+        auto ipv6_block = effective->block_ipv6 ? ipv6_blocks.acquire()
+            : vpn::windows::SharedIpv6Block::Lease{};
+        Win::ScopedHANDLE handle(state.tun->establish(*effective, openvpn_app_path, stop, os,
+                                            state.ring_buffer));
+        state.ipv6_block = std::move(ipv6_block);
         state.vpn_interface_index = state.tun->vpn_interface_index();
         route_policies[key] = route_policy_for(key, tbc.session_name, *effective);
-        return Win::ScopedHANDLE(handle);
+        return handle;
     }
 
 ]=]
@@ -416,6 +443,8 @@ replace_between_required(
             os << "destroy_tun: exception in tun teardown: " << error.what() << "\n";
         }
         state.tun.reset();
+        state.ipv6_block.reset();
+        state.wintun_adapter.reset();
         state.remote_tap_handle_hex.clear();
         state.client_process.close();
         state.client_confirm_event.close();
@@ -712,6 +741,7 @@ replace_between_required(
     [=[    openvpn_io::io_context &io_context_;
 
     std::map<SessionKey, WindowsAgentSessionState> session_states;
+    vpn::windows::SharedIpv6Block ipv6_blocks;
     std::map<SessionKey, std::string> session_bypass_hosts;
     std::map<std::string, ActionList> remove_cmds_bypass_hosts;
     std::map<SessionKey, vpn::RoutePolicy> route_policies;
@@ -880,4 +910,9 @@ get_filename_component(OUTPUT_DIRECTORY "${OUTPUT_SOURCE}" DIRECTORY)
 if(OUTPUT_DIRECTORY)
     file(MAKE_DIRECTORY "${OUTPUT_DIRECTORY}")
 endif()
+# The upstream cleanup removes all official-client NRPT rules. This product
+# must only remove stale rules from its own, disjoint namespace.
+string(REPLACE "TunWin::NRPT::delete_rules(0); // remove stale NRPT rules"
+               "TunWin::SessionNRPT::delete_rules(std::string()); // remove only this product's stale rules"
+               SOURCE "${SOURCE}")
 file(WRITE "${OUTPUT_SOURCE}" "${SOURCE}")

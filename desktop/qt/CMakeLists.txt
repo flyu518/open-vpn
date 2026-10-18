@@ -12,7 +12,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 6.12 REQUIRED COMPONENTS
+find_package(Qt6 6.8 REQUIRED COMPONENTS
     Core
     Gui
     Network
@@ -70,6 +70,9 @@ qt_add_resources(openvpn_qt "openvpn_tray_asset"
 if(WIN32)
     target_sources(openvpn_qt PRIVATE assets/OpenVPN.rc)
     target_include_directories(openvpn_qt PRIVATE assets)
+    # The desktop UI must be linked as a Windows GUI application. Without
+    # this property, Windows creates a console window before Qt starts.
+    set_target_properties(openvpn_qt PROPERTIES WIN32_EXECUTABLE TRUE)
 endif()
 
 target_include_directories(openvpn_qt PRIVATE src)
@@ -104,4 +107,22 @@ include(CTest)
 option(OPENVPN_QT_BUILD_TESTS "构建 Qt 桌面单元测试" ON)
 if(BUILD_TESTING AND OPENVPN_QT_BUILD_TESTS)
     add_subdirectory(tests)
+    if(WIN32)
+        add_test(
+            NAME openvpn_qt_gui_subsystem_test
+            COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass
+                -File "${CMAKE_CURRENT_SOURCE_DIR}/../../packaging/windows/tests/test_gui_subsystem.ps1"
+                -Executable "$<TARGET_FILE:openvpn_qt>"
+        )
+        add_test(
+            NAME openvpn_qt_tray_recovery_stability_test
+            COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass
+                -File "${CMAKE_CURRENT_SOURCE_DIR}/../../packaging/windows/tests/test_tray_recovery_stability.ps1"
+        )
+        add_test(
+            NAME openvpn_qt_daemon_bootstrap_source_test
+            COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass
+                -File "${CMAKE_CURRENT_SOURCE_DIR}/../../packaging/windows/tests/test_daemon_bootstrap_source.ps1"
+        )
+    endif()
 endif()
