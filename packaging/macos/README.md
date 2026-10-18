@@ -82,9 +82,10 @@ Developer ID、Hardened Runtime，并继续限制 helper IPC 和 Keychain 凭据
 安装完成后，直接打开 `/Applications/OpenVPN.app` 即可显示 macOS 状态栏图标。关闭窗口只会隐藏主窗口，
 托盘菜单仍可打开 OpenVPN、查看连接、连接/断开配置、打开设置、关于或退出程序；版本检查统一放在“关于 OpenVPN”中。
 
-“开机自启”由 Qt 应用写入当前用户的 `~/Library/LaunchAgents/com.openvpn.desktop.plist`，不需要 sudo；它只负责启动
-桌面 UI，不替代 `com.openvpn.daemon` 或高权限 helper。更新 UI 本身不需要重新安装 helper，只有发布包里的
-helper/daemon 变化时才重新执行完整安装包。
+“开机自启”由 Qt 应用写入当前用户的 `~/Library/LaunchAgents/com.openvpn.desktop.plist`，不需要 sudo；配置由
+launchd 在用户登录时加载，开关修改在后续登录生效。当前实现直接管理 plist，不经 `SMAppService` 注册流程；
+系统是否将该项列入后台项目或显示通知尚未验证。此项只负责启动桌面 UI，不替代
+`com.openvpn.daemon` 或高权限 helper。更新 UI 本身不需要重新安装 helper，只有发布包里的 helper/daemon 变化时才重新执行完整安装包。
 
 发布时先构建 Qt 应用并部署 Qt 运行时：
 

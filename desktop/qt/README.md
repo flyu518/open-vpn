@@ -51,4 +51,17 @@ Qt 应用位于：
 - 开机自启设置；
 - 关于页面中的 GitHub Releases 版本检查。
 
+## 登录后自动启动的平台差异
+
+设置中的自启开关只控制桌面 UI；VPN 后台 daemon、service 和 helper 由各平台的安装与服务配置管理。
+
+- Windows 使用当前用户“启动”目录中的 `OpenVPN.lnk`，并清理旧版 HKCU Run 项；详见
+  [Windows 打包说明](../../packaging/windows/README.md)。
+- macOS 使用当前用户的 `~/Library/LaunchAgents/com.openvpn.desktop.plist`，在用户登录时由 launchd 加载。
+  当前实现直接写入 LaunchAgent 文件，不经 `SMAppService` 注册流程；系统是否将其列入后台项目或显示提示
+  尚未验证。开关修改不会即时加载或卸载当前会话中的 job，在后续登录时生效。
+  详见 [macOS 打包说明](../../packaging/macos/README.md)。
+
+两个平台的注册方式和系统验收相互独立；不能用一端的测试结果推断另一端行为。
+
 Android/iOS 不复用桌面托盘和窗口代码，后续继续沿用共享协议与核心模型，分别接入系统 VPN 扩展。
