@@ -24,13 +24,13 @@ macOS 提供多连接能力，并分别构建两个安装包：
 - `x86_64`：Intel Mac；
 - `arm64`：Apple Silicon Mac。
 
-Apple Silicon 使用 `arm64` 安装包时不需要 Rosetta。当前构建最低支持 macOS 26，开发包使用临时签名，正式发布还需要 Developer ID 签名和公证。
+Apple Silicon 使用 `arm64` 安装包时不需要 Rosetta。当前构建最低支持 macOS 26；应用分发的签名和公证状态见 [macOS 打包说明](packaging/macos/README.md)。
 
 ### Windows
 
-Windows 版本使用 Qt 桌面界面、OpenVPN3 Windows Service 和 Wintun/TAP 适配层，支持多条配置同时连接，不是单连接预览版。Windows daemon 与 macOS 使用相同的会话逻辑，Windows agent 为每条会话隔离 TUN、句柄、路由和 DNS。
+Windows 版本使用 Qt 桌面界面、OpenVPN3 Windows Service 和 Wintun/TAP 适配层，支持多条配置同时连接。Windows daemon 与 macOS 使用相同的会话逻辑，Windows agent 为每条会话隔离 TUN、句柄、路由和 DNS。
 
-Windows `1.0.0` 内部候选已完成本机标准 EXE 覆盖安装和两条真实配置的同时连接、独立断开及重连验证，安装包哈希、源码提交和未测项见 [1.0.0 Windows 候选记录](docs/releases/1.0.0-windows.md)。尚未正式发布；重启后验证、Mac 同候选验收和跨平台发布关卡仍须完成。历史结果保留在 [Windows 验收说明](docs/windows-acceptance.md)。
+1.0.0 Windows 安装包和验收范围见 [Windows 验收记录](docs/releases/1.0.0-windows.md)；历史结果见 [Windows 验收说明](docs/windows-acceptance.md)。
 
 ### Android/iOS
 
@@ -82,18 +82,9 @@ ctest --test-dir /tmp/openvpn-core-build --output-on-failure
 
 更完整的打包说明见[macOS 打包文档](packaging/macos/README.md)，Windows 说明见[Windows 打包文档](packaging/windows/README.md)。
 
-## GitHub Releases
+## 版本与发布
 
-多平台更新、版本递增、构建、安装包验收与发布顺序统一遵循根目录的[发布操作约定](RELEASING.md)。
-顺序为：冻结同一源码候选 → 两端分别构建、安装并验收 → 创建唯一 tag 和草稿 Release → Mac、Windows 任一方都可先上传已验收资产，另一方随后补齐 → 汇总工作流核对两端验收 SHA-256 后正式发布。平台提交先后不限；可按标准资产名重命名文件，但不得重新构建，草稿在齐备前保持未发布。
-根目录 [project-config.json](project-config.json) 是版本号、连接超时和认证重试策略的共享来源；
-修改后必须重新构建，两端不能分别维护版本号。
-
-仓库地址：<https://github.com/flyu518/open-vpn>
-
-`.github/workflows/release-macos.yml` 在推送 `v<版本号>` tag 后只构建 Intel 和 Apple Silicon 安装包并上传为 Actions 产物，不创建或发布 GitHub Release。统一发布由 `.github/workflows/publish-release.yml` 手动执行；它要求草稿中 Windows x64 与 macOS ARM64 安装包均存在，并匹配两端记录的验收 SHA-256。共享配置中的 `1.0.0` 不代表 Release 已发布。
-
-旧版本验收记录和更新比较测试保留原版本号；旧安装脚本的升级清理保护也继续保留。具体范围见发布约定的“旧版本内容与清理边界”，不要据此误判仍在使用旧产品版本。
+共享版本配置及完整发布操作见[发布约定](RELEASING.md)。
 
 ## 数据和隐私
 

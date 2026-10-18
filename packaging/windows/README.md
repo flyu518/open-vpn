@@ -75,14 +75,13 @@ C:/Qt/6.8.3/msvc2022_64/bin/windeployqt.exe --qmldir desktop/qt/qml build/qt-win
   -RuntimeDllDir build\core-windows\Release
 ```
 
-每个正式候选都需在 Windows 主机上安装，并检查 Windows Service、Wintun、签名和真实双配置连接；
+每个发布包都需在 Windows 主机上安装，并检查 Windows Service、Wintun、签名和真实双配置连接；
 安装服务时使用管理员授权，桌面应用以普通用户身份验收。已有 0.0.14 实测记录不替代新包的回归，
 离线 UI 测试也不代表真实连接成功。
-正式发布时按共同验收关卡，把安装程序上传到同一个 GitHub Release 草稿。Mac 或 Windows 任一方都可以先创建草稿并上传自己已验收的包，另一方之后补齐；不要发布只有单个平台资产的 Release。将已验收 EXE 复制/重命名为 `OpenVPN-<版本>-windows-x64.exe` 即可，必须保证字节和 SHA-256 不变。最终运行 `publish-release.yml`，输入标签候选 SHA 及两端验收记录中的包哈希；工作流会拒绝与验收哈希不一致的 EXE。Mac workflow 只上传 Actions 构建产物，不会单独发布。
-资产名称为 `OpenVPN-<版本>-windows-x64.exe`；当前脚本生成 EXE，不把 MSI 示例当作已有产物。
+完成验收后按[根目录发布约定](../../RELEASING.md)提交 EXE。Windows 使用 `windows-x64` 平台标识；共同脚本自动创建或复用 Release 草稿，并校验资产名、远端标签、源码提交和验收哈希，无需等待 macOS 端先操作。
 关于入口位于状态栏/托盘菜单，那里只检查 GitHub Releases；用户确认后才启动安装程序，不会静默替换当前应用。
 
-Windows agent 按会话隔离多条 TUN；daemon 不以单连接上限拒绝第二条连接。多隧道和安装升级已有本机实测记录；托盘的工具操作限制与用户人工反馈分别记录。不能以 macOS 测试或离线路由模型测试替代 Windows 安装包实机验收。
+Windows agent 按会话隔离多条 TUN；daemon 不以单连接上限拒绝第二条连接。多隧道和安装升级的实测范围见 [Windows 验收记录](../../docs/releases/1.0.0-windows.md)。不能以 macOS 测试或离线路由模型测试替代 Windows 安装包实机验收。
 
 Windows 的具体验收步骤见[Windows 桌面版验收说明](../../docs/windows-acceptance.md)。
 

@@ -88,7 +88,7 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_ENV"
           echo "tag_sha=$tag_sha" >> "$GITHUB_ENV"
 
-      - name: 确认 Release 草稿已由平台提供方创建并补齐
+      - name: 确认 Release 草稿与必需资产
         shell: bash
         run: |
           set -euo pipefail
@@ -142,7 +142,7 @@ jobs:
             "$asset_dir/SHA256SUMS" \
             "$asset_dir/SOURCE-COMMIT.txt" \
             --clobber
-          gh release edit "$tag" \
-            --notes-file "$notes_file" \
-            --draft=false
+          release_id="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/$tag" --jq '.id')"
+          python -c 'import json,sys; print(json.dumps({"body":open(sys.argv[1],encoding="utf-8").read(),"draft":False,"prerelease":False}))' "$notes_file" \
+            | gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/$release_id" --input -
           echo "已发布 $tag，源码候选 $tag_sha。" >> "$GITHUB_STEP_SUMMARY"

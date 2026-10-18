@@ -103,17 +103,12 @@ OPENVPN_CMAKE=/绝对路径/cmake packaging/macos/build-release.sh \
 完整流程会从同一源码构建 Qt、helper 和 daemon，运行测试，部署 Qt 插件及服务动态库，再生成
 `/tmp/openvpn-<版本>-release/OpenVPN-<版本>-macos-x86_64.pkg`。Apple Silicon 本地构建时使用 `arm64 /opt/homebrew`，输出文件名会相应变为 `OpenVPN-<版本>-macos-arm64.pkg`。发布前检查的范围包括 socket 名称、版本、动态库加载路径和架构；不要把历史 helper 产物混入当前安装包。
 
-安装版 GUI 和 launchd 验收必须在能够访问用户桌面会话的上下文中进行。受限工具沙箱中的进程查询、
-Launch Services 或 `launchctl` 错误应先在本机终端或获准的非受限上下文复测，不能直接归因为缺少发行证书。
-`open` 返回成功也不足以证明启动通过：应确认安装路径、实际进程与可见窗口，冷启动前先确认旧 UI 已退出；
-手动重新加载 LaunchAgent 的测试不能替代重启或重新登录验收。当前候选的实测范围见
+安装版 GUI 和 launchd 验收应在已登录的用户桌面会话中进行。确认安装路径、实际进程与可见窗口；
+冷启动前先确认旧 UI 已退出。手动重新加载 LaunchAgent 的测试不能替代重启或重新登录验收。实测范围见
 [macOS 验收记录](../../docs/releases/1.0.0-macos.md)。
 
 版本统一读取根目录 `project-config.json`，显式传入的版本或 `OPENVPN_VERSION` 必须与其一致。
-所有平台使用同一份[发布操作约定](../../RELEASING.md)，不能只凭本机构建成功就单独发布正式版本。
-先从双方一致的候选提交打包、安装并完成 Mac 与 Windows 验收，再创建唯一版本标签和草稿 Release。
-Mac 与 Windows 任一方都可以先把已验收安装包上传到同一个草稿，另一方随后补齐；平台上传先后不限。
-`.github/workflows/release-macos.yml` 只生成 Actions 构建产物，不发布 Release。若选用 CI 生成的 PKG，必须安装验收该确切文件；最终运行 `publish-release.yml` 时填入验收记录中的哈希。不能把本地包的验收结果套到 CI 重建包上。
+macOS 包按[根目录发布约定](../../RELEASING.md)提交；使用 `macos-arm64` 或 `macos-x86_64` 平台标识，并提供对应安装包的验收 SHA-256。共同脚本自动创建或复用 Release 草稿，无需等待 Windows 端先操作。CI 构建包必须先安装并验收确切文件，不能套用本地包的验收结果。
 
 当前随包动态库最低要求 macOS 26，发布流程分别构建 x86_64 和 arm64；开发版本采用临时签名，未完成 Developer ID 签名公证。
 

@@ -4,11 +4,11 @@
 
 ## 当前状态与记录范围
 
-产品版本和连接参数统一读取 [project-config.json](../project-config.json)，当前 `1.0.0` 尚未正式发布。所有平台按 [发布操作约定](../RELEASING.md) 从同一候选提交构建和实测；平台提交资产不设先后，Release 草稿必须等资产和验收哈希齐备后才能公开。
+产品版本和连接参数统一读取 [project-config.json](../project-config.json)。`1.0.0` 已发布；本页记录平台验收范围与未覆盖项目。后续版本按 [发布操作约定](../RELEASING.md) 执行。
 
-Windows `1.0.0` 候选 `26bf5e2944db3c21f0a9ce7e1cf5723a60644c29` 已实际升级安装，并完成两条真实配置同时连接和独立断开/重连；core CTest 17/17、Qt CTest 15/15。Mac ARM64 对同一源码候选的 core CTest 19/19、Qt CTest 8/8，完成构建、安装及启动检查，但重装后未重做真实双连接。最终包哈希、UI 实测范围和未测项见 [Windows 候选记录](releases/1.0.0-windows.md)及 [macOS 候选记录](releases/1.0.0-macos.md)。0.0.14 等历史结果保留在 [Windows 验收说明](windows-acceptance.md)。
+Windows `1.0.0` 安装包已实际升级安装，并完成两条真实配置同时连接和独立断开/重连；core CTest 17/17、Qt CTest 15/15。Mac ARM64 对同一源码提交的 core CTest 19/19、Qt CTest 8/8，完成构建、安装及启动检查，但重装后未重做真实双连接。包哈希、UI 实测范围和未测项见 [Windows 验收记录](releases/1.0.0-windows.md)及 [macOS 验收记录](releases/1.0.0-macos.md)。0.0.14 等历史结果保留在 [Windows 验收说明](windows-acceptance.md)。
 
-下文保留之前的 macOS 记录，不代表本轮在 Windows 上重新执行了 Mac 测试，也不能直接用于新候选放行。
+以下历史记录按各自测试平台和版本说明，不代表对其他平台或后续版本的验收。
 
 ## 历史 macOS 验收记录（0.0.3）
 
@@ -29,24 +29,24 @@ Windows `1.0.0` 候选 `26bf5e2944db3c21f0a9ce7e1cf5723a60644c29` 已实际升�
 
 ## 历史安装与构建记录
 
-上述 Mac 记录写入时，本机安装版本记为 `0.2.11`；`0.0.3` 的 x86_64 和 arm64 安装包由 GitHub Actions 的原生 runner 负责构建。这是历史状态，不表示当前 Mac 安装版本或统一版本已发布。
+上述 Mac 记录写入时，本机安装版本记为 `0.2.11`；`0.0.3` 的 x86_64 和 arm64 安装包由 GitHub Actions 的原生 runner 负责构建。当前统一版本为 `1.0.0`，其安装包见 GitHub Release。
 
-`.github/workflows/release-macos.yml` 在 tag 触发后按 `third_party/openvpn3.lock` 构建 x86_64/arm64 安装包并上传为 Actions 产物，不会直接创建或发布 Release。平台可按任意顺序把已验收安装包加入同一个草稿；`.github/workflows/publish-release.yml` 在 Windows x64 和 Mac ARM64 包及验收哈希齐备后进行最终核验并发布。
+`.github/workflows/release-macos.yml` 在 tag 触发后按 `third_party/openvpn3.lock` 构建 x86_64/arm64 安装包并上传为 Actions 产物。发布流程由 `.github/workflows/publish-release.yml` 核验版本、源码提交和各平台安装包哈希。
 
 ## 已知限制
 
-- Windows 已有本机真实双连接及安装版验收记录，不再是未完成的单连接预览；未测项与工具限制单独列在 [Windows 桌面版验收说明](windows-acceptance.md)，不能推定其他机器或新包通过。
+- Windows 1.0.0 的真实双连接及安装包验收范围见 [Windows 桌面版验收说明](windows-acceptance.md)；不能据此推定其他机器或后续安装包通过。
 - Android/iOS 尚未实现。
-- macOS 发布流程分别提供 x86_64 和 arm64 两个安装包；两种架构的 GitHub Actions 构建尚未在本机同时实跑。
+- macOS 支持构建 x86_64 和 arm64 安装包；1.0.0 Release 提供 arm64 包，Intel Mac 安装未纳入本次验收。
 - macOS 当前为临时签名，尚未完成 Developer ID 签名和公证。
 - 当前最低 macOS 版本为 26。
 - 路由策略不会热更新已建立的隧道；需要按提示断开冲突连接、断开当前连接，再重新连接以接管路由。
 - IP/CIDR 优先/排除及域名后缀系统分流 DNS 已接入桌面平台适配层；任意模糊匹配仍不支持。
-- GitHub 当前如果没有可访问的正式 Release，客户端会显示暂无发行版；不会伪造更新结果。
+- 客户端从 GitHub Releases 获取更新；安装包下载前校验资产大小和 SHA-256。
 
 ## 验证命令
 
-以下为 Mac 构建目录的命令示例；完整跨平台步骤与候选记录要求以 [RELEASING.md](../RELEASING.md) 为准。
+以下为 Mac 构建目录的命令示例；完整跨平台构建与发布流程见 [RELEASING.md](../RELEASING.md)。
 
 ```bash
 /绝对路径/cmake --build /tmp/openvpn-release/core

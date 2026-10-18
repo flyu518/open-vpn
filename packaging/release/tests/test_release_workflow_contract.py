@@ -36,7 +36,10 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
             "--macos-arm64-sha256",
             'git show "$tag:project-config.json"',
             "isDraft",
-            "--draft=false",
+            '"draft":False',
+            '"prerelease":False',
+            "releases/tags/$tag",
+            "--input -",
         ):
             with self.subTest(required=required):
                 self.assertIn(required, workflow)
@@ -46,6 +49,20 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         )
         self.assertIn("windows-x64.exe", validator)
         self.assertIn("macos-arm64.pkg", validator)
+
+    def test_release_notes_are_concise_download_instructions(self) -> None:
+        notes = (ROOT / "docs/releases/1.0.0-release-notes.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertEqual(
+            notes,
+            "# OpenVPN 1.0.0\n\n"
+            "## 下载\n\n"
+            "- Windows x64：`OpenVPN-1.0.0-windows-x64.exe`\n"
+            "- macOS Apple Silicon：`OpenVPN-1.0.0-macos-arm64.pkg`\n\n"
+            "`SHA256SUMS` 提供安装包的 SHA-256 校验值。"
+            "`SOURCE-COMMIT.txt` 标明本版本对应的源码提交。\n",
+        )
 
 
 if __name__ == "__main__":
