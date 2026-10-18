@@ -85,6 +85,7 @@ ctest --test-dir /tmp/openvpn-core-build --output-on-failure
 ## GitHub Releases
 
 多平台更新、版本递增、构建、安装包验收与发布顺序统一遵循根目录的[发布操作约定](RELEASING.md)。
+顺序为：推送源码 → 两端从同一候选打包并安装实测 → 全部通过后打一个 tag → 将已测资产汇总到一个草稿 Release → 正式发布。不能先发 Mac 包再补 Windows 包。
 根目录 [project-config.json](project-config.json) 是版本号、连接超时和认证重试策略的共享来源；
 修改后必须重新构建，两端不能分别维护版本号。
 
@@ -93,6 +94,8 @@ ctest --test-dir /tmp/openvpn-core-build --output-on-failure
 `.github/workflows/release-macos.yml` 会在推送 `v<版本号>` tag 后，分别构建 Intel 和 Apple Silicon 安装包，生成 SHA-256 校验文件并创建 GitHub Release。发布前需要为仓库配置允许 workflow 写入 `contents` 的权限，并完成正式签名和公证配置。
 
 该工作流目前只发布 Mac 资产，尚无 Windows 汇总验收关卡；统一正式发布前必须按 [RELEASING.md](RELEASING.md) 补齐关卡，不能直接推送正式标签。共享配置中的 `1.0.0` 是待验收目标，不表示安装包已发布。
+
+旧版本验收记录和更新比较测试保留原版本号；旧安装脚本的升级清理保护也继续保留。具体范围见发布约定的“旧版本内容与清理边界”，不要据此误判仍在使用旧产品版本。
 
 ## 数据和隐私
 

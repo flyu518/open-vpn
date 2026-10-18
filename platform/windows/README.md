@@ -7,6 +7,9 @@ Wintun/TAP 构建边界，并使用 `openvpn` agent 名称与 OpenVPN Connect �
 `\\.\pipe\openvpn-ui` 接受与 macOS Unix socket 相同的一行 JSON 命令，凭据使用
 Windows Credential Manager 保存。
 
+目录中的 `adapter_contract.h` 是能力契约测试用的占位入口，`adapter/` 是离线路由状态模型；
+生产连接通过共享 OpenVPN3 会话引擎和下述 Windows agent 完成，不调用占位连接函数。
+
 Windows daemon 的会话上限为 `0`，每条配置会话独立管理自己的 TUN、进程句柄、事件、路由和
 DNS 状态。普通三层 TUN 默认使用每会话独立的 Wintun；显式驱动或 TAP 按配置处理。
 生成的 Windows agent 把同一会话跨命名管道的 `tun-open`/`tun-setup` 请求关联到该会话的

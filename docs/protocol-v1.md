@@ -15,6 +15,10 @@
 `destroy` 阶段。Windows/macOS 当前返回桌面多连接能力；Android/iOS
 适配器目前只返回移动端单连接能力和“适配器预留中”诊断。
 
+`platform/*/adapter_contract.h` 是能力边界与占位调用的测试接口，其中桌面占位函数仍返回未接入；
+`platform/*/adapter/` 提供离线路由状态模型。生产桌面连接走共享 OpenVPN3 会话引擎及各平台
+agent/helper，不调用这些占位函数；相关契约/模型测试不替代原生网络验收。
+
 ## 对外 C ABI
 
 `core/include/vpn_engine.h` 只暴露不透明句柄和固定宽度的 C 类型，不允许 C++ OpenVPN3 类型穿过这层边界。

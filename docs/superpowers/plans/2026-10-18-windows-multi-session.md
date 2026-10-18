@@ -1,5 +1,7 @@
 # Windows Multi-Session Support Implementation Plan
 
+> Historical planning snapshot, not a current execution checklist. The unchecked steps, proposed file paths and expected failures below describe the initial design; they do not mean Windows is still single-session or that each proposed command was ultimately used. Current implementation and measured results are in [Windows acceptance](../../windows-acceptance.md). Follow [RELEASING.md](../../../RELEASING.md) for new builds, tests and releases; do not replay this plan's cleanup or commit commands.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.
 
 **Goal:** Make Windows support the same concurrent VPN-session behavior as macOS without changing macOS interaction.

@@ -1,5 +1,8 @@
 # macOS 平台适配器
 
+`adapter_contract.h` 是能力契约测试用的占位入口，`adapter/` 是离线路由状态模型；
+生产连接使用共享 OpenVPN3 会话引擎和 macOS helper，不调用占位连接函数。
+
 当前版本已经接入 OpenVPN3 官方 macOS tun agent 的本地生成构建，并将其单会话状态改为
 按“进程 PID + `VPN_DESKTOP_SESSION_ID`”隔离：每个会话拥有独立 utun、路由清理和远端
 服务器旁路路由。helper 在建立隧道前执行共享路由策略：全隧道与其他活动会话互斥，

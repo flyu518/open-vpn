@@ -104,6 +104,9 @@ OPENVPN_CMAKE=/绝对路径/cmake packaging/macos/build-release.sh \
 
 版本统一读取根目录 `project-config.json`，显式传入的版本或 `OPENVPN_VERSION` 必须与其一致。
 所有平台使用同一份[发布操作约定](../../RELEASING.md)，不能只凭本机构建成功就单独发布正式版本。
+先从双方一致的候选提交打包、安装并完成 Mac 与 Windows 验收，再创建唯一版本标签。
+发布时将已验收的 PKG 和 EXE 汇总到同一个草稿 Release；当前工作流只生成并发布 Mac 资产，
+跨平台汇总关卡补齐前不要推正式标签或手动触发该工作流。CI 重建的新 PKG 必须另行验收，不能套用本地包的结果。
 
 当前随包动态库最低要求 macOS 26，发布流程分别构建 x86_64 和 arm64；开发版本采用临时签名，未完成 Developer ID 签名公证。
 

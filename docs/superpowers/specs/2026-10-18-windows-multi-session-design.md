@@ -2,6 +2,8 @@
 
 日期：2026-10-18
 
+> 历史设计快照：下文“背景”描述改造前的单连接状态，方案和测试入口是当时的设计，不是当前能力或交付结果。当前 Windows 已有多连接及标准 EXE 实测记录，见 [Windows 验收](../../windows-acceptance.md)；后续操作统一遵循 [RELEASING.md](../../../RELEASING.md)。保留原设计用于追踪决策，不按旧方案重新执行。
+
 ## 背景
 
 项目的 macOS 版本已经支持多条 OpenVPN 配置同时连接，Qt 界面按会话分别展示状态、计时、流量、路由冲突和断开操作。Windows 版本虽然共享同一套桌面协议和 UI，但 `WindowsDaemon` 当前把 `SessionController` 的活动会话上限固定为 `1`，并且 Windows agent 的 TUN、旁路路由、分流路由和 DNS 生命周期尚未按会话隔离。

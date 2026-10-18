@@ -71,9 +71,12 @@ C:/Qt/6.8.3/msvc2022_64/bin/windeployqt.exe --qmldir desktop/qt/qml build/qt-win
 安装服务时使用管理员授权，桌面应用以普通用户身份验收。已有 0.0.14 实测记录不替代新包的回归，
 离线 UI 测试也不代表真实连接成功。
 正式发布时按共同验收关卡，把安装程序上传到包含全部目标平台安装包的同一个 GitHub Release。
+先打包、实际安装并验收，再创建统一版本标签；上传的必须是已验收且哈希一致的 EXE。当前 Mac 工作流不会等待 Windows，跨平台发布关卡补齐前不要推正式标签。
 资产名称为 `OpenVPN-<版本>-windows-x64.exe`；当前脚本生成 EXE，不把 MSI 示例当作已有产物。
 关于入口位于状态栏/托盘菜单，那里只检查 GitHub Releases；用户确认后才启动安装程序，不会静默替换当前应用。
 
 Windows agent 按会话隔离多条 TUN；daemon 不以单连接上限拒绝第二条连接。多隧道和安装升级已有本机实测记录；托盘的工具操作限制与用户人工反馈分别记录。不能以 macOS 测试或离线路由模型测试替代 Windows 安装包实机验收。
 
 Windows 的具体验收步骤见[Windows 桌面版验收说明](../../docs/windows-acceptance.md)。
+
+安装器中的 `install-iexpress.cmd` 删除项和打包脚本中的排除项用于清理旧安装残留，不是旧安装方案仍在运行；不要移除这两处升级保护。开发 ZIP 和本机历史 EXE 不应混入正式 Release。
