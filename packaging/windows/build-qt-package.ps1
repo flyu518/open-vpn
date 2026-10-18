@@ -6,7 +6,7 @@
     [string]$WindowsService = "",
     [string]$WintunDll = "",
     [string]$RuntimeDllDir = "",
-    [string]$Version = "0.0.3",
+    [string]$Version = "",
     [string]$Output = "",
     [int]$Parallel = 1,
     [switch]$BuildInstaller,
@@ -15,9 +15,18 @@
 
 $ErrorActionPreference = "Stop"
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+$cmake = (Get-Command cmake.exe -ErrorAction Stop).Source
+$versionQuery = @('-DOPENVPN_CONFIG_KEY=version')
+if (-not [string]::IsNullOrWhiteSpace($Version)) {
+    $versionQuery += "-DOPENVPN_EXPECTED_VERSION=$Version"
+}
+$sharedVersion = & $cmake @versionQuery -P (Join-Path $root 'cmake/ProjectConfig.cmake')
+if ($LASTEXITCODE -ne 0) {
+    throw 'Requested version differs from project-config.json or the shared configuration is invalid'
+}
+$Version = ($sharedVersion | Out-String).Trim()
 $qtCmake = Join-Path $QtDir "bin\qt-cmake.bat"
 $qtDeploy = Join-Path $QtDir "bin\windeployqt.exe"
-$cmake = (Get-Command cmake.exe -ErrorAction Stop).Source
 if ([string]::IsNullOrWhiteSpace($Output)) { $Output = "dist\OpenVPN-$Version-windows.zip" }
 
 if (-not (Test-Path $qtCmake)) { throw "找不到 Qt CMake：$qtCmake" }
@@ -57,7 +66,7 @@ function Assert-WintunDll([string]$Path) {
 
 Write-Host "正在配置 OpenVPN Qt Windows 桌面版……"
 & $qtCmake -S (Join-Path $root "desktop\qt") -B (Join-Path $root $BuildDir) `
-    "-DCMAKE_BUILD_TYPE=Release" "-DOPENVPN_APP_VERSION=$Version"
+    "-DCMAKE_BUILD_TYPE=Release" -UOPENVPN_APP_VERSION "-DOPENVPN_APP_VERSION=$Version"
 if ($LASTEXITCODE -ne 0) { throw "Qt Windows 配置失败" }
 
 Write-Host "正在编译 OpenVPN Qt Windows 桌面版……"

@@ -2,6 +2,9 @@
 
 本文说明 Windows 多会话版本的构建、启动和双配置验收方式。Windows 与 macOS 使用同一套连接列表、会话生命周期和路由冲突策略；Windows 的原生 agent 负责为每个会话隔离 TUN、事件、进程句柄、路由和 DNS 状态。
 
+版本与共享参数以根目录 [project-config.json](../project-config.json) 为准，更新操作遵循
+[发布操作约定](../RELEASING.md)。下文的 0.0.13/0.0.14 是已执行的历史实测，不能重标为 1.0.0 验收。
+
 ## 当前能力边界
 
 Windows daemon 的活动会话上限为 `0`，表示不限数量。每条连接由配置会话 ID 隔离；Windows agent 对 `tun-open` 与 `tun-setup` 的跨命名管道生命周期按 PID 和网卡 GUID/索引重新关联，避免第二条连接复用或覆盖第一条连接的虚拟网卡、路由和 DNS。
@@ -59,7 +62,7 @@ cmake --build build/core-windows --config Release `
 ```powershell
 cmake -S desktop/qt -B build/qt-windows `
   -DCMAKE_PREFIX_PATH="C:/Qt/6.8.3/msvc2022_64" `
-  -DOPENVPN_APP_VERSION=0.0.3
+  -UOPENVPN_APP_VERSION
 cmake --build build/qt-windows --config Release --parallel
 C:/Qt/6.8.3/msvc2022_64/bin/windeployqt.exe `
   --qmldir desktop/qt/qml build/qt-windows/Release/openvpn_qt.exe
@@ -81,7 +84,7 @@ Start-Process build/core-windows/Release/openvpn_windows_daemon_launcher.exe
 Start-Process build/qt-windows/Release/openvpn_qt.exe
 ```
 
-也可以直接使用 `packaging/windows/build-qt-package.ps1` 生成压缩包或单文件 Windows 安装器；正式安装器需要同时包含 Qt 应用、daemon、Windows Service 和 Wintun DLL，并在具有管理员权限的 Windows 主机上实际安装验证。
+正式安装使用 `packaging/windows/build-qt-package.ps1 -BuildInstaller` 生成标准 EXE，包含 Qt 应用、daemon、Windows Service 和 Wintun DLL；安装服务需要管理员授权，桌面应用使用普通用户运行。未传 `-BuildInstaller` 的 ZIP 仅供开发，不是安装程序。
 
 ## 自动化验证
 
@@ -126,7 +129,7 @@ ctest --test-dir build/core-windows -C Release --output-on-failure
   -LaunchApplications
 ```
 
-真实 Windows 主机仍需使用可连接的两份配置、Wintun/TAP 驱动和管理员权限完成上述脚本；本地 MSVC 编译和离线测试不能替代 VPN 服务端、驱动和 DNS 的实机验证。
+每个候选都应在真实 Windows 主机使用两份可连接配置和 Wintun/TAP 驱动完成上述验证；本机已有结果见下文。本地 MSVC 编译和离线测试不能替代 VPN 服务端、驱动和 DNS 的实机验证。
 
 验收过程中还应分别测试认证失败、服务停止、daemon 重启、网络断开、连接取消和路由冲突。
 
@@ -223,3 +226,14 @@ journal，不能只按固定 IPv6 前缀清理。
 移动主窗口后可以观察菜单截图，但实际输入先激活主窗口、菜单收起，工具随后拒绝点击；
 因此不能据自动化菜单测试宣称已逐项人工点击托盘菜单。更新下载安装、卸载及真实业务服务器
 可达性也应单独记录，不因握手和流量计数正常而视为完成。
+
+后续用户手动操作托盘菜单并反馈“现在没有问题了”。此项属于用户人工反馈，不应改写为工具已逐项代点通过。
+
+## 统一配置改动验证（2026-10-18）
+
+共享配置将下一候选版本设为 `1.0.0`，连接超时仍为 30 秒，认证失败不无限自动重试。
+Windows 生产目标已重新构建，core CTest 17/17、Qt CTest 12/12 通过；共享配置的类型、范围、
+版本一致性、生产构建禁止替换配置、打包早期拒绝冲突版本，以及 Windows EXE 版本资源均有回归检查。
+Mac 打包脚本仅在本机通过 Bash 语法及冲突版本拒绝检查，未在 Windows 上执行原生 Mac 构建。
+
+本轮没有安装或发布 1.0.0，没有替换正在使用的 0.0.14；两端必须从同一候选提交重新打包、安装和实测后才能发布。

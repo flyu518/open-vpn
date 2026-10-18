@@ -30,11 +30,11 @@ sudo rm /Library/PrivilegedHelperTools/com.openvpn.helper
 
 1. 为桌面应用和 helper 使用同一发行证书分别签名，并配置 hardened runtime、notarization 和权限说明。
 2. 将 helper 的本地 IPC 改为带应用调用方校验的协议。当前开发版已经限制 socket 组权限并传递独立会话标识，但不能直接作为最终生产安全边界。
-3. 将 Keychain 凭据存储接入 profile 生命周期，日志继续经过脱敏层，不能把密码写入日志或崩溃报告。
+3. Keychain 已接入 profile 的保存、读取和删除流程；发布时继续回归凭据访问范围和生命周期，日志必须经过脱敏层，不能把密码写入日志或崩溃报告。
 4. 使用对应架构的 OpenSSL、fmt、lz4、jsoncpp、asio 和 xxhash 依赖；Intel 使用 `/usr/local`，Apple Silicon 使用 `/opt/homebrew`，不能交叉复用另一架构的 Homebrew 库。
 5. 使用真实的两个 `.ovpn` profile 验证同时连接、单独断开、路由旁路、DNS 恢复和 helper 崩溃清理。
 
-当前脚本只负责 helper 的安装和生命周期，不会替代真实 utun、路由、DNS 以及 IPC 鉴权实现。
+安装脚本只负责服务部署和生命周期，不代替引擎/适配层中的 utun、路由、DNS 实现，也不代表 IPC 鉴权已经完成安全验收。已有双连接结果见 [桌面历史验收记录](../../docs/desktop-acceptance.md)，新候选仍需原生 Mac 实测。
 
 构建出 `openvpn_daemon` 后，可以用下面的命令让用户 daemon 登录后自动运行：
 
@@ -44,13 +44,14 @@ sudo rm /Library/PrivilegedHelperTools/com.openvpn.helper
 ```
 
 用户 daemon 不拥有修改系统路由的权限；它通过 OpenVPN3 会话和已安装的高权限 helper
-协作完成连接。卸载时执行：
+协作完成连接。卸载用户 daemon 前应先断开连接、备份配置和历史数据，再执行：
 
 ```bash
 launchctl bootout gui/$(id -u)/com.openvpn.daemon
 rm "$HOME/Library/LaunchAgents/com.openvpn.daemon.plist"
-rm -rf "$HOME/Library/Application Support/OpenVPN"
 ```
+
+以上操作保留 `~/Library/Application Support/OpenVPN/` 中的配置和历史数据；仅当明确要清空用户数据时，再核对该目录内容并手动移到废纸篓，不要把删除数据作为默认卸载步骤。
 
 开发阶段仍可使用一次性安装脚本：
 
@@ -88,17 +89,21 @@ helper/daemon 变化时才重新执行完整安装包。
 发布时先构建 Qt 应用并部署 Qt 运行时：
 
 ```bash
+release_version=$(cmake -DOPENVPN_CONFIG_KEY=version -P cmake/ProjectConfig.cmake)
 OPENVPN_CMAKE=/绝对路径/cmake packaging/macos/build-release.sh \
   /绝对路径/Qt/6.12.0/macos \
-  /tmp/openvpn-0.0.3-release \
-  0.0.3 \
+  "/tmp/openvpn-$release_version-release" \
+  "$release_version" \
   /绝对路径/xxHash \
   x86_64 \
   /usr/local
 ```
 
 完整流程会从同一源码构建 Qt、helper 和 daemon，运行测试，部署 Qt 插件及服务动态库，再生成
-`/tmp/openvpn-0.0.3-release/OpenVPN-0.0.3-macos-x86_64.pkg`。Apple Silicon 本地构建时使用 `arm64 /opt/homebrew`，输出文件名会相应变为 `OpenVPN-0.0.3-macos-arm64.pkg`。发布前检查的范围包括 socket 名称、版本、动态库加载路径和架构；不要把历史 helper 产物混入当前安装包。
+`/tmp/openvpn-<版本>-release/OpenVPN-<版本>-macos-x86_64.pkg`。Apple Silicon 本地构建时使用 `arm64 /opt/homebrew`，输出文件名会相应变为 `OpenVPN-<版本>-macos-arm64.pkg`。发布前检查的范围包括 socket 名称、版本、动态库加载路径和架构；不要把历史 helper 产物混入当前安装包。
+
+版本统一读取根目录 `project-config.json`，显式传入的版本或 `OPENVPN_VERSION` 必须与其一致。
+所有平台使用同一份[发布操作约定](../../RELEASING.md)，不能只凭本机构建成功就单独发布正式版本。
 
 当前随包动态库最低要求 macOS 26，发布流程分别构建 x86_64 和 arm64；开发版本采用临时签名，未完成 Developer ID 签名公证。
 

@@ -9,7 +9,7 @@
 | `DESKTOP_MULTI` | 大于 1 | Windows、macOS |
 | `MOBILE_SINGLE` | 1 | 预留给 Android、iOS |
 
-桌面客户端默认使用分流模式；第二条全隧道连接必须被拒绝；默认情况下互相重叠的路由也必须被拒绝。
+桌面客户端默认使用分流和兼容冲突模式，重叠路由保留先连接会话的所有权，后连接会话跳过冲突项；严格模式才拒绝冲突。全隧道策略与其他活动会话互斥。底层路由校验 API 默认采用严格模式，不应与桌面默认值混淆。
 
 平台适配层统一提供 `prepare`、`establish`、`applyRoutes`、`applyDns` 和
 `destroy` 阶段。Windows/macOS 当前返回桌面多连接能力；Android/iOS
@@ -56,16 +56,17 @@ IPv4 和 IPv6 的网段包含关系都算作冲突；被拒绝的候选策略不
 
 读取方必须忽略未知字段；新增必填字段时必须升级协议版本。密码、私钥和挑战响应不能出现在普通会话快照或日志中。
 
-## macOS 本地 daemon
+## 桌面本地 daemon
 
 macOS 桌面界面通过用户权限 Unix socket 与 `openvpn_daemon` 通信，默认路径为
-`/tmp/openvpn-ui.sock`。协议采用一行一个 JSON 对象：
+`/tmp/openvpn-ui.sock`。Windows 界面通过 `\\.\pipe\openvpn-ui` 与用户权限
+`openvpn_windows_daemon` 通信；它与高权限 agent 管道分离。两端采用同一套一行一个 JSON 对象的协议：
 
 - `{"command":"ping"}`：检查 daemon 是否可用。
 - `{"command":"snapshot"}`：读取全部会话快照。
-- `{"command":"connect","sessionId":"...","profileId":"...","name":"...","profile":"...","credentials":{...},"rememberCredentials":false}`：提交连接请求。省略凭据时由 daemon 从 Keychain 读取。
+- `{"command":"connect","sessionId":"...","profileId":"...","name":"...","profile":"...","credentials":{...},"rememberCredentials":false}`：提交连接请求。省略凭据时由 daemon 从系统安全存储读取（macOS Keychain / Windows Credential Manager）。
 - `{"command":"disconnect","sessionId":"..."}`：断开指定会话。
-- `{"command":"forgetCredentials","profileId":"..."}`：删除指定 profile 的 Keychain 凭据。
+- `{"command":"forgetCredentials","profileId":"..."}`：删除指定 profile 的系统安全存储凭据。
 
 连接请求可以附带 `routeStrategy`：
 
@@ -82,11 +83,14 @@ macOS 桌面界面通过用户权限 Unix socket 与 `openvpn_daemon` 通信，�
 ```
 
 `compatible` 默认保留先连接会话的路由所有权，并跳过后连接会话的冲突路由；
-`strict` 遇到冲突直接拒绝；`ask` 由界面提示用户断开或重试。当前 helper 已执行
+`strict` 遇到冲突直接拒绝；旧 `ask` 值当前按严格模式处理，不代表存在单独的交互协商流程。当前 helper 已执行
 冲突模式；`ip`/`cidr` 的 `exclude` 会在当前会话安装路由前过滤匹配网段，`prefer`
-会要求用户断开冲突连接后重新连接当前会话。域名和域名后缀规则会加入当前 VPN 的 macOS
-分流 DNS 范围；当前 VPN 未提供 DNS 服务器时，域名规则不会生效，实际 IP 路由仍以服务器
+会要求用户断开冲突连接后重新连接当前会话。域名和域名后缀规则会加入当前 VPN 的系统
+分流 DNS 范围（macOS scoped DNS / Windows NRPT）；当前 VPN 未提供 DNS 服务器时，域名规则不会生效，实际 IP 路由仍以服务器
 下发的 IP/CIDR 为准。
 
-daemon 只在内存中接收凭据，响应和事件经过脱敏；socket 默认权限为当前用户可读写。
+daemon 只在内存中接收凭据，响应和事件经过脱敏；macOS socket 默认权限为当前用户可读写，Windows UI 管道使用当前用户访问控制。
 真正的 profile 密码应优先由 Keychain/Credential Manager 读取，不能由界面长期保存。
+
+两端建立连接的超时及认证重试策略统一读取构建时生成的共享配置，来源为
+[project-config.json](../project-config.json)，不是按平台维护的协议常量。

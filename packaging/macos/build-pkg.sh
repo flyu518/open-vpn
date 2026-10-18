@@ -10,7 +10,15 @@ daemon_source="${3:-}"
 output_path="${4:-}"
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 project_root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
-version="${OPENVPN_VERSION:-0.0.3}"
+cmake_bin="${OPENVPN_CMAKE:-cmake}"
+if [ -n "${OPENVPN_VERSION:-}" ]; then
+    version=$("$cmake_bin" -DOPENVPN_CONFIG_KEY=version \
+        "-DOPENVPN_EXPECTED_VERSION=$OPENVPN_VERSION" \
+        -P "$project_root/cmake/ProjectConfig.cmake")
+else
+    version=$("$cmake_bin" -DOPENVPN_CONFIG_KEY=version \
+        -P "$project_root/cmake/ProjectConfig.cmake")
+fi
 
 if [ -z "$app_source" ] || [ ! -d "$app_source" ] ||
 	[ -z "$helper_source" ] || [ ! -f "$helper_source" ] ||

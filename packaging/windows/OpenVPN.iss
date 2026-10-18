@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "0.0.3"
+  #error AppVersion is required; build through build-qt-package.ps1 using project-config.json
 #endif
 #ifndef StageDir
   #define StageDir "."

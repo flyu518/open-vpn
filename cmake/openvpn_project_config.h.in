@@ -1,0 +1,11 @@
+#ifndef VPN_OPENVPN_PROJECT_CONFIG_H
+#define VPN_OPENVPN_PROJECT_CONFIG_H
+
+// Generated from project-config.json. Do not edit this build output.
+namespace vpn::project_config {
+inline constexpr const char* version = "@OPENVPN_PROJECT_VERSION@";
+inline constexpr int connection_timeout_seconds = @OPENVPN_CONNECTION_TIMEOUT_SECONDS@;
+inline constexpr bool retry_on_auth_failed = @OPENVPN_RETRY_ON_AUTH_FAILED_CPP@;
+}
+
+#endif

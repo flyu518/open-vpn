@@ -2,13 +2,17 @@
 
 本文记录 Qt 桌面版的验收范围、验证结果和已知限制。
 
-## 当前版本
+## 当前状态与记录范围
 
-版本：`0.0.3`。
+产品版本和连接参数统一读取 [project-config.json](../project-config.json)，当前 `1.0.0` 为待验收目标，尚未正式发布。所有平台按 [发布操作约定](../RELEASING.md) 从同一候选提交构建和实测。
 
-本机环境：Apple Silicon、macOS 26.5.1；本轮本机使用 x86_64 包在 Rosetta 下验收，arm64 包由原生 Apple Silicon runner 构建。
+Windows `0.0.14` 已完成本机标准 EXE 升级、两条真实配置同时连接和独立断开/重连，详见 [Windows 验收记录](windows-acceptance.md)。统一配置改动后的 Windows core CTest 为 17/17、Qt CTest 为 12/12；这只是新源码的编译与自动化验证，不代表 1.0.0 安装包通过。
 
-## 已验证功能
+下文保留之前的 macOS 记录，不代表本轮在 Windows 上重新执行了 Mac 测试，也不能直接用于新候选放行。
+
+## 历史 macOS 验收记录（0.0.3）
+
+记录环境：Apple Silicon、macOS 26.5.1；该轮使用 x86_64 包在 Rosetta 下验收，arm64 包由原生 Apple Silicon runner 构建。
 
 - Core CTest：16/16 通过。
 - Qt CTest：6/6 通过，包含存储、IPC、控制器、QML、托盘和历史流量。
@@ -23,24 +27,28 @@
 - 状态栏菜单：打开主窗口、连接/断开、设置、关于、退出均有菜单入口；菜单项使用“关于”和“退出”短标签。
 - 自启动、关闭窗口保留后台连接、更新检查入口均已做 macOS 验证。
 
-## 当前发布包
+## 历史安装与构建记录
 
-本机当前安装版本仍为 `0.2.11`；`0.0.3` 的 x86_64 和 arm64 安装包由 GitHub Actions 的原生 runner 负责构建。
+上述 Mac 记录写入时，本机安装版本记为 `0.2.11`；`0.0.3` 的 x86_64 和 arm64 安装包由 GitHub Actions 的原生 runner 负责构建。这是历史状态，不表示当前 Mac 安装版本或统一版本已发布。
 
 发布流程由 `.github/workflows/release-macos.yml` 管理；推送 `v<版本号>` tag 后，GitHub Actions 会按 `third_party/openvpn3.lock` 拉取 OpenVPN3，分别构建 x86_64/arm64 安装包，生成 SHA-256 并上传 Release。
 
+该工作流目前不会等待 Windows 资产及验收，统一正式发布前必须先补齐 [RELEASING.md](../RELEASING.md) 要求的汇总关卡，不能直接推送正式标签。
+
 ## 已知限制
 
-- Windows 已接入与 macOS 一致的多会话 agent/daemon 逻辑；仍需在 Windows 主机使用两份真实配置完成驱动、Service、路由/DNS 和安装包验收，步骤见 [Windows 桌面版验收说明](windows-acceptance.md)。
+- Windows 已有本机真实双连接及安装版验收记录，不再是未完成的单连接预览；未测项与工具限制单独列在 [Windows 桌面版验收说明](windows-acceptance.md)，不能推定其他机器或新包通过。
 - Android/iOS 尚未实现。
 - macOS 发布流程分别提供 x86_64 和 arm64 两个安装包；两种架构的 GitHub Actions 构建尚未在本机同时实跑。
 - macOS 当前为临时签名，尚未完成 Developer ID 签名和公证。
 - 当前最低 macOS 版本为 26。
 - 路由策略不会热更新已建立的隧道；需要按提示断开冲突连接、断开当前连接，再重新连接以接管路由。
-- IP/CIDR 优先/排除已接入 macOS helper；域名后缀已接入 macOS 分流 DNS，任意模糊匹配仍不支持。
+- IP/CIDR 优先/排除及域名后缀系统分流 DNS 已接入桌面平台适配层；任意模糊匹配仍不支持。
 - GitHub 当前如果没有可访问的正式 Release，客户端会显示暂无发行版；不会伪造更新结果。
 
 ## 验证命令
+
+以下为 Mac 构建目录的命令示例；完整跨平台步骤与候选记录要求以 [RELEASING.md](../RELEASING.md) 为准。
 
 ```bash
 /绝对路径/cmake --build /tmp/openvpn-release/core

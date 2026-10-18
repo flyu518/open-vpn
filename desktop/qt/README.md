@@ -2,6 +2,10 @@
 
 这里是 Windows/macOS 桌面主界面的 Qt 6/QML 实现。OpenVPN3 核心、daemon、helper、凭据存储和路由适配层仍然使用项目现有的 C++ 实现，Qt 界面通过统一的本地 IPC 协议访问它们。
 
+版本和共享连接参数读取根目录 [project-config.json](../../project-config.json)，不得在 Qt 构建参数中另设平台版本。
+旧构建目录的版本缓存冲突时，加 `-UOPENVPN_APP_VERSION` 重新配置；新候选应使用新的构建目录。
+更新及验收统一遵循 [RELEASING.md](../../RELEASING.md)，Windows 构建见 [Windows 打包说明](../../packaging/windows/README.md)。
+
 ## macOS 构建
 
 先安装 Qt 6.8 或更新版本、CMake 3.21 或更新版本，并确保 `qt-cmake`、`macdeployqt` 可用。先把 Qt SDK 根目录设置为 `QT_ROOT`：

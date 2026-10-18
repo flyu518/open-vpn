@@ -4,7 +4,7 @@ set -euo pipefail
 
 qt_root="${1:?用法：build-release.sh Qt目录 构建目录 版本号 xxHash目录 [架构] [Homebrew前缀]}"
 build_root="${2:?需要构建目录}"
-release_version="${3:?需要版本号}"
+release_version="${3:-}"
 xxhash_root="${4:?需要xxHash目录}"
 release_arch="${5:-x86_64}"
 brew_prefix="${6:-/usr/local}"
@@ -17,6 +17,11 @@ cmake_bin=$(command -v "$cmake_bin")
 ctest_bin="${cmake_bin%/*}/ctest"
 script_dir=$(cd -- "$(dirname -- "$0")" && pwd)
 repo_root=$(cd -- "$script_dir/../.." && pwd)
+version_args=(-DOPENVPN_CONFIG_KEY=version)
+if [ -n "$release_version" ]; then
+    version_args+=("-DOPENVPN_EXPECTED_VERSION=$release_version")
+fi
+release_version=$("$cmake_bin" "${version_args[@]}" -P "$repo_root/cmake/ProjectConfig.cmake")
 
 "$cmake_bin" -S "$repo_root/core" -B "$build_root/core" \
     -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="$release_arch" \
@@ -29,7 +34,7 @@ repo_root=$(cd -- "$script_dir/../.." && pwd)
 
 "$cmake_bin" -S "$repo_root/desktop/qt" -B "$build_root/qt" \
     -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="$release_arch" \
-    -DCMAKE_PREFIX_PATH="$qt_root" -DOPENVPN_APP_VERSION="$release_version"
+    -DCMAKE_PREFIX_PATH="$qt_root" -UOPENVPN_APP_VERSION -DOPENVPN_APP_VERSION="$release_version"
 "$cmake_bin" --build "$build_root/qt" --parallel 4
 QT_QPA_PLATFORM=offscreen "$ctest_bin" --test-dir "$build_root/qt" --output-on-failure
 

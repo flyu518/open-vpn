@@ -1,5 +1,9 @@
 # Windows 打包
 
+版本、连接超时和认证重试策略统一读取根目录 `project-config.json`。`-Version` 可省略，
+显式指定时必须与共享配置一致；不得靠修改参数生成不同平台版本。
+共同步骤见根目录[发布操作约定](../../RELEASING.md)。
+
 发布包需要包含桌面应用、OpenVPN3 Windows Service、用户级 `openvpn_windows_daemon` 及其隐藏启动器、
 Wintun/TAP 依赖，并完成代码签名。
 
@@ -8,8 +12,8 @@ Windows UI daemon 使用 `\\.\pipe\openvpn-ui`；官方高权限 agent 使用自
 
 当前 CMake 已把固定版本的官方 Windows agent 接入 `openvpn_windows_service`，并新增
 `openvpn_windows_daemon` 构建目标。每条 UI 配置会话拥有独立的 TUN、事件、句柄、路由和 DNS
-生命周期；Windows 运行验证必须在 Windows 主机完成，仍需确认 Service 注册、Wintun 驱动和真实
-双配置连接。
+生命周期。Windows 0.0.14 已在本机完成标准 EXE 升级和真实双配置连接验证，
+详细结果及未测项目见 [Windows 验收记录](../../docs/windows-acceptance.md)；每个新候选包仍须重新验收。
 
 ## 托盘、自启和 GitHub 发布
 
@@ -46,7 +50,7 @@ daemon 由隐藏启动器以 `CREATE_NO_WINDOW` 启动，不会先弹出命令�
 界面的自启开关不要求管理员权限；安装服务的安装包需要管理员授权。Qt 桌面界面在 Windows 主机使用 MSVC kit 构建：
 
 ```powershell
-cmake -S desktop/qt -B build/qt-windows -DCMAKE_PREFIX_PATH=C:/Qt/6.8.3/msvc2022_64 -DCMAKE_BUILD_TYPE=Release
+cmake -S desktop/qt -B build/qt-windows -UOPENVPN_APP_VERSION -DCMAKE_PREFIX_PATH=C:/Qt/6.8.3/msvc2022_64 -DCMAKE_BUILD_TYPE=Release
 cmake --build build/qt-windows --config Release
 C:/Qt/6.8.3/msvc2022_64/bin/windeployqt.exe --qmldir desktop/qt/qml build/qt-windows/Release/openvpn_qt.exe
 ```
@@ -63,11 +67,13 @@ C:/Qt/6.8.3/msvc2022_64/bin/windeployqt.exe --qmldir desktop/qt/qml build/qt-win
   -RuntimeDllDir build\core-windows\Release
 ```
 
-正式发布前仍需在具有管理员权限的 Windows 主机上完成安装器安装、Windows Service、Wintun、
-签名和真实双配置连接验收；当前构建脚本不会把离线 UI 测试替代为真实连接成功。
-正式发布时把安装程序上传到 GitHub Release，资产名称建议为 `OpenVPN-0.0.3-windows-x64.exe` 或
-`OpenVPN-0.0.3-windows-x64.msi`。关于入口位于状态栏/托盘菜单，那里只检查 GitHub Releases；用户确认后才启动安装程序，不会静默替换当前应用。
+每个正式候选都需在 Windows 主机上安装，并检查 Windows Service、Wintun、签名和真实双配置连接；
+安装服务时使用管理员授权，桌面应用以普通用户身份验收。已有 0.0.14 实测记录不替代新包的回归，
+离线 UI 测试也不代表真实连接成功。
+正式发布时按共同验收关卡，把安装程序上传到包含全部目标平台安装包的同一个 GitHub Release。
+资产名称为 `OpenVPN-<版本>-windows-x64.exe`；当前脚本生成 EXE，不把 MSI 示例当作已有产物。
+关于入口位于状态栏/托盘菜单，那里只检查 GitHub Releases；用户确认后才启动安装程序，不会静默替换当前应用。
 
-Windows agent 现在按会话隔离多条 TUN；daemon 不再以单连接上限拒绝第二条连接。多隧道、驱动、安装升级和通知区域仍需 Windows 实机验收；不能以 macOS 测试或离线路由模型测试替代真实 Windows 双配置验收。
+Windows agent 按会话隔离多条 TUN；daemon 不以单连接上限拒绝第二条连接。多隧道和安装升级已有本机实测记录；托盘的工具操作限制与用户人工反馈分别记录。不能以 macOS 测试或离线路由模型测试替代 Windows 安装包实机验收。
 
-Windows 的具体验收步骤见[Windows 桌面版验收说明](../docs/windows-acceptance.md)。
+Windows 的具体验收步骤见[Windows 桌面版验收说明](../../docs/windows-acceptance.md)。

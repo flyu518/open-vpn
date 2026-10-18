@@ -15,5 +15,7 @@ named pipe；用户权限 JSON daemon 位于 `core/tools/windows_daemon_main.cpp
 `\\.\pipe\openvpn-ui` 给 Qt 桌面应用提供与 macOS 相同的 connect、disconnect、snapshot、
 凭据和事件协议。两条 named pipe 不复用。
 
-当前仍需要 Windows 主机完成 Service 注册、Wintun 驱动、调用方权限和真实多会话路由/DNS
-验证；macOS 只能做 MinGW 语法和链接边界检查。
+Windows 已有本机标准 EXE 安装、Service 启动、普通用户 IPC 和真实双连接验证记录，
+本地核心用例另验证了路由/DNS 隔离及清理，详见 [Windows 验收记录](../../../docs/windows-acceptance.md)。
+这些结果不代表所有 Windows 版本、安全策略和异常路径均已覆盖；新候选必须在目标主机回归，
+macOS 上的交叉编译或语法检查不能替代 Windows 实机验证。

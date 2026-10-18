@@ -1,3 +1,7 @@
+add_test(NAME openvpn_project_config_tests COMMAND "${CMAKE_COMMAND}"
+    "-DTEST_OUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/project-config-tests"
+    -P "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/config/test_project_config.cmake")
+
 add_executable(openvpn_contract_tests
     contract_tests.cpp
 )
@@ -65,6 +69,7 @@ if(EXISTS "${OPENVPN3_SOURCE_DIR}/client/ovpncli.cpp")
         target_include_directories(openvpn_engine_driver_policy_tests PRIVATE
             engine_fixture
             ../include
+            "${OPENVPN_GENERATED_CONFIG_DIR}"
             ${OPENVPN3_SOURCE_DIR}
             ${FMT_INCLUDE_DIR}
         )
@@ -215,7 +220,7 @@ if(APPLE)
         ../src/openvpn3_engine.cpp
         ../src/engine_worker.cpp)
     target_include_directories(openvpn_engine_lifecycle_tests PRIVATE
-        engine_fixture ../include ${OPENVPN3_SOURCE_DIR} ${FMT_INCLUDE_DIR})
+        engine_fixture ../include "${OPENVPN_GENERATED_CONFIG_DIR}" ${OPENVPN3_SOURCE_DIR} ${FMT_INCLUDE_DIR})
     target_link_libraries(openvpn_engine_lifecycle_tests PRIVATE Threads::Threads ${FMT_LIBRARY})
     foreach(MODE early-stop success status-error throw)
         add_test(NAME openvpn_engine_${MODE}_test COMMAND openvpn_engine_lifecycle_tests ${MODE})

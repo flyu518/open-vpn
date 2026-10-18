@@ -1,3 +1,20 @@
+add_test(NAME openvpn_project_config_tests COMMAND "${CMAKE_COMMAND}"
+    "-DTEST_OUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/project-config-tests"
+    -P "${CMAKE_CURRENT_SOURCE_DIR}/../../../tests/config/test_project_config.cmake")
+if(WIN32)
+    add_test(NAME openvpn_windows_version_metadata_tests
+        COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass
+            -File "${CMAKE_CURRENT_SOURCE_DIR}/../../../tests/config/test_windows_version_metadata.ps1"
+            -Executable "$<TARGET_FILE:openvpn_qt>")
+    add_test(NAME openvpn_packaging_config_tests
+        COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass
+            -File "${CMAKE_CURRENT_SOURCE_DIR}/../../../tests/config/test_packaging_config.ps1")
+endif()
+if(APPLE)
+    add_test(NAME openvpn_macos_packaging_config_tests
+        COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/../../../tests/config/test_packaging_config.sh" "${CMAKE_COMMAND}")
+endif()
+
 add_executable(openvpn_qt_model_tests
     test_session_list_model.cpp
     ../src/session_list_model.cpp

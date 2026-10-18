@@ -8,10 +8,10 @@ OpenVPN 是一个面向企业网络的桌面 VPN 管理客户端，用于导入�
 
 - 同时管理多条 OpenVPN 连接，每条连接拥有独立的状态、计时、流量和生命周期；
 - 导入 `.ovpn` 或 `.conf` 配置，并保存应用内部副本，原配置文件移动或删除后仍可使用；
-- 自动读取配置中的用户名，密码可保存到 macOS 钥匙串，认证失败时重新输入；
+- 自动读取配置中的用户名，密码可保存到 macOS 钥匙串或 Windows Credential Manager，认证失败时重新输入；
 - 连接列表支持重命名、拖动排序、导入重复检查、配置导出和连接详情查看；
 - 详情中显示服务器信息、连接记录、路由冲突、实时流量和历史流量；
-- macOS 状态栏菜单支持快速打开窗口、连接或断开配置、查看状态、设置、关于和退出；
+- macOS 状态栏和 Windows 通知区域菜单支持快速打开窗口、连接或断开配置、查看状态、设置、关于和退出；
 - 支持登录后自动启动，关闭主窗口不会自动断开后台 VPN；
 - 关于页面支持检查 GitHub Releases 更新，下载前校验发布资产。
 
@@ -28,7 +28,9 @@ Apple Silicon 使用 `arm64` 安装包时不需要 Rosetta。当前构建最低�
 
 ### Windows
 
-Windows 版本使用 Qt 桌面界面、OpenVPN3 Windows Service 和 Wintun/TAP 适配层，支持多条配置同时连接。Windows daemon 与 macOS 使用相同的会话逻辑，Windows agent 为每条会话隔离 TUN、句柄、路由和 DNS；仍需要在 Windows 主机上完成驱动、Service、路由、DNS、通知区域和安装升级的实机验收。
+Windows 版本使用 Qt 桌面界面、OpenVPN3 Windows Service 和 Wintun/TAP 适配层，支持多条配置同时连接，不是单连接预览版。Windows daemon 与 macOS 使用相同的会话逻辑，Windows agent 为每条会话隔离 TUN、句柄、路由和 DNS。
+
+Windows `0.0.14` 已完成本机标准 EXE 覆盖安装和两条真实配置的同时连接、独立断开及重连验证，详见 [Windows 验收记录](docs/windows-acceptance.md)。这不等于新的统一版本已经发布；每个候选包仍须按共同清单验收，并如实记录未测项目。
 
 ### Android/iOS
 
@@ -43,11 +45,11 @@ Windows 版本使用 Qt 桌面界面、OpenVPN3 Windows Service 和 Wintun/TAP �
 - 优先当前连接：发现重叠时提示先断开冲突连接，再重新连接当前连接；
 - 排除当前连接：当前连接不安装匹配的服务器路由；
 - 策略修改不会热更新已经建立的隧道，需要断开并重新连接；
-- 域名后缀规则会参与 macOS 分流 DNS；任意模糊匹配和正则规则不支持。
+- 域名后缀规则会参与两端的系统分流 DNS；任意模糊匹配和正则规则不支持。
 
 ## 使用方式
 
-安装 macOS `.pkg` 后，打开 `/Applications/OpenVPN.app`：
+macOS 安装对应架构的 `.pkg` 后打开 `/Applications/OpenVPN.app`；Windows 运行标准 `.exe` 安装向导后，从开始菜单或快捷方式打开 OpenVPN。Windows 安装服务时需要 UAC 授权，日常桌面应用以普通用户身份运行，不需要“以管理员身份运行”。两端操作相同：
 
 1. 点击“导入配置”，选择 `.ovpn` 或 `.conf` 文件；
 2. 在连接列表中确认名称和服务器信息；
@@ -68,7 +70,7 @@ Windows 版本使用 Qt 桌面界面、OpenVPN3 Windows Service 和 Wintun/TAP �
 
 ## 开发和构建
 
-开发环境需要 Qt 6.8 或更新版本、CMake、OpenSSL、asio、fmt、jsoncpp、lz4 和 xxHash。基础测试不需要真实 VPN 配置：
+开发环境需要 Qt 6.8 或更新版本、CMake 3.21 或更新版本、OpenSSL、asio、fmt、jsoncpp、lz4 和 xxHash。基础测试不需要真实 VPN 配置：
 
 ```bash
 cmake -S core -B /tmp/openvpn-core-build
@@ -82,9 +84,15 @@ ctest --test-dir /tmp/openvpn-core-build --output-on-failure
 
 ## GitHub Releases
 
+多平台更新、版本递增、构建、安装包验收与发布顺序统一遵循根目录的[发布操作约定](RELEASING.md)。
+根目录 [project-config.json](project-config.json) 是版本号、连接超时和认证重试策略的共享来源；
+修改后必须重新构建，两端不能分别维护版本号。
+
 仓库地址：<https://github.com/flyu518/open-vpn>
 
 `.github/workflows/release-macos.yml` 会在推送 `v<版本号>` tag 后，分别构建 Intel 和 Apple Silicon 安装包，生成 SHA-256 校验文件并创建 GitHub Release。发布前需要为仓库配置允许 workflow 写入 `contents` 的权限，并完成正式签名和公证配置。
+
+该工作流目前只发布 Mac 资产，尚无 Windows 汇总验收关卡；统一正式发布前必须按 [RELEASING.md](RELEASING.md) 补齐关卡，不能直接推送正式标签。共享配置中的 `1.0.0` 是待验收目标，不表示安装包已发布。
 
 ## 数据和隐私
 
@@ -92,14 +100,15 @@ ctest --test-dir /tmp/openvpn-core-build --output-on-failure
 
 ```text
 ~/Library/Application Support/OpenVPN/
+%APPDATA%\OpenVPN\
 ```
 
-密码使用系统钥匙串保存。历史流量只记录时间和上下行字节，不记录访问内容、密码或私钥文本。日志和错误信息会经过脱敏处理。
+上面两行分别为 macOS 和 Windows 路径。密码使用 macOS 钥匙串或 Windows Credential Manager 保存。历史流量只记录时间和上下行字节，不记录访问内容、密码或私钥文本。日志和错误信息会经过脱敏处理。
 
 ## 已知限制
 
 - macOS 当前最低支持 macOS 26；正式签名和公证尚未配置；
-- Windows 多会话代码和 MSVC/CTest 链路已接入，仍需使用真实 VPN 配置完成 Windows 驱动、Service、路由/DNS 和安装包实机验收；
+- Windows 已有本机安装版双连接验收记录；更新下载安装、卸载、更多系统环境和业务目标可达性仍需单独验收，不能由现有记录推定通过；
 - Android/iOS 尚未实现；
 - 域名后缀分流依赖 VPN 提供 DNS 服务器；任意模糊匹配和正则规则尚未支持；
 - 路由策略修改需要断开并重新连接后生效。

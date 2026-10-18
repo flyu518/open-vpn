@@ -1,8 +1,12 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(OpenVPNQt VERSION 0.0.3 LANGUAGES CXX)
+include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/ProjectConfig.cmake")
+project(OpenVPNQt VERSION "${OPENVPN_PROJECT_VERSION}" LANGUAGES CXX)
 
-set(OPENVPN_APP_VERSION "${PROJECT_VERSION}" CACHE STRING "OpenVPN 应用版本")
+if(DEFINED OPENVPN_APP_VERSION AND NOT OPENVPN_APP_VERSION STREQUAL OPENVPN_PROJECT_VERSION)
+    message(FATAL_ERROR "OPENVPN_APP_VERSION differs from project-config.json; clear the old cache with -UOPENVPN_APP_VERSION")
+endif()
+set(OPENVPN_APP_VERSION "${OPENVPN_PROJECT_VERSION}" CACHE STRING "OpenVPN 应用版本")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -68,7 +72,8 @@ qt_add_resources(openvpn_qt "openvpn_tray_asset"
     FILES assets/app-icon.png
 )
 if(WIN32)
-    target_sources(openvpn_qt PRIVATE assets/OpenVPN.rc)
+    configure_file(assets/OpenVPNVersion.rc.in "${CMAKE_CURRENT_BINARY_DIR}/OpenVPNVersion.rc" @ONLY)
+    target_sources(openvpn_qt PRIVATE assets/OpenVPN.rc "${CMAKE_CURRENT_BINARY_DIR}/OpenVPNVersion.rc")
     target_include_directories(openvpn_qt PRIVATE assets)
     # The desktop UI must be linked as a Windows GUI application. Without
     # this property, Windows creates a console window before Qt starts.

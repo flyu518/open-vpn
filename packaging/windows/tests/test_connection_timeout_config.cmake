@@ -7,7 +7,7 @@ file(READ "${CONFIG_HEADER}" config_header)
 
 string(FIND "${engine_source}" "openvpn3_config::connection_timeout_seconds" timeout_use)
 string(FIND "${engine_source}" "openvpn3_config::retry_on_auth_failed" auth_retry_use)
-string(REGEX MATCH "connection_timeout_seconds[ \\t]*=[ \\t]*[1-9][0-9]*" timeout_definition
+string(REGEX MATCH "connection_timeout_seconds[ \\t]*=[ \\t]*project_config::connection_timeout_seconds" timeout_definition
     "${config_header}")
 
 if(timeout_use EQUAL -1 OR auth_retry_use EQUAL -1 OR timeout_definition STREQUAL "")

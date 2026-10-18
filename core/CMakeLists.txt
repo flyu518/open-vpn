@@ -1,4 +1,8 @@
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.21)
+
+include("${CMAKE_CURRENT_LIST_DIR}/../cmake/ProjectConfig.cmake")
+set(OPENVPN_GENERATED_CONFIG_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
+openvpn_generate_config_header("${OPENVPN_GENERATED_CONFIG_DIR}")
 
 project(OpenVPNCore LANGUAGES C CXX)
 
@@ -59,6 +63,7 @@ add_library(openvpn_core STATIC
     src/vpn_security.cpp
     src/vpn_recovery.cpp
 )
+target_include_directories(openvpn_core PUBLIC "${OPENVPN_GENERATED_CONFIG_DIR}")
 
 set(OPENVPN3_SOURCE_DIR
     "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/openvpn3"

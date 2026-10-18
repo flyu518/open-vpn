@@ -10,7 +10,7 @@ $source = Get-Content -Raw -LiteralPath (Resolve-Path -LiteralPath $EngineSource
 $config = Get-Content -Raw -LiteralPath (Resolve-Path -LiteralPath $ConfigHeader)
 if ($source -notmatch '(?s)openvpn3_config::connection_timeout_seconds' -or
     $source -notmatch '(?s)openvpn3_config::retry_on_auth_failed' -or
-    $config -notmatch '(?s)connection_timeout_seconds\s*=\s*[1-9][0-9]*') {
+    $config -notmatch '(?s)connection_timeout_seconds\s*=\s*project_config::connection_timeout_seconds') {
     throw "Windows OpenVPN3 engine must configure a finite connection timeout."
 }
 

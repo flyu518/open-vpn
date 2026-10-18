@@ -27,10 +27,10 @@ void evaluates_profile_without_network() {
 }
 
 void uses_shared_connection_policy() {
-    static_assert(vpn::openvpn3_config::connection_timeout_seconds == 30);
-    static_assert(!vpn::openvpn3_config::retry_on_auth_failed);
-    assert(vpn::openvpn3_config::connection_timeout_seconds == 30);
-    assert(!vpn::openvpn3_config::retry_on_auth_failed);
+    static_assert(vpn::openvpn3_config::connection_timeout_seconds == vpn::project_config::connection_timeout_seconds);
+    static_assert(vpn::openvpn3_config::retry_on_auth_failed == vpn::project_config::retry_on_auth_failed);
+    assert(vpn::openvpn3_config::connection_timeout_seconds > 0);
+    assert(vpn::openvpn3_config::connection_timeout_seconds <= 3600);
 }
 
 void creates_two_independent_client_objects() {
