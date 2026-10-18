@@ -3,7 +3,8 @@ $repo = (Resolve-Path (Join-Path $PSScriptRoot '../../..')).Path
 $installer = Get-Content -LiteralPath (Join-Path $repo 'packaging/windows/OpenVPN.iss') -Raw
 $builder = Get-Content -LiteralPath (Join-Path $repo 'packaging/windows/build-qt-package.ps1') -Raw
 if ($installer -notmatch 'Source:\s*"\{#VcRedistPath\}";\s*DestDir:\s*"\{tmp\}"' -or
-    $installer -notmatch 'EnsureVisualCppRuntime;\s*InstallOrUpdateService;' -or
+    $installer -notmatch '(?s)CurStep = ssInstall.*?ExtractTemporaryFile.*?EnsureVisualCppRuntime;' -or
+    $installer -notmatch '(?s)CurStep = ssPostInstall.*?InstallOrUpdateService;' -or
     $installer -notmatch '/install /quiet /norestart' -or
     $installer -notmatch 'if VisualCppRuntimeReady then' -or
     $installer -notmatch 'RegQueryDWordValue\(HKLM64' -or

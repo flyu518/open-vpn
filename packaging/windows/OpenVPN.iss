@@ -79,7 +79,7 @@ Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: 
 
 [Files]
 Source: "{#StageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#VcRedistPath}"; DestDir: "{tmp}"; DestName: "OpenVPN-vc_redist.x64.exe"; Flags: deleteafterinstall
+Source: "{#VcRedistPath}"; DestDir: "{tmp}"; DestName: "OpenVPN-vc_redist.x64.exe"; Flags: dontcopy
 
 [InstallDelete]
 Type: files; Name: "{app}\install-iexpress.cmd"
@@ -290,8 +290,13 @@ end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
-  if CurStep = ssPostInstall then begin
+  { NeedRestart is evaluated before ssPostInstall. Run the prerequisite at
+    ssInstall so a vendor 3010 result is not lost from the finished page. }
+  if CurStep = ssInstall then begin
+    ExtractTemporaryFile('OpenVPN-vc_redist.x64.exe');
     EnsureVisualCppRuntime;
+  end;
+  if CurStep = ssPostInstall then begin
     InstallOrUpdateService;
   end;
 end;
