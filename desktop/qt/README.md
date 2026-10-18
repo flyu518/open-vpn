@@ -58,8 +58,9 @@ Qt 应用位于：
 - Windows 使用当前用户“启动”目录中的 `OpenVPN.lnk`，并清理旧版 HKCU Run 项；详见
   [Windows 打包说明](../../packaging/windows/README.md)。
 - macOS 使用当前用户的 `~/Library/LaunchAgents/com.openvpn.desktop.plist`，在用户登录时由 launchd 加载。
-  当前实现直接写入 LaunchAgent 文件，不经 `SMAppService` 注册流程；系统是否将其列入后台项目或显示提示
-  尚未验证。开关修改不会即时加载或卸载当前会话中的 job，在后续登录时生效。
+  当前实现直接写入 LaunchAgent 文件，不经 `SMAppService` 注册流程；应核对文件、实际启动和系统后台项目
+  的状态，不以开关操作时是否再次出现系统通知判断成败。开关修改不会即时加载或卸载当前会话中的 job，
+  在后续登录时生效。
   详见 [macOS 打包说明](../../packaging/macos/README.md)。
 
 两个平台的注册方式和系统验收相互独立；不能用一端的测试结果推断另一端行为。

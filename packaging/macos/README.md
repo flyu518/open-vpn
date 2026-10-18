@@ -84,7 +84,7 @@ Developer ID、Hardened Runtime，并继续限制 helper IPC 和 Keychain 凭据
 
 “开机自启”由 Qt 应用写入当前用户的 `~/Library/LaunchAgents/com.openvpn.desktop.plist`，不需要 sudo；配置由
 launchd 在用户登录时加载，开关修改在后续登录生效。当前实现直接管理 plist，不经 `SMAppService` 注册流程；
-系统是否将该项列入后台项目或显示通知尚未验证。此项只负责启动桌面 UI，不替代
+系统后台项目状态与是否再次显示通知需单独核对，不能以没有新通知判断开关失败。此项只负责启动桌面 UI，不替代
 `com.openvpn.daemon` 或高权限 helper。更新 UI 本身不需要重新安装 helper，只有发布包里的 helper/daemon 变化时才重新执行完整安装包。
 
 发布时先构建 Qt 应用并部署 Qt 运行时：
@@ -102,6 +102,12 @@ OPENVPN_CMAKE=/绝对路径/cmake packaging/macos/build-release.sh \
 
 完整流程会从同一源码构建 Qt、helper 和 daemon，运行测试，部署 Qt 插件及服务动态库，再生成
 `/tmp/openvpn-<版本>-release/OpenVPN-<版本>-macos-x86_64.pkg`。Apple Silicon 本地构建时使用 `arm64 /opt/homebrew`，输出文件名会相应变为 `OpenVPN-<版本>-macos-arm64.pkg`。发布前检查的范围包括 socket 名称、版本、动态库加载路径和架构；不要把历史 helper 产物混入当前安装包。
+
+安装版 GUI 和 launchd 验收必须在能够访问用户桌面会话的上下文中进行。受限工具沙箱中的进程查询、
+Launch Services 或 `launchctl` 错误应先在本机终端或获准的非受限上下文复测，不能直接归因为缺少发行证书。
+`open` 返回成功也不足以证明启动通过：应确认安装路径、实际进程与可见窗口，冷启动前先确认旧 UI 已退出；
+手动重新加载 LaunchAgent 的测试不能替代重启或重新登录验收。当前候选的实测范围见
+[macOS 验收记录](../../docs/releases/1.0.0-macos.md)。
 
 版本统一读取根目录 `project-config.json`，显式传入的版本或 `OPENVPN_VERSION` 必须与其一致。
 所有平台使用同一份[发布操作约定](../../RELEASING.md)，不能只凭本机构建成功就单独发布正式版本。

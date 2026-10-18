@@ -50,7 +50,8 @@
 **Files:** Run the generated PKG scripts and verify the installed app and services.
 
 - [x] Query `snapshot` and proceed only when no VPN sessions are active.
-- [ ] Install the generated PKG, verify app version/path, daemon/helper health, and startup setting behavior.
+- [x] Install the generated PKG, verify app version/path, daemon/helper health, and startup setting behavior.
+- [x] Rule out restricted-tool launch errors using desktop-session access; verify Finder cold launch, launchd startup, and switch persistence against the installed candidate.
 - [ ] Do not claim reboot acceptance unless the machine actually logs out/restarts and the installed UI starts afterward.
 
 ### Task 4: Record and Share Evidence
@@ -59,7 +60,8 @@
 
 - [x] Keep Windows and macOS startup mechanisms, current-session behavior, and system-prompt behavior explicit.
 - [x] Record completed ARM64 evidence and every remaining architecture, reboot, signing, and workflow gate.
-- [ ] Run `git diff --check`, commit only the release documentation, and push it to the confirmed shared branch.
+- [x] Run `git diff --check`, commit only the release documentation, and push it to the confirmed shared branch (`84ccacf`).
+- [x] Validate the corrected installation/startup evidence with an independent review and `git diff --check` after the unrestricted desktop-session retest.
 
 ### Task 5: Stop at the Formal Release Gate
 
