@@ -626,14 +626,20 @@ void QmlInteractionsTest::emptyState() {
 }
 void QmlInteractionsTest::updateConfirmationDialog() {
     Fixture f; QVERIFY(f.load({profile("a")}, {820, 560}));
+    QJsonArray assets;
+    for (const auto& name : {QStringLiteral("OpenVPN-windows-x64.exe"),
+                            QStringLiteral("OpenVPN-macos-arm64.pkg"),
+                            QStringLiteral("OpenVPN-macos-x86_64.pkg")}) {
+        assets.append(QJsonObject{
+            {"name", name},
+            {"browser_download_url", "https://github.com/flyu518/open-vpn/releases/download/v0.3.0/" + name},
+            {"size", 32},
+            {"digest", "sha256:" + QString(64, 'a')}});
+    }
     const QJsonObject release{
         {"tag_name", "v0.3.0"},
         {"html_url", "https://github.com/flyu518/open-vpn/releases/tag/v0.3.0"},
-        {"assets", QJsonArray{QJsonObject{
-            {"name", "OpenVPN-windows-x64.exe"},
-            {"browser_download_url", "https://github.com/flyu518/open-vpn/releases/download/v0.3.0/OpenVPN-windows-x64.exe"},
-            {"size", 32},
-            {"digest", "sha256:" + QString(64, 'a')}}}}};
+        {"assets", assets}};
     f.controller->applyReleaseResponseForTest(QJsonDocument(release).toJson());
     QVERIFY(f.controller->updateAvailable());
     QVERIFY(f.controller->updateInstallerAvailable());

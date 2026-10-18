@@ -183,7 +183,7 @@ if(EXISTS "${OPENVPN3_SOURCE_DIR}/client/ovpncli.cpp")
 
     target_compile_definitions(openvpn_core PRIVATE
         ASIO_STANDALONE
-        ASIO_DISABLE_LOCAL_SOCKETS
+        $<$<PLATFORM_ID:Windows>:ASIO_DISABLE_LOCAL_SOCKETS>
         USE_ASIO
         HAVE_LZ4
         USE_OPENSSL
