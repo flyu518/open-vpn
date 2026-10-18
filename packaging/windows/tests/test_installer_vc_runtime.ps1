@@ -15,6 +15,12 @@ $verifier = Join-Path $repo 'packaging/windows/verify-vc-redist.ps1'
 if (-not (Test-Path -LiteralPath $verifier)) { throw 'VC++ package verification is missing' }
 . $verifier
 try {
+    Assert-VisualCppRedistributable $PSCommandPath
+    throw 'An incomplete redistributable was accepted'
+} catch {
+    if ($_.Exception.Message -notmatch '完整离线') { throw }
+}
+try {
     Assert-VisualCppRedistributable (Join-Path $repo 'build/nonexistent-vc-redist.x64.exe')
     throw 'A missing VC++ redistributable was accepted'
 } catch {

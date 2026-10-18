@@ -50,6 +50,7 @@ daemon 由隐藏启动器以 `CREATE_NO_WINDOW` 启动，不会先弹出命令�
 
 正式 EXE 必须通过 `-VcRedist` 指定微软签名有效的 x64 VC++ Redistributable（当前工具链要求 14.43 或更新），
 可从 [微软官方下载说明](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) 获取。
+必须使用完整下载的 EXE，不能使用 `C:\ProgramData\Package Cache` 中可能不含 MSI 载荷的缓存启动器；打包检查会拒绝这类小型文件。
 安装器离线携带该依赖，检查已安装版本；版本足够新时跳过，否则在启动 VPN 服务前安装，禁止强制重启。
 不从开发机的 System32 随意复制 DLL，也不依赖目标机器碰巧装过其他软件的运行库。升级工具链时须同步核对运行库最低要求。
 

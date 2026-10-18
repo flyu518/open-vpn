@@ -3,6 +3,12 @@
         throw '找不到 VC++ x64 运行库安装程序，请通过 -VcRedist 提供微软官方 VC_redist.x64.exe。'
     }
     $item = Get-Item -LiteralPath $Path
+    # Burn's Package Cache can contain a signed ~600 KiB engine-only stub,
+    # not the complete Microsoft download with its attached MSI payloads.
+    # Fail closed on these stubs before accepting signature/version metadata.
+    if ($item.Length -lt 5MB) {
+        throw 'VC++ 运行库不是完整离线安装包；请使用微软官网下载的完整 EXE，不要使用 Package Cache 中的缓存启动器。'
+    }
     $signature = Get-AuthenticodeSignature -LiteralPath $item.FullName
     if ($signature.Status -ne 'Valid' -or
         $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation' -or
