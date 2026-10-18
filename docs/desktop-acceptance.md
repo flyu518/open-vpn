@@ -4,9 +4,9 @@
 
 ## 当前状态与记录范围
 
-产品版本和连接参数统一读取 [project-config.json](../project-config.json)，当前 `1.0.0` 为待验收目标，尚未正式发布。所有平台按 [发布操作约定](../RELEASING.md) 从同一候选提交构建和实测。
+产品版本和连接参数统一读取 [project-config.json](../project-config.json)，当前 `1.0.0` 尚未正式发布。所有平台按 [发布操作约定](../RELEASING.md) 从同一候选提交构建和实测；平台提交资产不设先后，Release 草稿必须等资产和验收哈希齐备后才能公开。
 
-Windows `1.0.0` 内部候选已实际升级安装，并完成两条真实配置同时连接和独立断开/重连；core CTest 17/17、Qt CTest 14/14。准确源码、最终 EXE 哈希、UI 实测范围及剩余关卡见 [1.0.0 Windows 候选记录](releases/1.0.0-windows.md)。这不代表 Mac 同候选或全部发行关卡已通过。0.0.14 等历史结果保留在 [Windows 验收说明](windows-acceptance.md)。
+Windows `1.0.0` 候选 `26bf5e2944db3c21f0a9ce7e1cf5723a60644c29` 已实际升级安装，并完成两条真实配置同时连接和独立断开/重连；core CTest 17/17、Qt CTest 15/15。Mac ARM64 对同一源码候选的 core CTest 19/19、Qt CTest 8/8，完成构建、安装及启动检查，但重装后未重做真实双连接。最终包哈希、UI 实测范围和未测项见 [Windows 候选记录](releases/1.0.0-windows.md)及 [macOS 候选记录](releases/1.0.0-macos.md)。0.0.14 等历史结果保留在 [Windows 验收说明](windows-acceptance.md)。
 
 下文保留之前的 macOS 记录，不代表本轮在 Windows 上重新执行了 Mac 测试，也不能直接用于新候选放行。
 
@@ -31,9 +31,7 @@ Windows `1.0.0` 内部候选已实际升级安装，并完成两条真实配置�
 
 上述 Mac 记录写入时，本机安装版本记为 `0.2.11`；`0.0.3` 的 x86_64 和 arm64 安装包由 GitHub Actions 的原生 runner 负责构建。这是历史状态，不表示当前 Mac 安装版本或统一版本已发布。
 
-发布流程由 `.github/workflows/release-macos.yml` 管理；推送 `v<版本号>` tag 后，GitHub Actions 会按 `third_party/openvpn3.lock` 拉取 OpenVPN3，分别构建 x86_64/arm64 安装包，生成 SHA-256 并上传 Release。
-
-该工作流目前不会等待 Windows 资产及验收，统一正式发布前必须先补齐 [RELEASING.md](../RELEASING.md) 要求的汇总关卡，不能直接推送正式标签。
+`.github/workflows/release-macos.yml` 在 tag 触发后按 `third_party/openvpn3.lock` 构建 x86_64/arm64 安装包并上传为 Actions 产物，不会直接创建或发布 Release。平台可按任意顺序把已验收安装包加入同一个草稿；`.github/workflows/publish-release.yml` 在 Windows x64 和 Mac ARM64 包及验收哈希齐备后进行最终核验并发布。
 
 ## 已知限制
 

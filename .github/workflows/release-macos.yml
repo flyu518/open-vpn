@@ -7,12 +7,12 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "可留空，默认读取 project-config.json；指定时必须与其一致"
-        required: false
+        description: "要构建的既有标签版本；必须与 project-config.json 一致"
+        required: true
         type: string
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -35,6 +35,7 @@ jobs:
       - name: 检出仓库
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/v{0}', inputs.version) || github.ref }}
           fetch-depth: 0
 
       - name: 计算版本号
@@ -51,6 +52,7 @@ jobs:
           fi
           version=$(cmake "${args[@]}" -P cmake/ProjectConfig.cmake)
           echo "OPENVPN_RELEASE_VERSION=$version" >> "$GITHUB_ENV"
+          echo "OPENVPN_CANDIDATE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
 
       - name: 安装 macOS 构建依赖
         run: brew install asio fmt jsoncpp lz4 openssl xxhash
@@ -103,85 +105,7 @@ jobs:
       - name: 上传构建资产
         uses: actions/upload-artifact@v4
         with:
-          name: openvpn-macos-${{ matrix.arch }}
+          name: openvpn-macos-${{ matrix.arch }}-${{ env.OPENVPN_RELEASE_VERSION }}-${{ env.OPENVPN_CANDIDATE_SHA }}
           path: |
             OpenVPN-${{ env.OPENVPN_RELEASE_VERSION }}-macos-${{ matrix.arch }}.pkg
             OpenVPN-${{ env.OPENVPN_RELEASE_VERSION }}-macos-${{ matrix.arch }}.pkg.sha256
-
-  release:
-    name: 创建 GitHub Release
-    needs: build
-    runs-on: ubuntu-latest
-    env:
-      OPENVPN_MANUAL_VERSION: ${{ inputs.version }}
-    steps:
-      - name: 检出共享版本配置
-        uses: actions/checkout@v4
-
-      - name: 计算版本号
-        shell: bash
-        run: |
-          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
-            version="${GITHUB_REF_NAME#v}"
-          else
-            version="${OPENVPN_MANUAL_VERSION:-}"
-          fi
-          args=(-DOPENVPN_CONFIG_KEY=version)
-          if [ -n "$version" ]; then
-            args+=("-DOPENVPN_EXPECTED_VERSION=$version")
-          fi
-          version=$(cmake "${args[@]}" -P cmake/ProjectConfig.cmake)
-          echo "OPENVPN_RELEASE_VERSION=$version" >> "$GITHUB_ENV"
-
-      - name: 下载两个架构的安装包
-        uses: actions/download-artifact@v4
-        with:
-          pattern: openvpn-macos-*
-          merge-multiple: true
-
-      - name: 生成发布说明
-        shell: bash
-        run: |
-          cat > release-notes.md <<EOF
-          # OpenVPN $OPENVPN_RELEASE_VERSION
-
-          OpenVPN 是一个用于同时管理多条 OpenVPN 连接的桌面客户端。本版本提供两个 macOS 安装包：
-
-          | 文件 | 适用设备 |
-          | --- | --- |
-          | \`OpenVPN-$OPENVPN_RELEASE_VERSION-macos-x86_64.pkg\` | Intel Mac |
-          | \`OpenVPN-$OPENVPN_RELEASE_VERSION-macos-arm64.pkg\` | Apple Silicon Mac |
-
-          ## 主要内容
-
-          - macOS Qt 桌面界面和状态栏菜单；
-          - 多条 OpenVPN 连接的独立状态、流量和生命周期管理；
-          - IP/CIDR 路由优先/排除规则；
-          - 域名后缀的 macOS 分流 DNS 规则；
-          - 配置副本、钥匙串凭据和 GitHub Releases 更新检查。
-
-          ## 安装
-
-          下载与设备架构对应的 \`.pkg\`，双击安装并按提示授权，然后打开 \`/Applications/OpenVPN.app\`。
-
-          每个安装包旁边的 \`.sha256\` 文件用于校验下载完整性。
-
-          ## 限制
-
-          当前构建尚未完成 Developer ID 签名和公证，最低支持 macOS 26。
-          Windows 已实现多连接及标准 EXE 安装，并有本机双连接验收记录；本工作流仅生成 Mac 资产，不表示统一版本已完成跨平台验收。
-          统一发布必须遵循仓库根目录 RELEASING.md，汇总同一候选提交的 Windows 和 Mac 安装包及验收结果。
-          EOF
-
-      - name: 发布 GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ env.OPENVPN_RELEASE_VERSION }}
-          name: OpenVPN ${{ env.OPENVPN_RELEASE_VERSION }}
-          body_path: release-notes.md
-          generate_release_notes: true
-          files: |
-            OpenVPN-${{ env.OPENVPN_RELEASE_VERSION }}-macos-x86_64.pkg
-            OpenVPN-${{ env.OPENVPN_RELEASE_VERSION }}-macos-x86_64.pkg.sha256
-            OpenVPN-${{ env.OPENVPN_RELEASE_VERSION }}-macos-arm64.pkg
-            OpenVPN-${{ env.OPENVPN_RELEASE_VERSION }}-macos-arm64.pkg.sha256

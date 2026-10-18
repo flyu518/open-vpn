@@ -1,0 +1,148 @@
+name: 发布已验收的跨平台 Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "project-config.json 中的三段产品版本"
+        required: true
+        type: string
+      candidate_sha:
+        description: "两端验收的完整 40 位源码提交 SHA"
+        required: true
+        type: string
+      windows_sha256:
+        description: "Windows 验收记录中的 EXE SHA-256"
+        required: true
+        type: string
+      macos_arm64_sha256:
+        description: "Mac ARM64 验收记录中的 PKG SHA-256"
+        required: true
+        type: string
+      macos_x86_64_sha256:
+        description: "若草稿包含 Intel PKG，填写其已验收 SHA-256；否则留空"
+        required: false
+        type: string
+      acceptance_confirmed:
+        description: "确认两端实际安装并验收了草稿中的同一批安装包"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-release-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: 核对并发布 ${{ inputs.version }}
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ inputs.version }}
+      CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+      WINDOWS_SHA256: ${{ inputs.windows_sha256 }}
+      MACOS_ARM64_SHA256: ${{ inputs.macos_arm64_sha256 }}
+      MACOS_X86_64_SHA256: ${{ inputs.macos_x86_64_sha256 }}
+      ACCEPTANCE_CONFIRMED: ${{ inputs.acceptance_confirmed }}
+    steps:
+      - name: 检出发布约定
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: 验证人工验收、版本和候选标签
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$ACCEPTANCE_CONFIRMED" != "true" ]]; then
+            echo "两端安装包验收确认未勾选；拒绝发布。" >&2
+            exit 1
+          fi
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "版本必须是三段数字：$VERSION" >&2
+            exit 1
+          fi
+          if [[ ! "$CANDIDATE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "candidate_sha 必须是完整的 40 位提交 SHA。" >&2
+            exit 1
+          fi
+
+          tag="v$VERSION"
+          git fetch --no-tags origin "refs/tags/$tag:refs/tags/$tag"
+          configured_version="$(git show "$tag:project-config.json" | python -c 'import json,sys; print(json.load(sys.stdin)["version"])')"
+          if [[ "$configured_version" != "$VERSION" ]]; then
+            echo "输入版本 $VERSION 与候选标签中的共享配置 $configured_version 不一致。" >&2
+            exit 1
+          fi
+
+          tag_sha="$(git rev-parse "$tag^{commit}")"
+          if [[ "${tag_sha,,}" != "${CANDIDATE_SHA,,}" ]]; then
+            echo "标签提交 $tag_sha 与候选提交 $CANDIDATE_SHA 不一致。" >&2
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_ENV"
+          echo "tag_sha=$tag_sha" >> "$GITHUB_ENV"
+
+      - name: 确认 Release 草稿已由平台提供方创建并补齐
+        shell: bash
+        run: |
+          set -euo pipefail
+          is_draft="$(gh release view "$tag" --json isDraft --jq '.isDraft')"
+          if [[ "$is_draft" != "true" ]]; then
+            echo "$tag 不存在或不是未发布草稿；拒绝覆盖或重复发布。" >&2
+            exit 1
+          fi
+
+          asset_names="$(gh release view "$tag" --json assets --jq '.assets[].name')"
+          for required_asset in \
+            "OpenVPN-${VERSION}-windows-x64.exe" \
+            "OpenVPN-${VERSION}-macos-arm64.pkg"; do
+            if ! grep -Fxq "$required_asset" <<<"$asset_names"; then
+              echo "草稿缺少必需资产：$required_asset" >&2
+              exit 1
+            fi
+          done
+
+      - name: 校验资产、生成公共校验和与源码记录
+        shell: bash
+        run: |
+          set -euo pipefail
+          asset_dir="$RUNNER_TEMP/release-assets"
+          mkdir -p "$asset_dir"
+          gh release download "$tag" --dir "$asset_dir"
+          args=(
+            --assets-dir "$asset_dir"
+            --version "$VERSION"
+            --candidate-sha "$CANDIDATE_SHA"
+            --tag-sha "$tag_sha"
+            --windows-sha256 "$WINDOWS_SHA256"
+            --macos-arm64-sha256 "$MACOS_ARM64_SHA256"
+          )
+          if [[ -n "$MACOS_X86_64_SHA256" ]]; then
+            args+=(--macos-x86-64-sha256 "$MACOS_X86_64_SHA256")
+          fi
+          python packaging/release/prepare_release_assets.py "${args[@]}"
+
+      - name: 写入公共资产并发布
+        shell: bash
+        run: |
+          set -euo pipefail
+          asset_dir="$RUNNER_TEMP/release-assets"
+          notes_file="docs/releases/${VERSION}-release-notes.md"
+          if [[ ! -f "$notes_file" ]]; then
+            echo "缺少公共发布说明：$notes_file" >&2
+            exit 1
+          fi
+          gh release upload "$tag" \
+            "$asset_dir/SHA256SUMS" \
+            "$asset_dir/SOURCE-COMMIT.txt" \
+            --clobber
+          gh release edit "$tag" \
+            --notes-file "$notes_file" \
+            --draft=false
+          echo "已发布 $tag，源码候选 $tag_sha。" >> "$GITHUB_STEP_SUMMARY"

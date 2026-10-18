@@ -85,15 +85,13 @@ ctest --test-dir /tmp/openvpn-core-build --output-on-failure
 ## GitHub Releases
 
 多平台更新、版本递增、构建、安装包验收与发布顺序统一遵循根目录的[发布操作约定](RELEASING.md)。
-顺序为：冻结源码候选并在当前平台先打包、安装实测 → 推送共享源码供另一端验收 → 两端确认同一候选及已测安装包 → 全部通过且发布关卡就绪后打一个 tag → 将已测资产汇总到一个草稿 Release → 正式发布。任一端修改源码都重新冻结候选并回归；不能先发 Mac 包再补 Windows 包。
+顺序为：冻结同一源码候选 → 两端分别构建、安装并验收 → 创建唯一 tag 和草稿 Release → Mac、Windows 任一方都可先上传已验收资产，另一方随后补齐 → 汇总工作流核对两端验收 SHA-256 后正式发布。平台提交先后不限；可按标准资产名重命名文件，但不得重新构建，草稿在齐备前保持未发布。
 根目录 [project-config.json](project-config.json) 是版本号、连接超时和认证重试策略的共享来源；
 修改后必须重新构建，两端不能分别维护版本号。
 
 仓库地址：<https://github.com/flyu518/open-vpn>
 
-`.github/workflows/release-macos.yml` 会在推送 `v<版本号>` tag 后，分别构建 Intel 和 Apple Silicon 安装包，生成 SHA-256 校验文件并创建 GitHub Release。发布前需要为仓库配置允许 workflow 写入 `contents` 的权限，并完成正式签名和公证配置。
-
-该工作流目前只发布 Mac 资产，尚无 Windows 汇总验收关卡；统一正式发布前必须按 [RELEASING.md](RELEASING.md) 补齐关卡，不能直接推送正式标签。共享配置中的 `1.0.0` 是待验收目标，不表示安装包已发布。
+`.github/workflows/release-macos.yml` 在推送 `v<版本号>` tag 后只构建 Intel 和 Apple Silicon 安装包并上传为 Actions 产物，不创建或发布 GitHub Release。统一发布由 `.github/workflows/publish-release.yml` 手动执行；它要求草稿中 Windows x64 与 macOS ARM64 安装包均存在，并匹配两端记录的验收 SHA-256。共享配置中的 `1.0.0` 不代表 Release 已发布。
 
 旧版本验收记录和更新比较测试保留原版本号；旧安装脚本的升级清理保护也继续保留。具体范围见发布约定的“旧版本内容与清理边界”，不要据此误判仍在使用旧产品版本。
 

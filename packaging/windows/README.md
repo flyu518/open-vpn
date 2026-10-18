@@ -78,8 +78,7 @@ C:/Qt/6.8.3/msvc2022_64/bin/windeployqt.exe --qmldir desktop/qt/qml build/qt-win
 每个正式候选都需在 Windows 主机上安装，并检查 Windows Service、Wintun、签名和真实双配置连接；
 安装服务时使用管理员授权，桌面应用以普通用户身份验收。已有 0.0.14 实测记录不替代新包的回归，
 离线 UI 测试也不代表真实连接成功。
-正式发布时按共同验收关卡，把安装程序上传到包含全部目标平台安装包的同一个 GitHub Release。
-先打包、实际安装并验收，再创建统一版本标签；上传的必须是已验收且哈希一致的 EXE。当前 Mac 工作流不会等待 Windows，跨平台发布关卡补齐前不要推正式标签。
+正式发布时按共同验收关卡，把安装程序上传到同一个 GitHub Release 草稿。Mac 或 Windows 任一方都可以先创建草稿并上传自己已验收的包，另一方之后补齐；不要发布只有单个平台资产的 Release。将已验收 EXE 复制/重命名为 `OpenVPN-<版本>-windows-x64.exe` 即可，必须保证字节和 SHA-256 不变。最终运行 `publish-release.yml`，输入标签候选 SHA 及两端验收记录中的包哈希；工作流会拒绝与验收哈希不一致的 EXE。Mac workflow 只上传 Actions 构建产物，不会单独发布。
 资产名称为 `OpenVPN-<版本>-windows-x64.exe`；当前脚本生成 EXE，不把 MSI 示例当作已有产物。
 关于入口位于状态栏/托盘菜单，那里只检查 GitHub Releases；用户确认后才启动安装程序，不会静默替换当前应用。
 
