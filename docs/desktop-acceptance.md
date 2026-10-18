@@ -6,7 +6,7 @@
 
 产品版本和连接参数统一读取 [project-config.json](../project-config.json)，当前 `1.0.0` 为待验收目标，尚未正式发布。所有平台按 [发布操作约定](../RELEASING.md) 从同一候选提交构建和实测。
 
-Windows `0.0.14` 已完成本机标准 EXE 升级、两条真实配置同时连接和独立断开/重连，详见 [Windows 验收记录](windows-acceptance.md)。统一配置改动后的 Windows core CTest 为 17/17、Qt CTest 为 12/12；这只是新源码的编译与自动化验证，不代表 1.0.0 安装包通过。
+Windows `1.0.0` 内部候选已实际升级安装，并完成两条真实配置同时连接和独立断开/重连；core CTest 17/17、Qt CTest 14/14。准确源码、最终 EXE 哈希、UI 实测范围及剩余关卡见 [1.0.0 Windows 候选记录](releases/1.0.0-windows.md)。这不代表 Mac 同候选或全部发行关卡已通过。0.0.14 等历史结果保留在 [Windows 验收说明](windows-acceptance.md)。
 
 下文保留之前的 macOS 记录，不代表本轮在 Windows 上重新执行了 Mac 测试，也不能直接用于新候选放行。
 

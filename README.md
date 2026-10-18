@@ -30,7 +30,7 @@ Apple Silicon 使用 `arm64` 安装包时不需要 Rosetta。当前构建最低�
 
 Windows 版本使用 Qt 桌面界面、OpenVPN3 Windows Service 和 Wintun/TAP 适配层，支持多条配置同时连接，不是单连接预览版。Windows daemon 与 macOS 使用相同的会话逻辑，Windows agent 为每条会话隔离 TUN、句柄、路由和 DNS。
 
-Windows `0.0.14` 已完成本机标准 EXE 覆盖安装和两条真实配置的同时连接、独立断开及重连验证，详见 [Windows 验收记录](docs/windows-acceptance.md)。这不等于新的统一版本已经发布；每个候选包仍须按共同清单验收，并如实记录未测项目。
+Windows `1.0.0` 内部候选已完成本机标准 EXE 覆盖安装和两条真实配置的同时连接、独立断开及重连验证，安装包哈希、源码提交和未测项见 [1.0.0 Windows 候选记录](docs/releases/1.0.0-windows.md)。尚未正式发布；重启后验证、Mac 同候选验收和跨平台发布关卡仍须完成。历史结果保留在 [Windows 验收说明](docs/windows-acceptance.md)。
 
 ### Android/iOS
 
@@ -85,7 +85,7 @@ ctest --test-dir /tmp/openvpn-core-build --output-on-failure
 ## GitHub Releases
 
 多平台更新、版本递增、构建、安装包验收与发布顺序统一遵循根目录的[发布操作约定](RELEASING.md)。
-顺序为：推送源码 → 两端从同一候选打包并安装实测 → 全部通过后打一个 tag → 将已测资产汇总到一个草稿 Release → 正式发布。不能先发 Mac 包再补 Windows 包。
+顺序为：冻结源码候选并在当前平台先打包、安装实测 → 推送共享源码供另一端验收 → 两端确认同一候选及已测安装包 → 全部通过且发布关卡就绪后打一个 tag → 将已测资产汇总到一个草稿 Release → 正式发布。任一端修改源码都重新冻结候选并回归；不能先发 Mac 包再补 Windows 包。
 根目录 [project-config.json](project-config.json) 是版本号、连接超时和认证重试策略的共享来源；
 修改后必须重新构建，两端不能分别维护版本号。
 
