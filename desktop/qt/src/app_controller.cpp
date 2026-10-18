@@ -728,11 +728,13 @@ QString AppController::updateInstallerName() const {
 void AppController::loadStartupState() {
     QString error;
     const bool enabled = readStartupState(&error);
-    if (!error.isEmpty()) {
-        setStartupError(error);
-        return;
+#ifdef Q_OS_WIN
+    if (error.isEmpty() && enabled) {
+        // Ensure the shortcut exists and remove any stale legacy Run value.
+        writeStartupState(true, &error);
     }
-    setStartupError({});
+#endif
+    setStartupError(error);
     if (startupEnabled_ != enabled) {
         startupEnabled_ = enabled;
         emit startupEnabledChanged();
@@ -1050,6 +1052,17 @@ void AppController::setStartupError(const QString& value) {
 bool AppController::readStartupState(QString* error) const {
     if (error) error->clear();
 #ifdef Q_OS_WIN
+    const QString executable = QCoreApplication::applicationFilePath();
+    const QString shortcutPath = windowsStartupShortcutPath();
+    if (shortcutPath.isEmpty()) {
+        if (error) *error = QStringLiteral("无法定位当前用户的 Windows 启动目录");
+        return false;
+    }
+    const QFileInfo shortcutInfo(shortcutPath);
+    if (shortcutInfo.exists() || shortcutInfo.isSymLink()) {
+        return startupShortcutEnabled(shortcutPath, executable, error);
+    }
+
     QSettings settings(
         QStringLiteral("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"),
         QSettings::NativeFormat);
@@ -1058,7 +1071,7 @@ bool AppController::readStartupState(QString* error) const {
         if (error) *error = QStringLiteral("读取 Windows 开机自启失败");
         return false;
     }
-    return command == QStringLiteral("\"") + QDir::toNativeSeparators(QCoreApplication::applicationFilePath()) + QStringLiteral("\"");
+    return command == QStringLiteral("\"") + QDir::toNativeSeparators(executable) + QStringLiteral("\"");
 #elif defined(Q_OS_MACOS)
     const QString home = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
     const QString path = QDir(home).filePath(
@@ -1073,21 +1086,50 @@ bool AppController::readStartupState(QString* error) const {
 bool AppController::writeStartupState(bool enabled, QString* error) const {
     if (error) error->clear();
 #ifdef Q_OS_WIN
+    const QString executable = QCoreApplication::applicationFilePath();
+    const QString shortcutPath = windowsStartupShortcutPath();
+    if (shortcutPath.isEmpty()) {
+        if (error) *error = QStringLiteral("无法定位当前用户的 Windows 启动目录");
+        return false;
+    }
+
     QSettings settings(
         QStringLiteral("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"),
         QSettings::NativeFormat);
     if (enabled) {
-        const QString executable = QDir::toNativeSeparators(
-            QCoreApplication::applicationFilePath());
-        settings.setValue(QStringLiteral("OpenVPN"),
-                          QStringLiteral("\"") + executable + QStringLiteral("\""));
+        QString shortcutError;
+        const bool shortcutAlreadyEnabled =
+            startupShortcutEnabled(shortcutPath, executable, &shortcutError);
+        if (!shortcutError.isEmpty() ||
+            !writeStartupShortcut(shortcutPath, executable, true, &shortcutError)) {
+            if (error) *error = shortcutError;
+            return false;
+        }
+        settings.remove(QStringLiteral("OpenVPN"));
+        settings.sync();
+        if (settings.status() != QSettings::NoError) {
+            if (!shortcutAlreadyEnabled) {
+                QString ignored;
+                writeStartupShortcut(shortcutPath, executable, false, &ignored);
+            }
+            if (error) *error = QStringLiteral("写入 Windows 开机自启失败");
+            return false;
+        }
     } else {
         settings.remove(QStringLiteral("OpenVPN"));
-    }
-    settings.sync();
-    if (settings.status() != QSettings::NoError) {
-        if (error) *error = QStringLiteral("写入 Windows 开机自启失败");
-        return false;
+        settings.sync();
+        const bool registryWriteFailed = settings.status() != QSettings::NoError;
+        QString shortcutError;
+        const bool shortcutRemovalSucceeded =
+            writeStartupShortcut(shortcutPath, executable, false, &shortcutError);
+        if (registryWriteFailed) {
+            if (error) *error = QStringLiteral("写入 Windows 开机自启失败");
+            return false;
+        }
+        if (!shortcutRemovalSucceeded) {
+            if (error) *error = shortcutError;
+            return false;
+        }
     }
     return true;
 #elif defined(Q_OS_MACOS)
@@ -1101,6 +1143,81 @@ bool AppController::writeStartupState(bool enabled, QString* error) const {
     if (error) *error = QStringLiteral("当前平台不支持开机自启");
     return false;
 #endif
+}
+
+QString AppController::windowsStartupShortcutPath() {
+#ifdef Q_OS_WIN
+    const QString applicationsDirectory = QStandardPaths::writableLocation(
+        QStandardPaths::ApplicationsLocation);
+    if (applicationsDirectory.isEmpty()) return {};
+    return QDir(applicationsDirectory).filePath(QStringLiteral("Startup/OpenVPN.lnk"));
+#else
+    return {};
+#endif
+}
+
+bool AppController::startupShortcutEnabled(const QString& path, const QString& executable,
+                                           QString* error) {
+    if (error) error->clear();
+    const QFileInfo shortcutInfo(path);
+    if (!shortcutInfo.exists() && !shortcutInfo.isSymLink()) return false;
+
+    const QString target = QFile::symLinkTarget(path);
+    if (target.isEmpty()) {
+        if (error) *error = QStringLiteral("Windows 开机自启快捷方式无效");
+        return false;
+    }
+    const QString normalizedTarget = QDir::cleanPath(QDir::fromNativeSeparators(target));
+    const QString normalizedExecutable = QDir::cleanPath(
+        QDir::fromNativeSeparators(QFileInfo(executable).absoluteFilePath()));
+    if (QString::compare(normalizedTarget, normalizedExecutable, Qt::CaseInsensitive) != 0) {
+        if (error) *error = QStringLiteral("Windows 开机自启快捷方式指向其他程序");
+        return false;
+    }
+    return true;
+}
+
+bool AppController::writeStartupShortcut(const QString& path, const QString& executable,
+                                         bool enabled, QString* error) {
+    if (error) error->clear();
+    const QFileInfo shortcutInfo(path);
+    if (!enabled) {
+        if (!shortcutInfo.exists() && !shortcutInfo.isSymLink()) return true;
+        if (QFile::remove(path)) return true;
+        if (error) *error = QStringLiteral("无法移除 Windows 开机自启快捷方式");
+        return false;
+    }
+
+    if (!QFileInfo::exists(executable)) {
+        if (error) *error = QStringLiteral("OpenVPN 程序文件不存在，无法设置开机自启");
+        return false;
+    }
+    QString verificationError;
+    if (startupShortcutEnabled(path, executable, &verificationError)) return true;
+    if (!verificationError.isEmpty()) {
+        if (error) *error = verificationError;
+        return false;
+    }
+    if (shortcutInfo.exists() || shortcutInfo.isSymLink()) {
+        if (error) *error = QStringLiteral("启动目录中已存在同名且无法验证的快捷方式");
+        return false;
+    }
+    if (!QDir().mkpath(shortcutInfo.absolutePath())) {
+        if (error) *error = QStringLiteral("无法创建 Windows 启动目录");
+        return false;
+    }
+    if (!QFile::link(executable, path)) {
+        if (error) *error = QStringLiteral("无法创建 Windows 开机自启快捷方式");
+        return false;
+    }
+    if (!startupShortcutEnabled(path, executable, &verificationError)) {
+        QFile::remove(path);
+        if (error) *error = verificationError.isEmpty()
+                                ? QStringLiteral("Windows 开机自启快捷方式验证失败")
+                                : verificationError;
+        return false;
+    }
+    return true;
 }
 
 bool AppController::startupFileEnabled(const QString& path, const QString& executable, QString* error) {

@@ -20,10 +20,11 @@ Windows UI daemon 使用 `\\.\pipe\openvpn-ui`；官方高权限 agent 使用自
 Windows 应用启动后会在通知区域显示 OpenVPN 图标。关闭窗口只隐藏主窗口，托盘菜单可以打开主界面、
 查看每条连接的状态/流量、连接或断开配置、打开设置、关于和退出；版本检查统一放在“关于 OpenVPN”中。
 
-“开机自启”使用当前用户的：
+“开机自启”使用当前用户“开始”菜单的 `Programs\Startup\OpenVPN.lnk` 快捷方式；
+应用会校验快捷方式目标，并在启用时迁移、删除旧版注册表启动项：
 
 ```text
-HKCU\Software\Microsoft\Windows\CurrentVersion\Run\OpenVPN
+%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\OpenVPN.lnk
 ```
 
 使用 `-BuildInstaller` 会通过 Inno Setup 6 生成标准中文安装向导和单文件 `.exe` 安装器，

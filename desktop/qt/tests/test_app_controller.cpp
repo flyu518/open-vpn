@@ -4,6 +4,7 @@
 #include <QJsonObject>
 #include <QSignalSpy>
 #include <QFile>
+#include <QFileInfo>
 #include <QFileDialog>
 #include <QDir>
 #include <QTemporaryDir>
@@ -120,6 +121,8 @@ private slots:
     void localConnectionCompletedBySnapshotCountsOnce();
 #ifdef Q_OS_WIN
     void importDialogStartsInDownloadsDirectory();
+    void windowsStartupShortcutIsCreatedVerifiedAndRemoved();
+    void windowsStartupShortcutDoesNotReplaceAnotherTarget();
 #endif
 };
 
@@ -574,6 +577,54 @@ void AppControllerTest::startupFileIsAtomicAndEscaped() {
     QVERIFY(AppController::writeStartupFile(path, executable, false, &error));
     QVERIFY(!AppController::writeStartupFile(directory.path(), executable, true, &error));
 }
+
+#ifdef Q_OS_WIN
+void AppControllerTest::windowsStartupShortcutIsCreatedVerifiedAndRemoved() {
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString executable = directory.filePath(QStringLiteral("OpenVPN.exe"));
+    QFile executableFile(executable);
+    QVERIFY(executableFile.open(QIODevice::WriteOnly));
+    QCOMPARE(executableFile.write("test"), qint64(4));
+    executableFile.close();
+
+    const QString shortcut = directory.filePath(QStringLiteral("Startup/OpenVPN.lnk"));
+    QString error;
+    QVERIFY2(AppController::writeStartupShortcut(shortcut, executable, true, &error),
+             qPrintable(error));
+    QCOMPARE(QDir::cleanPath(QFile::symLinkTarget(shortcut)),
+             QDir::cleanPath(QFileInfo(executable).absoluteFilePath()));
+    QVERIFY(AppController::startupShortcutEnabled(shortcut, executable, &error));
+    QVERIFY(!AppController::startupShortcutEnabled(
+        shortcut, directory.filePath(QStringLiteral("other.exe")), &error));
+    QVERIFY(!error.isEmpty());
+
+    error.clear();
+    QVERIFY2(AppController::writeStartupShortcut(shortcut, executable, false, &error),
+             qPrintable(error));
+    QVERIFY(!QFileInfo::exists(shortcut));
+}
+
+void AppControllerTest::windowsStartupShortcutDoesNotReplaceAnotherTarget() {
+    QTemporaryDir directory;
+    QVERIFY(directory.isValid());
+    const QString firstExecutable = directory.filePath(QStringLiteral("first.exe"));
+    const QString secondExecutable = directory.filePath(QStringLiteral("second.exe"));
+    for (const auto& path : {firstExecutable, secondExecutable}) {
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        QCOMPARE(file.write("test"), qint64(4));
+    }
+
+    const QString shortcut = directory.filePath(QStringLiteral("Startup/OpenVPN.lnk"));
+    QString error;
+    QVERIFY(AppController::writeStartupShortcut(shortcut, firstExecutable, true, &error));
+    QVERIFY(!AppController::writeStartupShortcut(shortcut, secondExecutable, true, &error));
+    QVERIFY(!error.isEmpty());
+    QCOMPARE(QDir::cleanPath(QFile::symLinkTarget(shortcut)),
+             QDir::cleanPath(QFileInfo(firstExecutable).absoluteFilePath()));
+}
+#endif
 
 void AppControllerTest::quitWithActiveConnectionsRequiresConfirmation() {
     QTemporaryDir directory;

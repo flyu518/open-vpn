@@ -154,6 +154,11 @@ private:
                               QNetworkReply::NetworkError networkError);
     bool saveUpdatePayload(const QByteArray& payload, const QString& path, QString* error) const;
     static QByteArray startupPlist(const QString& executable);
+    static QString windowsStartupShortcutPath();
+    static bool writeStartupShortcut(const QString& path, const QString& executable,
+                                     bool enabled, QString* error);
+    static bool startupShortcutEnabled(const QString& path, const QString& executable,
+                                      QString* error);
     static bool writeStartupFile(const QString& path, const QString& executable,
                                  bool enabled, QString* error);
     static bool startupFileEnabled(const QString& path, const QString& executable, QString* error);

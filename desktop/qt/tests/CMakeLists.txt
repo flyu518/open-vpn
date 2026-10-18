@@ -7,6 +7,9 @@ if(WIN32 AND CMAKE_GENERATOR MATCHES "^Visual Studio")
         -P "${CMAKE_CURRENT_SOURCE_DIR}/test_msvc_qml_build_order.cmake")
 endif()
 if(WIN32)
+    add_test(NAME openvpn_windows_startup_registration_source_tests
+        COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass
+            -File "${CMAKE_CURRENT_SOURCE_DIR}/../../../packaging/windows/tests/test_startup_registration_source.ps1")
     add_test(NAME openvpn_installer_vc_runtime_tests
         COMMAND powershell.exe -NoProfile -ExecutionPolicy Bypass
             -File "${CMAKE_CURRENT_SOURCE_DIR}/../../../packaging/windows/tests/test_installer_vc_runtime.ps1")
