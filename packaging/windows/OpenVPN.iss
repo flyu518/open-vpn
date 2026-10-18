@@ -1,6 +1,9 @@
 #ifndef AppVersion
   #error AppVersion is required; build through build-qt-package.ps1 using project-config.json
 #endif
+#ifndef VcRedistPath
+  #error VcRedistPath is required; include the validated Microsoft VC++ x64 redistributable
+#endif
 #ifndef StageDir
   #define StageDir "."
 #endif
@@ -76,6 +79,7 @@ Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: 
 
 [Files]
 Source: "{#StageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#VcRedistPath}"; DestDir: "{tmp}"; DestName: "OpenVPN-vc_redist.x64.exe"; Flags: deleteafterinstall
 
 [InstallDelete]
 Type: files; Name: "{app}\install-iexpress.cmd"
@@ -113,6 +117,9 @@ type
     dwCheckPoint: LongWord;
     dwWaitHint: LongWord;
   end;
+
+var
+  RuntimeRestartRequired: Boolean;
 
 function OpenSCManagerW(lpMachineName, lpDatabaseName: String;
   dwDesiredAccess: LongWord): LongWord;
@@ -234,8 +241,57 @@ begin
     RaiseException('启动 OpenVPN Windows 服务失败，请重新启动电脑后重试。');
 end;
 
+function VisualCppRuntimeReady: Boolean;
+var
+  Installed, Major, Minor, Build, Revision: Cardinal;
+  RequiredMS, RequiredLS, InstalledMS, InstalledLS: Cardinal;
+  Key: String;
+begin
+  Result := False;
+  Key := 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64';
+  if not GetVersionNumbers(ExpandConstant('{tmp}\OpenVPN-vc_redist.x64.exe'), RequiredMS, RequiredLS) then
+    Exit;
+  if not RegQueryDWordValue(HKLM64, Key, 'Installed', Installed) or (Installed <> 1) or
+    not RegQueryDWordValue(HKLM64, Key, 'Major', Major) or
+    not RegQueryDWordValue(HKLM64, Key, 'Minor', Minor) or
+    not RegQueryDWordValue(HKLM64, Key, 'Bld', Build) or
+    not RegQueryDWordValue(HKLM64, Key, 'Rbld', Revision) then
+    Exit;
+  InstalledMS := (Major shl 16) or Minor;
+  InstalledLS := (Build shl 16) or Revision;
+  Result := (InstalledMS > RequiredMS) or
+    ((InstalledMS = RequiredMS) and (InstalledLS >= RequiredLS));
+end;
+
+procedure EnsureVisualCppRuntime;
+var
+  ResultCode: Integer;
+begin
+  if VisualCppRuntimeReady then begin
+    Log('VC++ x64 runtime already meets the bundled version; skipping prerequisite installation');
+    Exit;
+  end;
+  Log('Installing validated offline Microsoft Visual C++ x64 runtime');
+  if not Exec(ExpandConstant('{tmp}\OpenVPN-vc_redist.x64.exe'),
+    '/install /quiet /norestart', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    RaiseException('无法启动 VC++ 运行库安装程序，请重新安装。');
+  Log('VC++ runtime exit code: ' + IntToStr(ResultCode));
+  { 1638 means a newer runtime is already installed. Never downgrade it. }
+  if (ResultCode <> 0) and (ResultCode <> 3010) and (ResultCode <> 1638) then
+    RaiseException('VC++ 运行库安装失败（错误码 ' + IntToStr(ResultCode) + '），请检查安装日志。');
+  if ResultCode = 3010 then
+    RuntimeRestartRequired := True;
+end;
+
+function NeedRestart(): Boolean;
+begin
+  Result := RuntimeRestartRequired;
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
-  if CurStep = ssPostInstall then
+  if CurStep = ssPostInstall then begin
+    EnsureVisualCppRuntime;
     InstallOrUpdateService;
+  end;
 end;

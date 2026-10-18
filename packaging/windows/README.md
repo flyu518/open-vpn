@@ -34,6 +34,7 @@ HKCU\Software\Microsoft\Windows\CurrentVersion\Run\OpenVPN
 
 ```powershell
 .\packaging\windows\build-qt-package.ps1 -BuildInstaller `
+  -VcRedist C:\deps\VC_redist.x64.exe `
   -WindowsDaemon build\core-windows\Release\openvpn_windows_daemon.exe `
   -WindowsDaemonLauncher build\core-windows\Release\openvpn_windows_daemon_launcher.exe `
   -WindowsService build\core-windows\Release\openvpn_windows_service.exe `
@@ -46,6 +47,11 @@ daemon 和 `OpenVPN.exe` 桌面进程，再覆盖安装文件；
 daemon 由隐藏启动器以 `CREATE_NO_WINDOW` 启动，不会先弹出命令行窗口。Windows Service
 单独停止和启动，避免新版 EXE 因单实例锁弹出“已有 OpenVPN 实例正在运行”。手动同时
 启动两个桌面 EXE 时仍保留单实例保护。
+
+正式 EXE 必须通过 `-VcRedist` 指定微软签名有效的 x64 VC++ Redistributable（当前工具链要求 14.43 或更新），
+可从 [微软官方下载说明](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) 获取。
+安装器离线携带该依赖，检查已安装版本；版本足够新时跳过，否则在启动 VPN 服务前安装，禁止强制重启。
+不从开发机的 System32 随意复制 DLL，也不依赖目标机器碰巧装过其他软件的运行库。升级工具链时须同步核对运行库最低要求。
 
 界面的自启开关不要求管理员权限；安装服务的安装包需要管理员授权。Qt 桌面界面在 Windows 主机使用 MSVC kit 构建：
 

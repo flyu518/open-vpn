@@ -84,7 +84,7 @@ Start-Process build/core-windows/Release/openvpn_windows_daemon_launcher.exe
 Start-Process build/qt-windows/Release/openvpn_qt.exe
 ```
 
-正式安装使用 `packaging/windows/build-qt-package.ps1 -BuildInstaller` 生成标准 EXE，包含 Qt 应用、daemon、Windows Service 和 Wintun DLL；安装服务需要管理员授权，桌面应用使用普通用户运行。未传 `-BuildInstaller` 的 ZIP 仅供开发，不是安装程序。
+正式安装使用 `packaging/windows/build-qt-package.ps1 -BuildInstaller` 并通过 `-VcRedist` 提供微软签名的 x64 VC++ 运行库，生成包含 Qt 应用、daemon、Windows Service、Wintun 和离线运行库前置依赖的标准 EXE；安装服务需要管理员授权，桌面应用使用普通用户运行。未传 `-BuildInstaller` 的 ZIP 仅供开发，不是安装程序。
 
 ## 自动化验证
 

@@ -129,6 +129,7 @@ ctest --test-dir $releaseCoreDir -C Release --output-on-failure
   -BuildDir $releaseQtDir `
   -QtDir 'C:/Qt/6.8.3/msvc2022_64' `
   -BuildInstaller `
+  -VcRedist 'C:/deps/VC_redist.x64.exe' `
   -Output "dist/OpenVPN-$releaseVersion-windows-x64.exe" `
   -WindowsDaemon "$releaseCoreDir/Release/openvpn_windows_daemon.exe" `
   -WindowsDaemonLauncher "$releaseCoreDir/Release/openvpn_windows_daemon_launcher.exe" `

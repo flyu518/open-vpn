@@ -6,6 +6,7 @@
     [string]$WindowsService = "",
     [string]$WintunDll = "",
     [string]$RuntimeDllDir = "",
+    [string]$VcRedist = "",
     [string]$Version = "",
     [string]$Output = "",
     [int]$Parallel = 1,
@@ -25,6 +26,10 @@ if ($LASTEXITCODE -ne 0) {
     throw 'Requested version differs from project-config.json or the shared configuration is invalid'
 }
 $Version = ($sharedVersion | Out-String).Trim()
+. (Join-Path $PSScriptRoot 'verify-vc-redist.ps1')
+if ($BuildInstaller) {
+    $VcRedist = Assert-VisualCppRedistributable $VcRedist
+}
 $qtCmake = Join-Path $QtDir "bin\qt-cmake.bat"
 $qtDeploy = Join-Path $QtDir "bin\windeployqt.exe"
 if ([string]::IsNullOrWhiteSpace($Output)) { $Output = "dist\OpenVPN-$Version-windows.zip" }
@@ -254,6 +259,7 @@ try {
         $installerScript = Join-Path $PSScriptRoot 'OpenVPN.iss'
         $compilerArguments = @(
             "/DAppVersion=$Version",
+            "/DVcRedistPath=$($VcRedist.Replace('\', '/'))",
             "/DStageDir=$($stage.Replace('\', '/'))",
             "/DOutputDirectory=$((Resolve-Path -LiteralPath $installerDirectory).Path.Replace('\', '/'))",
             "/DOutputBaseFilename=$([IO.Path]::GetFileNameWithoutExtension($installerPath))",
